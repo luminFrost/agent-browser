@@ -43,13 +43,14 @@ test('R9: 사람이 A의 창을 닫아도 같다', async () => {
   const [browserA, browserB] = await Promise.all([chromium.connectOverCDP(a.browserUrl), chromium.connectOverCDP(b.browserUrl)]);
   try {
     // A 창의 머리줄 UI에서 창을 닫는다(사람이 닫기 버튼을 누른 것과 같은 창 닫힘)
-    const uis = (await targets(app)).filter((t) => t.url.includes('/renderer/agent/index.html'));
-    let closed = false;
-    for (const ui of uis) {
-      const sid = await evaluate<string>(app, ui.targetId, `document.getElementById('session').textContent`);
-      if (sid === a.id) { await evaluate(app, ui.targetId, `window.close(); 1`).catch(() => undefined); closed = true; }
-    }
-    expect(closed).toBe(true);
+    // 머리줄 UI가 세션 id를 그릴 때까지 기다린다(그리기 전에 읽으면 A의 창을 못 찾는다)
+    const uiOfA = await waitFor(async () => {
+      for (const ui of (await targets(app)).filter((t) => t.url.includes('/renderer/agent/index.html'))) {
+        if (await evaluate<string>(app, ui.targetId, `document.getElementById('session').textContent`) === a.id) return ui;
+      }
+      return undefined;
+    }, 'A 창의 머리줄 UI');
+    await evaluate(app, uiOfA.targetId, `window.close(); 1`).catch(() => undefined);
     await expectEnded(a, browserA, wsA);
     await expectAlive(b, browserB);
   } finally { await browserB.close().catch(() => undefined); }
