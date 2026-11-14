@@ -61,3 +61,11 @@ test('없는 세션을 멈추라고 하면 아무 일도 없다', async () => {
   await app.stopSession('no-such-session');
   expect(await responds(b)).toBe(true);
 });
+
+const BROWSER_EXIT_TIMEOUT_MS = 10_000;
+
+test('P4(spec-mac-app): 사람이 사람 창을 닫으면 브라우저가 끝난다(런처는 exited를 받아 함께 끝난다, cli.ts)', async () => {
+  const human = await waitFor(async () => (await targets(app)).find((t) => t.url.includes('/renderer/human/index.html')), '사람 창 UI');
+  await evaluate(app, human.targetId, `window.close(); 1`).catch(() => undefined);
+  await Promise.race([app.exited, new Promise((_, fail) => setTimeout(() => fail(new Error('브라우저가 끝나지 않음')), BROWSER_EXIT_TIMEOUT_MS))]);
+});

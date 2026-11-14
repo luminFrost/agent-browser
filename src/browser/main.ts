@@ -19,11 +19,6 @@ if (!userDataArg || typeof process.send !== 'function') {
   process.exit(1);
 }
 app.setPath('userData', userDataArg.slice(USER_DATA_FLAG.length));
-// 한 프로필에는 브라우저 하나만 돈다. 둘째가 뜨면 끝내고, 이미 도는 쪽이 사람 창을 앞으로 가져온다(spec-mac-app.md P5).
-if (!app.requestSingleInstanceLock()) {
-  console.error('agent-browser: 이 프로필은 이미 다른 브라우저가 쓰고 있다');
-  process.exit(1);
-}
 const showWindows = !process.argv.includes(HIDDEN_FLAG);
 
 const send = (m: BrowserReply, rid?: number) => process.send?.({ ...m, rid });
@@ -65,6 +60,9 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
       return undefined;
     case 'listWindows':
       return { type: 'windows', windows: listWindows() };
+    case 'focus':
+      bringHumanToFront();
+      return { type: 'done' };
     case 'createSession': {
       if (agents.has(m.sessionId)) return { type: 'error', message: `이미 있는 세션: ${m.sessionId}` };
       const agent = createAgentWindow(m.sessionId, showWindows, {
@@ -128,14 +126,13 @@ process.on('disconnect', () => app.quit());
 // 사람 창을 닫으면 앱을 끝낸다. 지켜보기·관문이 사람 창에 있으므로 사람 창 없이 에이전트만 돌게 두지 않는다.
 app.on('window-all-closed', () => app.quit());
 
-/** 앱을 다시 열면(Dock·Finder·두 번째 실행) 사람 창을 앞으로 가져온다 */
+/** 앱을 다시 열면(Dock·Finder → activate, 두 번째 실행 → 런처의 focus) 사람 창을 앞으로 가져온다 */
 const bringHumanToFront = () => {
   if (!human || human.win.isDestroyed() || !showWindows) return;
   if (human.win.isMinimized()) human.win.restore();
   human.win.show();
   app.focus({ steal: true });
 };
-app.on('second-instance', bringHumanToFront);
 app.on('activate', bringHumanToFront);
 
 app.whenReady().then(() => {

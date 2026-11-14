@@ -7,7 +7,9 @@ export type LauncherCommand =
   | { type: 'navigateTab'; sessionId: string; targetId: string; url: string }
   | { type: 'closeTab'; sessionId: string; targetId: string }
   | { type: 'activateTab'; sessionId: string; targetId: string }
-  | { type: 'closeSession'; sessionId: string };
+  | { type: 'closeSession'; sessionId: string }
+  /** 사람 창을 앞으로 가져온다(묶은 앱을 다시 열 때, ADR-0008) */
+  | { type: 'focus' };
 
 export type LauncherToBrowser = LauncherCommand & { rid?: number };
 

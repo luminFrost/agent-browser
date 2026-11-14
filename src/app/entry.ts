@@ -1,20 +1,20 @@
 // 묶은 앱(.app)의 시작점(spec-mac-app.md). 같은 실행 파일이 세 역할을 한다.
-// 1) 사람이 더블클릭: 런처를 Node 모드로 띄우고 끝난다.
+// 1) 사람이 더블클릭: 런처를 Node 모드로 띄우고 끝난다. 이미 런처가 있으면 사람 창을 앞으로 가져오게 하고 끝난다.
 // 2) 런처(Node 모드, ELECTRON_RUN_AS_NODE): 이 파일을 거치지 않고 dist/launcher/cli.js를 바로 돈다.
 // 3) 런처가 띄운 브라우저: 인자에 --ab-user-data가 있다 → 브라우저 main을 돈다.
-// 런처가 파이프로 브라우저 CDP를 쥐는 구조(ADR-0002)는 그대로다.
+// 런처가 파이프로 브라우저 CDP를 쥐는 구조(ADR-0002)는 그대로다. 한 프로필 한 런처는 ADR-0008.
 import { spawn } from 'node:child_process';
 import { closeSync, mkdirSync, openSync } from 'node:fs';
 import { join } from 'node:path';
 import { app } from 'electron';
-import { LAUNCHER_LOG_NAME, START_MARKER_ENV, START_MARKER_NAME, USER_DATA_FLAG } from '../shared/constants';
+import { LAUNCHER_LOCK_ENV, LAUNCHER_LOCK_NAME, LAUNCHER_LOG_NAME, USER_DATA_FLAG } from '../shared/constants';
 import { parseCliArgs } from '../launcher/cliArgs';
-import { claimStart, processAlive, recordLauncher } from './startMarker';
+import { claimLock, isOurLauncher, lockHolder } from './launcherLock';
 
 /** 런처를 띄운다. 출력은 프로필의 로그 파일에 남겨, 시작이 실패해도 원인을 볼 수 있게 한다 */
-function startLauncher(profile: string, marker: string): void {
+function startLauncher(profile: string, lock: string): void {
   const log = openSync(join(profile, LAUNCHER_LOG_NAME), 'a', 0o600);
-  const env: NodeJS.ProcessEnv = { ...process.env, ELECTRON_RUN_AS_NODE: '1', [START_MARKER_ENV]: marker };
+  const env: NodeJS.ProcessEnv = { ...process.env, ELECTRON_RUN_AS_NODE: '1', [LAUNCHER_LOCK_ENV]: lock };
   // 원본 CDP를 쥐는 런처에 인스펙터 등 Node 옵션이 흘러들지 않게 한다
   delete env.NODE_OPTIONS;
   const launcher = spawn(process.execPath, [join(__dirname, '..', 'launcher', 'cli.js')], {
@@ -23,20 +23,21 @@ function startLauncher(profile: string, marker: string): void {
     stdio: ['ignore', log, log],
   });
   closeSync(log);
-  if (launcher.pid !== undefined) recordLauncher(marker, launcher.pid);
+  // pid는 런처가 SIGUSR2 처리기를 단 뒤 스스로 적는다. 그 전에 신호를 받으면 기본 동작으로 꺼지기 때문이다
   launcher.unref();
 }
 
 function start(): void {
   const { profile } = parseCliArgs([], process.env);
   mkdirSync(profile, { recursive: true, mode: 0o700 });
-  app.setPath('userData', profile);
-  // 이미 이 프로필로 브라우저가 돌고 있으면 그쪽이 second-instance를 받아 사람 창을 앞으로 가져온다(P5).
-  if (!app.requestSingleInstanceLock()) return;
-  // 자물쇠는 브라우저가 이어받으므로 놓는다. 브라우저가 잡기 전의 틈은 시작 표시가 막는다.
-  app.releaseSingleInstanceLock();
-  const marker = join(profile, START_MARKER_NAME);
-  if (claimStart(marker, processAlive)) startLauncher(profile, marker);
+  const lock = join(profile, LAUNCHER_LOCK_NAME);
+  if (claimLock(lock, isOurLauncher)) {
+    startLauncher(profile, lock);
+    return;
+  }
+  // 이미 런처가 있다(P5): 사람 창을 앞으로 가져오게 한다. pid가 아직 없으면 런처가 막 뜨는 중이다 → 창은 곧 뜬다
+  const pid = lockHolder(lock);
+  if (pid !== undefined) process.kill(pid, 'SIGUSR2');
 }
 
 if (process.argv.some((a) => a.startsWith(USER_DATA_FLAG))) {

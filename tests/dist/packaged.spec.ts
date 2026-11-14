@@ -1,6 +1,6 @@
 import { test, expect, chromium } from '@playwright/test';
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -66,7 +66,7 @@ async function openApp(profile: string, extraEnv: Record<string, string> = {}): 
 /** 런처: 같은 앱 실행 파일로 cli.js를 도는 프로세스. 명령줄에 프로필이 없어 환경 변수(ps -E)로 찾는다 */
 const launchersOf = (profile: string): number[] =>
   execFileSync('ps', ['-axwwE', '-o', 'pid=,command='], { encoding: 'utf8' }).split('\n')
-    .filter((l) => l.includes(BINARY) && l.includes('dist/launcher/cli.js') && l.includes(`AGENT_BROWSER_PROFILE=${profile} `))
+    .filter((l) => l.includes(BINARY) && l.includes('dist/launcher/cli.js') && new RegExp(`AGENT_BROWSER_PROFILE=${profile}(\\s|$)`).test(l))
     .map((l) => Number(l.trim().split(/\s+/)[0]));
 
 const controlFileOf = (profile: string) => join(profile, 'control.json');
@@ -208,6 +208,53 @@ for (const gap of RACE_GAPS_MS) {
     await waitFor(() => leftovers(profile, launcher!.pid).length === 0, '정리');
   });
 }
+
+/** 검증 2회차 반례: 짧은 간격으로 아주 여러 번 실행해도 런처·브라우저는 한 번도 둘이 되지 않는다 */
+const BURST_COUNT = 120;
+const BURST_GAP_MS = 8;
+
+test(`P5 연속 실행(${BURST_GAP_MS}ms 간격 ${BURST_COUNT}회): 런처·브라우저는 한 번도 둘이 되지 않는다`, async () => {
+  const profile = mkdtempSync(join(tmpdir(), 'ab-dist-'));
+  let maxLaunchers = 0;
+  let maxBrowsers = 0;
+  let watching = true;
+  const watch = (async () => {
+    while (watching) {
+      maxLaunchers = Math.max(maxLaunchers, launchersOf(profile).length);
+      maxBrowsers = Math.max(maxBrowsers, processes().filter((p) => isBrowser(p, profile)).length);
+      await new Promise((r) => setTimeout(r, POLL_MS));
+    }
+  })();
+  const starters: Promise<number | null>[] = [];
+  for (let i = 0; i < BURST_COUNT; i++) {
+    starters.push(openApp(profile));
+    await new Promise((r) => setTimeout(r, BURST_GAP_MS));
+  }
+  await Promise.all(starters);
+  await new Promise((r) => setTimeout(r, RACE_WATCH_MS));
+  watching = false;
+  await watch;
+  const { browser, launcher } = appProcesses(profile);
+  expect(browser && launcher).toBeTruthy();
+  expect({ maxLaunchers, maxBrowsers }).toEqual({ maxLaunchers: 1, maxBrowsers: 1 });
+  process.kill(browser!.pid, 'SIGTERM');
+  await waitFor(() => leftovers(profile, launcher!.pid).length === 0, '정리');
+});
+
+test('남은 자물쇠의 pid가 다른 프로세스에 재사용됐어도(재부팅 뒤) 앱이 열린다', async () => {
+  const profile = mkdtempSync(join(tmpdir(), 'ab-dist-'));
+  const other = spawn('sleep', ['60'], { stdio: 'ignore' }); // 살아 있지만 이 앱의 런처가 아닌 프로세스
+  try {
+    writeFileSync(join(profile, 'launcher.lock'), String(other.pid));
+    expect(await openApp(profile)).toBe(0);
+    const { browser, launcher } = await waitFor(() => { const p = appProcesses(profile); return p.browser && p.launcher ? p : undefined; }, '앱이 열림');
+    await waitFor(() => existsSync(controlFileOf(profile)), 'control.json');
+    process.kill(browser!.pid, 'SIGTERM');
+    await waitFor(() => leftovers(profile, launcher!.pid).length === 0, '정리');
+  } finally {
+    other.kill();
+  }
+});
 
 test('잘못된 환경 값이면 시작 프로세스가 남지 않고 실패로 끝난다', async () => {
   const profile = mkdtempSync(join(tmpdir(), 'ab-dist-'));
