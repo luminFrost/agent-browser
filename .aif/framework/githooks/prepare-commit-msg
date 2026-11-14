@@ -1,0 +1,4 @@
+#!/bin/sh
+# ai-framework: Task·Phase 트레일러와 커밋 기록. 실패해도 커밋을 막지 않는다.
+command -v node >/dev/null 2>&1 || exit 0
+node "$(git rev-parse --show-toplevel)/.aif/framework/bin/aif.mjs" git prepare-commit-msg "$@" || true

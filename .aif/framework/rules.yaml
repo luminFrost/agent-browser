@@ -1,0 +1,168 @@
+# 규칙 준수 검사 목록 (코어 피드백 ①)
+# 형식: Declare 방식 템플릿. 해당 활동이 일어났을 때만 센다 (일어나지 않으면 "해당 없음").
+#   precedence(a, b): b가 일어나면 그 전에 a가 있어야 한다
+#   response(a, b):   a가 일어나면 그 뒤에 b가 와야 한다
+#   absence(a):       a가 일어나면 안 된다
+#   different(x, y):  두 단계의 세션이 달라야 한다
+#   count(expr):      개수 조건
+#   lines(file, max): 줄 수
+# judge: code(코드가 판정) | ai+code(AI 판정 후보를 거쳐 코드가 집계)
+# applies: 적용할 목적(purpose)·경로(route: explore|light|standard)·규모(size: S|M|L)·변형. 비우면 전부
+# 활동 이름은 core/feedback/events.md의 "파생 활동"
+
+rules:
+  - id: C-GOAL-FIRST
+    source: core/lifecycle.md 게이트
+    text: 목표 승인 전에 결과물을 만들지 않는다
+    template: precedence
+    a: goal.approved
+    b: [edit.code, edit.test, edit.data_raw]
+    applies: {route: [light, standard]}
+    judge: code
+
+  - id: C-APPROVAL-HUMAN
+    source: core/lifecycle.md 사람 승인 지점
+    text: 승인은 사람이 한 것이어야 한다
+    template: precedence
+    a: prompt.approval
+    b: goal.approved
+    applies: {route: [light, standard]}
+    judge: ai+code
+
+  - id: C-VERIFY-BEFORE-DELIVER
+    source: core/lifecycle.md 게이트
+    text: 검증 통과 전에 전달하지 않는다
+    template: precedence
+    a: verify.pass
+    b: deliver.start
+    applies: {route: [light, standard]}
+    judge: code
+
+  - id: C-VERIFY-CONTEXT
+    source: core/lifecycle.md 고정 (검증은 독립된 증거로)
+    text: 표준 경로의 검증은 수행과 다른 세션 또는 reviewer가 한다
+    template: different
+    x: work
+    y: verify
+    or: [subagent.reviewer_in_verify, builtin.code_review_in_verify]
+    applies: {route: [standard]}
+    judge: code
+
+  - id: C-DONE-EVIDENCE
+    source: core/defaults/user/CLAUDE.md
+    text: 완료를 보고할 때 확인 명령 출력을 보인다
+    template: response
+    a: claim.done
+    b: check.run
+    window: same_turn
+    judge: ai+code
+
+  - id: C-CHANGE-RECORDED
+    source: core/skills/aif-work 6
+    text: 승인 뒤 목표가 바뀌면 결정 기록을 남긴다
+    template: response
+    a: goal.changed_after_approval
+    b: decision.recorded
+    applies: {route: [standard]}
+    judge: code
+
+  - id: C-TWO-CORRECTIONS
+    source: core/principles.md (두 번 고쳐도 안 되면 멈춤)
+    text: 같은 주제 수정 요청이 3번 이상이면 멈추고 원인을 보고했어야 한다
+    template: count
+    expr: max_same_topic(correction) <= 2 or stopped_and_reported
+    judge: ai+code
+
+  - id: C-PROGRESS
+    source: core/defaults/user/CLAUDE.md
+    text: 세션을 끝내기 전에 progress.md를 갱신한다
+    template: response
+    a: session.has_work
+    b: edit.progress
+    window: same_session
+    applies: {size: [L]}
+    judge: code
+
+  - id: C-LIGHT-SCOPE
+    source: core/lifecycle.md 가벼운 경로
+    text: 가벼운 경로는 커밋 하나·완료 기준 3개 이하에 머문다 (넘으면 표준으로 올렸어야 한다)
+    template: count
+    expr: route != light or (task_commits <= 1 and criteria <= 3) or routed_up
+    judge: code
+
+  - id: C-CLAUDE-MD-SIZE
+    source: core/architecture.md
+    text: CLAUDE.md는 200줄 미만
+    template: lines
+    file: CLAUDE.md
+    max: 199
+    judge: code
+
+  # 개발 스타터
+  - id: D-TEST-FIRST
+    source: starters/develop/skills/work.md
+    text: 작업 안에서 테스트를 먼저 고친다
+    template: precedence
+    a: edit.test
+    b: edit.code
+    scope: per_commit
+    applies: {purpose: [develop], route: [light, standard]}
+    judge: code
+
+  - id: D-NO-TEST-DELETE
+    source: starters/develop/CLAUDE.md
+    text: 테스트를 지우거나 끄지 않는다
+    template: absence
+    a: [test.deleted, test.disabled]
+    applies: {purpose: [develop]}
+    judge: code
+
+  - id: D-COMMIT-PER-TASK
+    source: starters/develop/skills/work.md
+    text: 체크한 작업마다 커밋이 있다
+    template: count
+    expr: checked_tasks <= task_commits
+    applies: {purpose: [develop], size: [L]}
+    judge: code
+
+  - id: D-NO-MAIN-PUSH
+    source: starters/develop/skills/deliver.md
+    text: main·master로 직접 push하지 않는다 (막힌 시도도 센다)
+    template: absence
+    a: block.guard_push
+    applies: {purpose: [develop]}
+    judge: code
+
+  # 분석 스타터
+  - id: A-SOURCES-LOGGED
+    source: starters/analyze/skills/work.md
+    text: 보고서의 [확인] 주장마다 sources.md에 출처가 있다
+    template: count
+    expr: confirmed_claims_without_source == 0
+    applies: {purpose: [analyze], route: [standard]}
+    judge: code
+
+  - id: A-NO-RAW-EDIT
+    source: starters/analyze/CLAUDE.md
+    text: 원본 데이터를 고치지 않는다
+    template: absence
+    a: [edit.data_raw, block.permission_data_raw]
+    applies: {purpose: [analyze]}
+    judge: code
+
+  - id: A-CROSS-CHECK
+    source: starters/analyze/skills/verify.md
+    text: 결론의 [확인] 주장은 서로 다른 종류의 출처 둘 이상
+    template: count
+    expr: conclusion_claims_single_source == 0
+    applies: {purpose: [analyze], route: [standard]}
+    judge: code
+
+  - id: A-RERUN
+    source: starters/analyze/variants/data.md
+    text: 보고서의 숫자는 스크립트 재실행으로 확인됐다
+    template: precedence
+    a: check.rerun
+    b: verify.pass
+    applies: {purpose: [analyze], variant: [data]}
+    judge: code

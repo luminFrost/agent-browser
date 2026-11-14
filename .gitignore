@@ -1,0 +1,11 @@
+# ai-framework
+.aif/sessions/
+.aif/tasks/*/events.jsonl
+.aif/tasks/*/ai-candidates.json
+.aif/log-errors.jsonl
+.aif/current.json
+.claude/settings.local.json
+
+# T0 스파이크 (남기지 않음)
+spike/
+node_modules/
