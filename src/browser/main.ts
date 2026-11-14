@@ -34,6 +34,8 @@ const agentOf = (sessionId: string): AgentWindow => {
 const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> => {
   switch (m.type) {
     case 'quit':
+      // 로그인(쿠키)을 잃지 않게 디스크에 쓰고 끝낸다(R2: 다시 켜도 유지)
+      await session.fromPartition(SHARED_PARTITION).cookies.flushStore().catch(() => undefined);
       app.quit();
       return undefined;
     case 'listWindows':
