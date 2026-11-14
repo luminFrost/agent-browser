@@ -162,3 +162,20 @@ test('closeTarget: 자기 탭은 닫히고, 남의 탭은 오류', async () => {
     expect(await list(b)).toHaveLength(1);
   } finally { client.close(); }
 });
+
+test('팝업이 스스로 닫히면(window.close) 목록에서 빠지고 창은 계속 동작한다', async () => {
+  const a = await createSession(app);
+  const client = await browserWs(a);
+  try {
+    const [tab] = await list(a);
+    const { sessionId } = await client.send('Target.attachToTarget', { targetId: tab.id, flatten: true });
+    await client.send('Page.navigate', { url: `${server.base}/a` }, sessionId as string);
+    await waitFor(async () => (await list(a))[0].url === `${server.base}/a`, 'A 탭 이동');
+    await client.send('Runtime.evaluate', { expression: `window.popup = window.open(${JSON.stringify(server.base + '/b')}); 1`, userGesture: true }, sessionId as string);
+    await waitFor(async () => (await list(a)).length === 2, '팝업 생김');
+    await client.send('Runtime.evaluate', { expression: 'window.popup.close(); 1' }, sessionId as string);
+    await waitFor(async () => (await list(a)).length === 1, '팝업이 목록에서 빠짐');
+    const { targetId } = await client.send('Target.createTarget', { url: 'about:blank' }); // 창이 아직 정상
+    expect((await list(a)).map((t) => t.id)).toContain(targetId);
+  } finally { client.close(); }
+});

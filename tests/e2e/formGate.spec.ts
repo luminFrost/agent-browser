@@ -1,5 +1,5 @@
 import { test, expect, chromium, type Browser, type Page } from '@playwright/test';
-import { launch, createSession, humanUi, evaluate, targets, waitFor, approvals, decide, type SessionInfo } from './helpers';
+import { launch, createSession, humanUi, evaluate, targets, waitFor, approvals, decide, CdpClient, type SessionInfo } from './helpers';
 import { startTestServer, type TestServer } from '../fixtures/server';
 import type { RunningApp } from '../../src/launcher/app';
 
@@ -71,4 +71,20 @@ test('R12: 기다리는 동안 세션을 멈추면 요청은 취소되고 서버
   await waitFor(async () => (await approvals(app)).length === 0, '승인 요청이 사라짐');
   await new Promise((r) => setTimeout(r, 500));
   expect(posts()).toBe(0);
+});
+
+test('R12: 에이전트가 Fetch로 최상위 이동을 POST로 바꿔 관문을 건너뛸 수 없다', async () => {
+  const ws = ((await (await fetch(a.browserUrl + 'json/version')).json()) as { webSocketDebuggerUrl: string }).webSocketDebuggerUrl;
+  const [tab] = (await (await fetch(a.browserUrl + 'json/list')).json()) as { id: string }[];
+  const client = await CdpClient.connect(ws);
+  try {
+    const { sessionId } = await client.send('Target.attachToTarget', { targetId: tab.id, flatten: true });
+    await client.send('Fetch.enable', { patterns: [{ urlPattern: '*submit*' }] }, sessionId as string);
+    client.call('Page.navigate', { url: `${server.base}/submit` }, sessionId as string).catch(() => undefined); // 가로챈 동안 응답이 오지 않는다
+    const paused = await waitFor(async () => client.events.find((e) => e.method === 'Fetch.requestPaused'), '요청 가로챔');
+    const r = await client.call('Fetch.continueRequest', { requestId: paused.params.requestId, method: 'POST', postData: Buffer.from('a=1').toString('base64') }, sessionId as string);
+    expect(r.error?.message).toMatch(/agent-browser/);
+    await new Promise((r2) => setTimeout(r2, 500));
+    expect(posts()).toBe(0);
+  } finally { client.close(); }
 });

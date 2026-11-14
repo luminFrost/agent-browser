@@ -9,7 +9,7 @@ import { removeControlFile, writeControlFile } from './control/controlFile';
 import { startControlServer } from './control/server';
 import { SessionRegistry } from './sessions';
 import { Router } from './cdp/router';
-import { startSessionEndpoint, type BrowserVersion } from './cdp/endpoint';
+import { startSessionEndpoint, type BrowserVersion, type SessionEndpoint } from './cdp/endpoint';
 import type { BrowserReply, BrowserToLauncher, LauncherCommand } from '../shared/ipc';
 
 export interface StartOptions {
@@ -61,6 +61,8 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
     { stdio: ['ignore', 'inherit', 'inherit', 'pipe', 'pipe', 'ipc'] },
   );
   const rawCdp = new CdpPipe(child.stdio[3] as Writable, child.stdio[4] as Readable);
+  // ipc 채널이 닫힌 뒤 보내기 오류가 런처를 죽이지 않게 한다(사람 창을 닫아 브라우저가 끝나는 중 등)
+  child.on('error', () => undefined);
   const exited = once(child, 'exit');
 
   const waitFor = <T extends BrowserReply['type']>(match: (m: BrowserToLauncher) => boolean, what: string) =>
@@ -78,9 +80,10 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
 
   let nextRid = 1;
   const request = <T extends BrowserReply['type']>(command: LauncherCommand, expect: T): Promise<Reply<T>> => {
+    if (!child.connected) return Promise.reject(new Error(`브라우저가 끝나 ${command.type}를 보낼 수 없다`));
     const rid = nextRid++;
     const reply = waitFor<T>((m) => m.rid === rid && (m.type === expect || m.type === 'error'), command.type);
-    child.send({ ...command, rid });
+    child.send({ ...command, rid }, (e) => { if (e) child.emit('message', { type: 'error', message: e.message, rid }); });
     return reply;
   };
 
@@ -94,6 +97,7 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
   const added = (sessionId: string, targetId: string) => additions.get(`${sessionId}/${targetId}`) ?? router.addTarget(sessionId, targetId);
   child.on('message', (m: BrowserToLauncher) => {
     if (m.type === 'tabAdded') additions.set(`${m.sessionId}/${m.targetId}`, router.addTarget(m.sessionId, m.targetId).catch(() => undefined));
+    if (m.type === 'sessionClosed') closedWindows.add(m.sessionId);
     if (m.type === 'sessionClosed' || m.type === 'stopRequested') stopSession(m.sessionId).catch(() => undefined);
     if (m.type === 'tabRemoved') {
       additions.delete(`${m.sessionId}/${m.targetId}`);
@@ -102,10 +106,13 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
   });
 
   const sessions = new SessionRegistry();
+  /** 창이 닫혔다고 알려 온 세션(생성 중에 닫힌 경우를 알아채려고) */
+  const closedWindows = new Set<string>();
   /** 여러 번 불려도 한 번만 끝낸다(멈추기 버튼 → 창 닫힘 → sessionClosed가 다시 부른다) */
   async function stopSession(id: string): Promise<void> {
     const session = sessions.remove(id);
     if (!session) return;
+    closedWindows.delete(id);
     await session.endpoint.close(); // 먼저 끊는다: 창이 닫히는 동안 에이전트가 더 움직이지 못하게
     router.removeScope(id);
     if (child.exitCode === null) await request({ type: 'closeSession', sessionId: id }, 'done').catch(() => undefined);
@@ -124,9 +131,20 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
         async closeTab(targetId) { await request({ type: 'closeTab', sessionId: id, targetId }, 'done'); },
         async activateTab(targetId) { await request({ type: 'activateTab', sessionId: id, targetId }, 'done'); },
       });
-      const created = await request({ type: 'createSession', sessionId: id }, 'sessionCreated');
-      await added(id, created.targetId); // 첫 탭이 범위에 들어간 뒤 응답한다(바로 /json/list에 보이게)
-      const endpoint = await startSessionEndpoint(scope, router, version);
+      let endpoint: SessionEndpoint | undefined;
+      try {
+        const created = await request({ type: 'createSession', sessionId: id }, 'sessionCreated');
+        await added(id, created.targetId); // 첫 탭이 범위에 들어간 뒤 응답한다(바로 /json/list에 보이게)
+        endpoint = await startSessionEndpoint(scope, router, version);
+        if (closedWindows.has(id)) throw new Error('세션 창이 만들어지는 중에 닫혔다');
+      } catch (e) {
+        // 실패하면 만든 것을 모두 거둔다(범위·엔드포인트·창)
+        await endpoint?.close();
+        router.removeScope(id);
+        closedWindows.delete(id);
+        await request({ type: 'closeSession', sessionId: id }, 'done').catch(() => undefined);
+        throw e;
+      }
       sessions.add({ id, endpoint });
       return { id, browserUrl: endpoint.browserUrl };
     },

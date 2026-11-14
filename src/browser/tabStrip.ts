@@ -12,6 +12,8 @@ const ERR_ABORTED = -3;
 interface Tab {
   id: number;
   view: WebContentsView;
+  /** 내용 webContents id. 페이지가 스스로 닫히면 view.webContents가 먼저 사라지므로 미리 적어 둔다 */
+  contentsId: number;
   /** 마지막으로 불러오기에 실패한 주소. 오류 페이지를 보이는 동안 주소창에 쓴다 */
   failedUrl?: string;
 }
@@ -25,8 +27,8 @@ export interface TabStripOptions {
   onChange(state: TabStripState): void;
   /** 탭이 생겼을 때(내용 webContents) */
   onTabCreated?(contents: Electron.WebContents): void;
-  /** 탭이 닫히기 직전 */
-  onTabClosing?(contents: Electron.WebContents): void;
+  /** 탭이 닫히기 직전(내용 webContents id) */
+  onTabClosing?(contentsId: number): void;
 }
 
 /** 오류 페이지 문구. 앱이 막은 경우(관문 거부) 다른 문구를 쓴다 */
@@ -48,7 +50,7 @@ export class TabStrip {
   }
 
   get webContentsIds(): number[] {
-    return this.tabs.map((t) => t.view.webContents.id);
+    return this.tabs.map((t) => t.contentsId);
   }
 
   newTab(url?: string): number {
@@ -60,7 +62,7 @@ export class TabStrip {
 
   /** 탭의 내용 webContents id로 찾기(런처 명령은 targetId → webContents id로 온다) */
   idOfContents(contentsId: number): number | undefined {
-    return this.tabs.find((t) => t.view.webContents.id === contentsId)?.id;
+    return this.tabs.find((t) => t.contentsId === contentsId)?.id;
   }
 
   contentsOf(id: number): Electron.WebContents | undefined {
@@ -68,7 +70,7 @@ export class TabStrip {
   }
 
   private adopt(view: WebContentsView): number {
-    const tab: Tab = { id: nextTabId++, view };
+    const tab: Tab = { id: nextTabId++, view, contentsId: view.webContents.id };
     this.tabs.push(tab);
     this.win.contentView.addChildView(view);
     this.watch(tab);
@@ -87,11 +89,18 @@ export class TabStrip {
   close(id: number): void {
     const tab = this.find(id);
     if (!tab) return;
-    this.options.onTabClosing?.(tab.view.webContents);
+    const contents = tab.view.webContents;
+    this.forget(tab);
+    if (contents && !contents.isDestroyed()) contents.close();
+  }
+
+  /** 탭을 목록에서 뺀다. 앱이 닫을 때와 페이지가 스스로 닫혔을 때(window.close) 같은 길로 간다 */
+  private forget(tab: Tab): void {
+    if (!this.tabs.includes(tab)) return;
+    this.options.onTabClosing?.(tab.contentsId);
     this.tabs.splice(this.tabs.indexOf(tab), 1);
-    this.win.contentView.removeChildView(tab.view);
-    tab.view.webContents.close();
-    if (this.activeId === id) this.activeId = this.tabs.at(-1)?.id ?? null;
+    if (!this.win.isDestroyed()) this.win.contentView.removeChildView(tab.view);
+    if (this.activeId === tab.id) this.activeId = this.tabs.at(-1)?.id ?? null;
     this.layout();
     this.emit();
   }
@@ -150,6 +159,7 @@ export class TabStrip {
 
   private watch(tab: Tab): void {
     const wc = tab.view.webContents;
+    wc.once('destroyed', () => this.forget(tab)); // 팝업의 window.close() 등
     // 팝업(window.open, target=_blank)은 새 창이 아니라 같은 창의 새 탭으로 연다.
     // createWindow로 Electron이 만든 webContents를 그대로 받아 opener 관계를 잇는다.
     wc.setWindowOpenHandler(() => ({

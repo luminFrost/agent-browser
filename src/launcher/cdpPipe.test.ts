@@ -55,3 +55,19 @@ describe('CdpPipe', () => {
     await expect(p).rejects.toThrow('닫혔다');
   });
 });
+
+describe('CdpPipe UTF-8 (검증 1회차)', () => {
+  it('여러 바이트 글자가 청크 경계에서 잘려도 깨지지 않는다', async () => {
+    const toBrowser = new PassThrough();
+    const fromBrowser = new PassThrough();
+    const pipe = new CdpPipe(toBrowser, fromBrowser);
+    const got: CdpMessage[] = [];
+    pipe.on('message', (m: CdpMessage) => got.push(m));
+    const bytes = Buffer.from(JSON.stringify({ method: 'X.y', params: { title: '한글 제목' } }) + '\0', 'utf8');
+    const cut = bytes.indexOf(Buffer.from('한', 'utf8')) + 1; // '한'의 가운데
+    fromBrowser.write(bytes.subarray(0, cut));
+    fromBrowser.write(bytes.subarray(cut));
+    await new Promise((r) => setImmediate(r));
+    expect(got[0].params).toEqual({ title: '한글 제목' });
+  });
+});

@@ -72,11 +72,38 @@ describe('R7: 브라우저 전체(공유 파티션)에 영향을 주는 페이�
     'Storage.clearCookies',
     'Storage.clearSharedStorageEntries',
     'Storage.deleteStorageBucket',
+    'IndexedDB.deleteDatabase',
+    'IndexedDB.clearObjectStore',
+    'IndexedDB.deleteObjectStoreEntries',
+    'DOMStorage.clear',
+    'DOMStorage.removeDOMStorageItem',
+    'DOMStorage.setDOMStorageItem',
+    'CacheStorage.deleteCache',
+    'CacheStorage.deleteEntry',
+    // 만료 시각으로 쿠키를 지울 수 있어 설정도 막는다(검증 1회차 R7 FAIL)
+    'Network.setCookie',
+    'Network.setCookies',
+    'Storage.setCookies',
   ])('%s', (method) => {
     expect(sessionLevelBlockReason(method)).toMatch(/공유/);
   });
 
   it('자기 페이지의 일은 막지 않는다', () => {
-    for (const m of ['Network.enable', 'Network.getCookies', 'Network.setCookie', 'Network.setCookies', 'Storage.getCookies', 'Page.reload']) expect(sessionLevelBlockReason(m), m).toBeUndefined();
+    for (const m of ['Network.enable', 'Network.getCookies', 'Storage.getCookies', 'Page.reload', 'IndexedDB.requestDatabaseNames', 'DOMStorage.getDOMStorageItems', 'Fetch.enable', 'Fetch.fulfillRequest']) expect(sessionLevelBlockReason(m), m).toBeUndefined();
+  });
+});
+
+describe('관문 우회 막기 (검증 1회차)', () => {
+  it('R13: 다운로드 처리 방식을 바꾸는 명령은 페이지 세션에서 막는다', () => {
+    expect(sessionLevelBlockReason('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: '/tmp' })).toMatch(/다운로드/);
+    expect(sessionLevelBlockReason('Browser.setDownloadBehavior')).toBeTypeOf('string');
+  });
+
+  it('R12: 가로챈 요청의 method·postData를 바꾸는 이어 보내기는 막는다', () => {
+    expect(sessionLevelBlockReason('Fetch.continueRequest', { requestId: '1', method: 'POST' })).toMatch(/폼 제출/);
+    expect(sessionLevelBlockReason('Fetch.continueRequest', { requestId: '1', postData: 'YT0x' })).toMatch(/폼 제출/);
+    expect(sessionLevelBlockReason('Network.continueInterceptedRequest', { interceptionId: '1', method: 'POST' })).toMatch(/폼 제출/);
+    expect(sessionLevelBlockReason('Fetch.continueRequest', { requestId: '1' })).toBeUndefined();
+    expect(sessionLevelBlockReason('Fetch.continueRequest', { requestId: '1', url: 'https://x', headers: [] })).toBeUndefined();
   });
 });

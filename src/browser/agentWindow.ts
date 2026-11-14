@@ -69,12 +69,12 @@ export function createAgentWindow(sessionId: string, show: boolean, events: Agen
       events.stateChanged(sessionId, state);
     },
     onTabCreated: announce,
-    onTabClosing: (contents) => {
-      contentsIds.delete(contents.id);
-      events.tabClosing(contents.id);
-      const targetId = targetIds.get(contents.id);
+    onTabClosing: (contentsId) => {
+      contentsIds.delete(contentsId);
+      events.tabClosing(contentsId);
+      const targetId = targetIds.get(contentsId);
       if (!targetId) return;
-      targetIds.delete(contents.id);
+      targetIds.delete(contentsId);
       events.tabRemoved(sessionId, targetId);
     },
   });

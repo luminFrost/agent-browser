@@ -56,8 +56,8 @@ export function browserLevelAction(method: string): BrowserLevelAction | undefin
 const SESSION_TARGET_ALLOWED = new Set(['Target.setAutoAttach', 'Target.autoAttachRelated', 'Target.detachFromTarget', 'Target.getTargetInfo']);
 
 /**
- * R7: 공유 파티션(사람 창과 같은 로그인)을 지우는 명령. 페이지 세션에서 보내도 브라우저 전체에 닿는다.
- * 쿠키 설정(setCookie[s])은 에이전트가 정상적으로 쓸 수 있어 막지 않는다. 지우기·삭제만 막는다.
+ * R7: 공유 파티션(사람 창과 같은 로그인·저장소)을 지우거나 덮어쓰는 명령. 페이지 세션에서 보내도
+ * 다른 출처와 사람 창에 닿는다. 쿠키 설정도 지난 만료 시각으로 쿠키를 지울 수 있어 막는다(검증 1회차).
  */
 const SHARED_STATE_DESTRUCTIVE = new Set([
   'Network.clearBrowserCookies',
@@ -70,13 +70,32 @@ const SHARED_STATE_DESTRUCTIVE = new Set([
   'Storage.deleteSharedStorageEntry',
   'Storage.deleteStorageBucket',
   'Storage.clearTrustTokens',
+  'Storage.setCookies',
+  'Network.setCookie',
+  'Network.setCookies',
+  'IndexedDB.deleteDatabase',
+  'IndexedDB.clearObjectStore',
+  'IndexedDB.deleteObjectStoreEntries',
+  'DOMStorage.clear',
+  'DOMStorage.removeDOMStorageItem',
+  'DOMStorage.setDOMStorageItem',
+  'CacheStorage.deleteCache',
+  'CacheStorage.deleteEntry',
 ]);
+
+/** R13: 다운로드 처리 방식을 바꾸면 관문(will-download)을 건너뛰고 사람 창 다운로드 경로까지 바뀐다 */
+const DOWNLOAD_BEHAVIOR = new Set(['Page.setDownloadBehavior', 'Browser.setDownloadBehavior']);
+
+/** R12: 가로챈 요청을 이어 보낼 때 method·본문을 바꾸면 GET 이동이 POST(폼 제출)가 되어 관문을 건너뛴다 */
+const REQUEST_CONTINUE = new Set(['Fetch.continueRequest', 'Network.continueInterceptedRequest']);
 
 /**
  * 페이지 세션 명령을 막아야 하면 그 이유를, 넘겨도 되면 undefined를 돌려준다.
  */
 export function sessionLevelBlockReason(method: string, params: Record<string, unknown> = {}): string | undefined {
-  if (SHARED_STATE_DESTRUCTIVE.has(method)) return '사람 창과 공유하는 로그인·저장소를 지우는 명령은 쓸 수 없다';
+  if (SHARED_STATE_DESTRUCTIVE.has(method)) return '사람 창과 공유하는 로그인·저장소를 지우거나 바꾸는 명령은 쓸 수 없다';
+  if (DOWNLOAD_BEHAVIOR.has(method)) return '다운로드 처리 방식은 바꿀 수 없다(다운로드 관문)';
+  if (REQUEST_CONTINUE.has(method) && (params.method !== undefined || params.postData !== undefined)) return '요청의 method·본문을 바꿀 수 없다(폼 제출 관문)';
   if (method.startsWith('Browser.') && method !== 'Browser.getVersion') return '페이지 세션에서 Browser 명령은 쓸 수 없다';
   if (method.startsWith('Target.')) {
     if (!SESSION_TARGET_ALLOWED.has(method)) return '페이지 세션에서 이 Target 명령은 쓸 수 없다';

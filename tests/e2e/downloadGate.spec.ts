@@ -1,7 +1,7 @@
 import { test, expect, chromium, type Browser, type Page } from '@playwright/test';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { launch, createSession, humanUi, evaluate, waitFor, approvals, decide, tempDir, type SessionInfo } from './helpers';
+import { launch, createSession, humanUi, evaluate, waitFor, approvals, decide, tempDir, CdpClient, type SessionInfo } from './helpers';
 import { startTestServer, type TestServer } from '../fixtures/server';
 import type { RunningApp } from '../../src/launcher/app';
 
@@ -57,4 +57,32 @@ test('R13: 사람 창의 다운로드는 묻지 않고 저장된다', async () =
   await evaluate(app, (await humanUi(app)).targetId, `(() => { const i = document.querySelector('#address'); i.value = ${JSON.stringify(server.base + '/file')}; i.form.requestSubmit(); })()`);
   await waitFor(async () => files().includes('data.bin'), '사람 다운로드 저장');
   expect(await approvals(app)).toEqual([]);
+});
+
+test('R13: 다 받은 뒤에 거부해도 파일이 생기지 않는다', async () => {
+  await startDownload();
+  const req = await request();
+  await waitFor(async () => quarantine().some((f) => statSync(join(profile, 'quarantine', f)).size === 200_000), '격리 폴더에 다 받음');
+  await decide(app, req.id, 'deny');
+  await waitFor(async () => quarantine().length === 0, '격리 폴더 비움');
+  await new Promise((r) => setTimeout(r, 500));
+  expect(files()).toEqual([]);
+});
+
+test('R13: 에이전트가 Page.setDownloadBehavior로 관문을 건너뛸 수 없다', async () => {
+  const elsewhere = tempDir('elsewhere-');
+  const ws = ((await (await fetch(a.browserUrl + 'json/version')).json()) as { webSocketDebuggerUrl: string }).webSocketDebuggerUrl;
+  const [tab] = (await (await fetch(a.browserUrl + 'json/list')).json()) as { id: string }[];
+  const client = await CdpClient.connect(ws);
+  try {
+    const { sessionId } = await client.send('Target.attachToTarget', { targetId: tab.id, flatten: true });
+    const r = await client.call('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: elsewhere }, sessionId as string);
+    expect(r.error?.message).toMatch(/agent-browser/);
+    await client.call('Page.navigate', { url: `${server.base}/file` }, sessionId as string);
+    const req = await request();
+    await new Promise((r2) => setTimeout(r2, 1000));
+    expect(readdirSync(elsewhere)).toEqual([]);
+    expect(files()).toEqual([]);
+    await decide(app, req.id, 'deny');
+  } finally { client.close(); }
 });

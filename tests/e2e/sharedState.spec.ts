@@ -41,6 +41,12 @@ test('R7: A가 브라우저 전체에 영향을 주는 명령을 보내면 오�
       ['Storage.clearDataForOrigin', { origin, storageTypes: 'all' }],
       ['Storage.clearCookies', {}],
       ['Browser.close', {}],
+      ['Network.setCookie', { name: 'sid', value: 'x', url: origin, expires: 1 }],
+      ['Network.setCookies', { cookies: [{ name: 'sid', value: 'x', url: origin, expires: 1 }] }],
+      ['Storage.setCookies', { cookies: [{ name: 'sid', value: 'x', domain: '127.0.0.1', path: '/', expires: 1 }] }],
+      ['IndexedDB.deleteDatabase', { securityOrigin: origin, databaseName: 'x' }],
+      ['DOMStorage.clear', { storageId: { securityOrigin: origin, isLocalStorage: true } }],
+      ['CacheStorage.deleteCache', { cacheId: 'x' }],
     ];
     for (const [method, params] of browserLevel) {
       expect((await client.call(method, params)).error?.message, `브라우저 수준 ${method}`).toMatch(/agent-browser/);

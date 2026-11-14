@@ -11,6 +11,8 @@ interface Pending {
   onResponse?(message: CdpMessage): void;
   /** 내부 요청이면 결과를 받는 곳 */
   internal?: { resolve(r: Record<string, unknown>): void; reject(e: Error): void };
+  /** attachToTarget 요청이면 붙으려는 targetId */
+  attachTarget?: string;
 }
 
 /**
@@ -118,8 +120,9 @@ export class Router {
   /** 클라이언트 요청을 전역 id로 넘긴다 */
   forward(conn: Connection, request: { id: number; method: string; params?: Record<string, unknown>; sessionId?: string }, onResponse?: (m: CdpMessage) => void): void {
     const id = this.nextId++;
-    this.pending.set(id, { conn, clientId: request.id, onResponse });
-    if (request.method === 'Target.attachToTarget') this.expectAttach(conn, String(request.params?.targetId));
+    const attachTarget = request.method === 'Target.attachToTarget' ? String(request.params?.targetId) : undefined;
+    this.pending.set(id, { conn, clientId: request.id, onResponse, attachTarget });
+    if (attachTarget) this.expectAttach(conn, attachTarget);
     this.pipe.sendRaw({ ...request, id });
   }
 
@@ -127,14 +130,19 @@ export class Router {
   call(conn: Connection, method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<Record<string, unknown>> {
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { conn, internal: { resolve, reject } });
-      if (method === 'Target.attachToTarget') this.expectAttach(conn, String(params.targetId));
+      const attachTarget = method === 'Target.attachToTarget' ? String(params.targetId) : undefined;
+      this.pending.set(id, { conn, internal: { resolve, reject }, attachTarget });
+      if (attachTarget) this.expectAttach(conn, attachTarget);
       this.pipe.sendRaw({ id, method, params, ...(sessionId ? { sessionId } : {}) });
     });
   }
 
-  /** CDP 세션의 주인을 정한다 */
+  /** CDP 세션의 주인을 정한다. 이미 끊긴 연결이면 주인으로 삼지 않고 바로 뗀다(세션이 새지 않게) */
   own(sessionId: string, conn: Connection): void {
+    if (conn.closed) {
+      this.pipe.send('Target.detachFromTarget', { sessionId }).catch(() => undefined);
+      return;
+    }
     this.sessionOwners.set(sessionId, conn);
     conn.sessions.add(sessionId);
   }
@@ -148,7 +156,7 @@ export class Router {
       this.pipe.send('Target.detachFromTarget', { sessionId }).catch(() => undefined);
     }
     conn.sessions.clear();
-    for (const [id, p] of this.pending) if (p.conn === conn && !p.internal) this.pending.delete(id);
+    // 응답이 아직 안 온 요청은 남겨 둔다: attach 응답이 오면 own()이 닫힌 연결을 보고 세션을 뗀다
     for (const [targetId, list] of this.pendingAttach) {
       const rest = list.filter((c) => c !== conn);
       if (rest.length) this.pendingAttach.set(targetId, rest); else this.pendingAttach.delete(targetId);
@@ -184,8 +192,10 @@ export class Router {
     // attach 응답: 이벤트가 먼저 와서 주인이 정해지지 않았다면 여기서 정한다
     const attached = m.result?.sessionId;
     if (typeof attached === 'string' && !this.sessionOwners.has(attached)) {
+      if (p.attachTarget) this.takeAttach(p.attachTarget, p.conn); // 이 요청의 대기 항목만 지운다
       this.own(attached, p.conn);
-      for (const [targetId, list] of this.pendingAttach) if (list.includes(p.conn)) { this.takeAttach(targetId, p.conn); break; }
+    } else if (p.attachTarget && m.error) {
+      this.takeAttach(p.attachTarget, p.conn); // 실패한 attach의 대기 항목이 남지 않게
     }
     if (p.internal) {
       if (m.error) p.internal.reject(new Error(m.error.message));

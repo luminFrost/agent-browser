@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { StringDecoder } from 'node:string_decoder';
 import type { Readable, Writable } from 'node:stream';
 
 /** CDP 메시지 하나. 응답은 id, 이벤트는 method를 가진다. */
@@ -19,6 +20,8 @@ export interface CdpMessage {
 export class CdpPipe extends EventEmitter {
   private nextId = 1;
   private buffer = '';
+  /** 청크 경계에서 잘린 여러 바이트 글자를 다음 청크와 이어 푼다 */
+  private readonly decoder = new StringDecoder('utf8');
   private readonly pending = new Map<number, { resolve: (r: Record<string, unknown>) => void; reject: (e: Error) => void }>();
 
   constructor(private readonly out: Writable, input: Readable) {
@@ -46,7 +49,7 @@ export class CdpPipe extends EventEmitter {
   }
 
   private onData(chunk: Buffer): void {
-    this.buffer += chunk.toString('utf8');
+    this.buffer += this.decoder.write(chunk);
     let end: number;
     while ((end = this.buffer.indexOf('\0')) >= 0) {
       const text = this.buffer.slice(0, end);
