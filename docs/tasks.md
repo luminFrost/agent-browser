@@ -6,7 +6,7 @@ spec: docs/spec.md · 작업 하나 = 리뷰 가능한 크기, 커밋 하나 · 
 | # | 작업 | 파일 | 인수 사례 (spec R#) | 확인 명령 | 상태 |
 |---|---|---|---|---|---|
 | T0 | 스파이크: 남은 확인 필요 3건을 작게 시험한다. ① 내부 CDP 포트 우회 막기(ADR-0001 전제) ② 경로에 비밀값이 붙은 URL을 chrome-devtools-mcp·Playwright가 받는지 ③ 에이전트 창의 최상위 POST·다운로드를 요청 전에 붙잡고 창을 구분할 수 있는지. 결과는 ADR로 남긴다. 코드는 `spike/`에 두고 남기지 않는다 | `spike/**`(커밋 안 함), `docs/adr/0002~` | R3·R4·R10·R12·R13의 가능 여부 | 스파이크 출력 | [x] 모두 가능 (ADR-0002·0003) |
-| T1 | 뼈대: package.json, tsconfig, ESLint, Vitest, Playwright, Electron 실행. `.aif/config.yaml` commands 채우기 | `package.json`, `tsconfig.json`, `eslint.config.*`, `vitest.config.*`, `playwright.config.*`, `src/launcher/index.ts`, `src/browser/main.ts` | (구조 커밋) | `npm test`, `npm run lint`, `npm run build` | [ ] |
+| T1 | 뼈대: package.json, tsconfig, ESLint, Vitest, Playwright, Electron 실행. `.aif/config.yaml` commands 채우기 | `package.json`, `tsconfig.json`, `eslint.config.*`, `vitest.config.*`, `playwright.config.*`, `src/launcher/index.ts`, `src/browser/main.ts` | (구조 커밋) | `npm test`, `npm run lint`, `npm run build` | [x] |
 | T2 | 사람 창: 주소창·탭·뒤로/앞으로/새로고침, 로딩 표시와 오류 페이지, 권한 요청 기본 거부 | `src/browser/humanWindow.ts`, `src/browser/renderer/human/**` | R1(앱 실행 → 사람 창 1개) | `npm test` | [ ] |
 | T3 | 제어 서버: 토큰 파일(0600), `POST /sessions`, 127.0.0.1 바인딩, 토큰 없음/틀림 → 401. 세션 생성 시 에이전트 창 1개 생성 | `src/launcher/control/**`, `src/launcher/config.ts` | R1(세션 → 창 1개), R3(앞부분), R10(토큰·바인딩) | `npm test` | [ ] |
 | T4 | 세션 CDP 엔드포인트: 세션별 포트 + 비밀 경로, `/json/version`·`/json/list`·WebSocket 중계(ADR-0001 프록시) | `src/launcher/cdp/sessionEndpoint.ts`, `src/launcher/cdp/relay.ts` | R3, R10(없는 세션·비밀 경로 없음 → 거부) | `npm test` | [ ] |

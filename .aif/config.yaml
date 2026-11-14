@@ -9,9 +9,9 @@ variant: app              # develop: web | app | game | api / analyze: research 
 
 # 주입 (DI)
 commands:                 # 확인 명령. 비우면 그 확인은 "확인 수단 없음"으로 보고된다
-  test: ""
-  lint: ""
-  build: ""
+  test: "npm test"
+  lint: "npm run lint"
+  build: "npm run build"
 paths:                    # 기록·검사가 파일을 분류하는 기준 (glob)
   code: ["src/**"]
   tests: ["**/*.test.*", "**/*.spec.*", "tests/**", "test/**"]
