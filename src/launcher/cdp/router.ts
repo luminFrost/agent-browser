@@ -27,6 +27,10 @@ export class Router {
   private readonly pendingAttach = new Map<string, Connection[]>();
   readonly targetInfos = new Map<string, TargetInfo>();
   private readonly scopes = new Map<string, SessionScope>();
+  /** 런처 자신이 잠깐 붙은 세션의 이벤트를 받는 곳(어떤 연결에도 주지 않는다) */
+  private readonly internalSessions = new Map<string, (m: CdpMessage) => void>();
+  /** tab 대상 → 그 안의 page 대상. puppeteer는 tab에 붙어 page를 받는다(design.md) */
+  private readonly pageOfTab = new Map<string, Promise<string | undefined>>();
 
   constructor(readonly pipe: CdpPipe) {
     pipe.on('message', (m: CdpMessage) => this.onMessage(m));
@@ -48,17 +52,67 @@ export class Router {
 
   removeScope(id: string): void { this.scopes.delete(id); }
 
-  /** 소유권 알림을 받아 범위에 탭을 더한다. 정보가 아직 없으면 먼저 가져온다 */
-  async addTarget(scopeId: string, targetId: string): Promise<void> {
-    if (!this.targetInfos.has(targetId)) {
-      const r = await this.pipe.send('Target.getTargetInfo', { targetId }).catch(() => undefined);
-      if (r) this.targetInfos.set(targetId, r.targetInfo as TargetInfo);
+  /**
+   * 소유권 알림(page targetId)을 받아 범위에 더한다. 짝이 되는 tab 대상을 먼저 더한다:
+   * tab을 쓰는 클라이언트(puppeteer)는 tab에 붙은 뒤 page를 받는다.
+   */
+  async addTarget(scopeId: string, pageId: string): Promise<void> {
+    const scope = this.scopes.get(scopeId);
+    if (!scope) return;
+    await this.ensureInfo(pageId);
+    const tabId = await this.tabOf(pageId);
+    if (tabId) {
+      scope.pairTab(pageId, tabId);
+      await scope.addTarget(tabId);
     }
-    await this.scopes.get(scopeId)?.addTarget(targetId);
+    await scope.addTarget(pageId);
   }
 
-  removeTarget(scopeId: string, targetId: string): void {
-    this.scopes.get(scopeId)?.removeTarget(targetId);
+  removeTarget(scopeId: string, pageId: string): void {
+    const scope = this.scopes.get(scopeId);
+    if (!scope) return;
+    const tabId = scope.tabOfPage(pageId);
+    scope.removeTarget(pageId);
+    if (tabId) {
+      scope.removeTarget(tabId);
+      this.pageOfTab.delete(tabId);
+    }
+  }
+
+  private async ensureInfo(targetId: string): Promise<void> {
+    if (this.targetInfos.has(targetId)) return;
+    const r = await this.pipe.send('Target.getTargetInfo', { targetId }).catch(() => undefined);
+    if (r) this.targetInfos.set(targetId, r.targetInfo as TargetInfo);
+  }
+
+  /** page를 담은 tab 대상을 찾는다. 아직 모르는 tab마다 한 번씩 잠깐 붙어 자식 page를 확인하고 기억한다 */
+  private async tabOf(pageId: string): Promise<string | undefined> {
+    const { targetInfos } = await this.pipe.send('Target.getTargets', { filter: [{ type: 'tab' }] });
+    for (const t of targetInfos as TargetInfo[]) {
+      this.targetInfos.set(t.targetId, t);
+      if (!this.pageOfTab.has(t.targetId)) this.pageOfTab.set(t.targetId, this.probeTab(t.targetId));
+    }
+    for (const [tabId, page] of this.pageOfTab) if ((await page) === pageId) return tabId;
+    return undefined;
+  }
+
+  private async probeTab(tabId: string): Promise<string | undefined> {
+    const attached = await this.pipe.send('Target.attachToTarget', { targetId: tabId, flatten: true }).catch(() => undefined);
+    const sessionId = attached?.sessionId as string | undefined;
+    if (!sessionId) return undefined;
+    let pageId: string | undefined;
+    this.internalSessions.set(sessionId, (m) => {
+      const info = m.params?.targetInfo as TargetInfo | undefined;
+      if (m.method === 'Target.attachedToTarget' && info?.type === 'page') pageId = info.targetId;
+    });
+    try {
+      // 이미 있는 자식은 응답 전에 attachedToTarget으로 온다
+      await this.pipe.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }, sessionId);
+    } finally {
+      this.internalSessions.delete(sessionId);
+      await this.pipe.send('Target.detachFromTarget', { sessionId }).catch(() => undefined);
+    }
+    return pageId;
   }
 
   /** 클라이언트 요청을 전역 id로 넘긴다 */
@@ -144,6 +198,8 @@ export class Router {
   }
 
   private onSessionEvent(m: CdpMessage): void {
+    const internal = this.internalSessions.get(m.sessionId as string);
+    if (internal) return internal(m);
     const owner = this.sessionOwners.get(m.sessionId as string);
     if (!owner) return;
     // 자식 세션(iframe·worker)은 부모 세션의 주인 것이다

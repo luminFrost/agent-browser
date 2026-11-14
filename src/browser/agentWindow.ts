@@ -13,8 +13,8 @@ export interface AgentWindow {
   tabs: TabStrip;
   /** 이 창의 탭 webContents id → CDP targetId */
   targetIds: Map<number, string>;
-  /** 첫 탭의 targetId를 알릴 때까지 기다린다 */
-  ready: Promise<void>;
+  /** 첫 탭의 targetId를 알린 뒤 그 targetId로 풀린다 */
+  ready: Promise<string>;
   /** 새 탭을 만들고, 소유권을 알린 뒤 targetId를 돌려준다 */
   openTab(): Promise<string>;
   /** targetId로 탭 찾기(이 창의 탭이 아니면 undefined) */
@@ -78,6 +78,6 @@ export function createAgentWindow(sessionId: string, show: boolean, events: Agen
     for (const [contentsId, t] of targetIds) if (t === targetId) return tabs.idOfContents(contentsId);
     return undefined;
   };
-  const ready = openTab().then(() => undefined);
+  const ready = openTab();
   return { sessionId, win, tabs, targetIds, ready, openTab, tabIdOf };
 }

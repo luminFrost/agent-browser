@@ -163,7 +163,7 @@ export class Connection {
         if (typeof params.sessionId !== 'string' || this.router.ownerOf(params.sessionId) !== this) return this.refuse(req, '이 연결의 세션이 아니다');
         return this.router.forward(this, req);
       case 'getTargets':
-        return this.reply(req, { targetInfos: this.ownTargetInfos() });
+        return this.reply(req, { targetInfos: this.ownTargetInfos().filter((t) => matchesTargetFilter(t.type, params.filter as TargetFilterEntry[] | undefined)) });
       case 'ignore':
         return this.reply(req, {});
       case 'setDiscoverTargets':

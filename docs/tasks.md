@@ -12,7 +12,7 @@ spec: docs/spec.md · 작업 하나 = 리뷰 가능한 크기, 커밋 하나 · 
 | T4 | 세션 CDP 엔드포인트: 세션별 포트 + 비밀 경로, `/json/version`·`/json/list`·WebSocket 중계(ADR-0001 프록시) | `src/launcher/cdp/sessionEndpoint.ts`, `src/launcher/cdp/relay.ts` | R3, R10(없는 세션·비밀 경로 없음 → 거부) | `npm test` | [x] |
 | T5 | 탭 격리 필터: 목록·`Target.getTargets`·`setDiscoverTargets` 이벤트 거르기, 남의 targetId attach 거부, `createTarget`·팝업이 세션 창에 생기게 | `src/launcher/cdp/filter.ts` | R5, R6 | `npm test` | [x] |
 | T6 | 공유 상태 보호: 브라우저 전체에 영향을 주는 명령 차단 목록 | `src/launcher/cdp/filter.ts` | R7 | `npm test` | [x] |
-| T7 | 기존 도구 호환 E2E: chrome-devtools-mcp navigate·snapshot, Playwright `connectOverCDP` 열기·클릭 | `tests/e2e/compat.spec.ts` | R4 | `npm test` | [ ] |
+| T7 | 기존 도구 호환 E2E: chrome-devtools-mcp navigate·snapshot, Playwright `connectOverCDP` 열기·클릭 | `tests/e2e/compat.spec.ts` | R4 | `npm test` | [x] |
 | T8 | 로그인 공유: 로컬 테스트 서버 로그인 → 세션 탭에서 로그인 상태, 재시작 후 유지 | `tests/fixtures/server.ts`, `tests/e2e/login.spec.ts` | R2 | `npm test` | [ ] |
 | T9 | 동시 세션: A·B 동시 navigate | `tests/e2e/concurrency.spec.ts` | R8 | `npm test` | [ ] |
 | T10 | 종료: 멈추기·창 닫기 → 연결 끊김, browserUrl 응답 없음, B는 유지 | `src/launcher/sessions.ts`, `src/browser/sessionWindows.ts` | R9 | `npm test` | [ ] |

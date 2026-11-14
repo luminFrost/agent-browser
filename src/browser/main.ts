@@ -46,8 +46,8 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
       });
       agents.set(m.sessionId, agent);
       agent.win.on('closed', () => agents.delete(m.sessionId));
-      await agent.ready; // 첫 탭의 tabAdded가 sessionCreated보다 먼저 가게 한다
-      return { type: 'sessionCreated', sessionId: m.sessionId };
+      const targetId = await agent.ready; // 첫 탭의 tabAdded가 sessionCreated보다 먼저 가게 한다
+      return { type: 'sessionCreated', sessionId: m.sessionId, targetId };
     }
     case 'newTab': {
       const agent = agentOf(m.sessionId);

@@ -36,7 +36,9 @@ test('R1·R3: 토큰을 붙여 POST /sessions → 201 {id}, 에이전트 창이 
 test('R10: 토큰이 없거나 틀리면 401이고 창이 생기지 않는다', async () => {
   expect((await post('/sessions')).status).toBe(401);
   expect((await post('/sessions', { authorization: 'Bearer wrong' })).status).toBe(401);
-  expect((await post('/sessions', { authorization: `Bearer ${control().token.slice(0, -1)}A` })).status).toBe(401);
+  const token = control().token;
+  const oneCharOff = token.slice(0, -1) + (token.endsWith('A') ? 'B' : 'A'); // 마지막 한 글자만 다른 토큰
+  expect((await post('/sessions', { authorization: `Bearer ${oneCharOff}` })).status).toBe(401);
   expect(await windows()).toEqual([{ kind: 'human' }]);
 });
 

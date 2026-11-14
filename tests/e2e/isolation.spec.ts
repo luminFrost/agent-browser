@@ -135,13 +135,18 @@ test('setAutoAttach(waitForDebuggerOnStart)를 해도 사람 창의 새 탭은 �
   } finally { client.close(); }
 });
 
-test('setAutoAttach의 filter가 page를 빼면 붙지 않는다 (chrome-devtools-mcp 방식)', async () => {
+test('setAutoAttach의 filter가 page를 빼면 page에는 직접 붙지 않고 자기 tab 대상에만 붙는다 (chrome-devtools-mcp 방식)', async () => {
   const a = await createSession(app);
   const client = await browserWs(a);
   try {
+    const { targetInfos } = await client.send('Target.getTargets', { filter: [{}] });
+    const ownTabs = (targetInfos as { targetId: string; type: string }[]).filter((t) => t.type === 'tab').map((t) => t.targetId);
+    expect(ownTabs).toHaveLength(1);
     await client.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true, filter: [{ type: 'page', exclude: true }, {}] });
-    await new Promise((r) => setTimeout(r, 500));
-    expect(client.events.filter((e) => e.method === 'Target.attachedToTarget')).toEqual([]);
+    await waitFor(async () => client.events.some((e) => e.method === 'Target.attachedToTarget'), '자기 tab에 붙기');
+    const attached = client.events.filter((e) => e.method === 'Target.attachedToTarget').map((e) => e.params.targetInfo as { targetId: string; type: string });
+    expect(attached.map((t) => t.type)).toEqual(['tab']);
+    expect(attached.map((t) => t.targetId)).toEqual(ownTabs);
   } finally { client.close(); }
 });
 

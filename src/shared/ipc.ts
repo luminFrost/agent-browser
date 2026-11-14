@@ -15,7 +15,7 @@ export type WindowInfo = { kind: 'human' } | { kind: 'agent'; sessionId: string 
 export type BrowserReply =
   | { type: 'ready' }
   | { type: 'windows'; windows: WindowInfo[] }
-  | { type: 'sessionCreated'; sessionId: string }
+  | { type: 'sessionCreated'; sessionId: string; targetId: string }
   | { type: 'tabCreated'; targetId: string }
   | { type: 'done' }
   | { type: 'error'; message: string }

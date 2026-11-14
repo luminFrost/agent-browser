@@ -109,7 +109,8 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
         async closeTab(targetId) { await request({ type: 'closeTab', sessionId: id, targetId }, 'done'); },
         async activateTab(targetId) { await request({ type: 'activateTab', sessionId: id, targetId }, 'done'); },
       });
-      await request({ type: 'createSession', sessionId: id }, 'sessionCreated');
+      const created = await request({ type: 'createSession', sessionId: id }, 'sessionCreated');
+      await added(id, created.targetId); // 첫 탭이 범위에 들어간 뒤 응답한다(바로 /json/list에 보이게)
       const endpoint = await startSessionEndpoint(scope, router, version);
       sessions.add({ id, endpoint });
       return { id, browserUrl: endpoint.browserUrl };

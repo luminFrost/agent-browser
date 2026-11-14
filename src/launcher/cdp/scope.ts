@@ -15,8 +15,14 @@ export interface TabActions {
 export class SessionScope {
   readonly targets = new Set<string>();
   readonly connections = new Set<Connection>();
+  /** page targetId → 짝 tab targetId */
+  private readonly tabs = new Map<string, string>();
 
   constructor(readonly id: string, readonly actions: TabActions) {}
+
+  pairTab(pageId: string, tabId: string): void { this.tabs.set(pageId, tabId); }
+
+  tabOfPage(pageId: string): string | undefined { return this.tabs.get(pageId); }
 
   owns(targetId: unknown): boolean {
     return typeof targetId === 'string' && this.targets.has(targetId);
@@ -30,6 +36,7 @@ export class SessionScope {
   }
 
   removeTarget(targetId: string): void {
+    this.tabs.delete(targetId);
     if (!this.targets.delete(targetId)) return;
     for (const c of this.connections) c.onTargetRemoved(targetId);
   }
