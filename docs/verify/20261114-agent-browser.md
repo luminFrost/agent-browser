@@ -65,3 +65,39 @@
 - code-review #9, #10
 - reviewer #5: 세션 엔드포인트 포트의 외부 IP 접속 E2E가 없음(코드와 직접 실험으로는 맞음)
 - reviewer #6: Connection·Router 단위 테스트가 없음(E2E로 다룸)
+
+---
+
+# 검증 보고 — 2회차
+날짜: 2026-11-14 · 판정 커밋: 80747da · 검증자: 새 reviewer, 새 /code-review(high, c510912..80747da), 확인 명령, 일부러 깨뜨려 보기(새 worktree)
+
+## 결론: FAIL. R7·R13이 두 회차 연속 FAIL이라 자동 수정을 멈추고 사람의 결정을 받는다
+
+| 완료 기준 | 판정 | 증거 (80747da) |
+|---|---|---|
+| R1~R6, R8~R11 | PASS | reviewer 판정표. npm test: 단위 87, E2E 51 통과. R6: target=_blank·noopener POST 팝업도 A의 창에 생김(reviewer P4·P5) |
+| R7 공유 상태 보호 | **FAIL (2회 연속)** | reviewer P2: 에이전트가 자기 탭에서 `Fetch.fulfillRequest`로 `Set-Cookie: sid=; Max-Age=0`를 주입하면 사람 창 `/me`가 anonymous로 바뀜. P3: `ServiceWorker.unregister`로 다른 출처에 있는 사람의 서비스 워커 등록을 지움(1→0). code-review: 페이지 JS(`document.cookie`, `localStorage.clear()`)로도 그 출처의 공유 상태를 지울 수 있음 |
+| R12 폼 제출 관문 | PASS (reviewer) / code-review 지적 | 인수 사례와 Fetch 우회 막기 테스트 통과. code-review: iframe으로 보내는 POST(subFrame)는 묻지 않음. spec 문구는 "최상위 폼 제출" |
+| R13 다운로드 관문 | **FAIL (2회 연속)** | reviewer P1·P1b: 응답이 오기 전에 탭을 닫거나 팝업이 스스로 닫히면, 출처를 알 수 없는 다운로드를 사람 창 것으로 보고 승인 없이 저장함(`downloadGate.ts:36-40`) |
+| 제약: 브라우저 전체 CDP 명령 차단 | FAIL | R7과 같은 원인 |
+
+## 확인 명령 (80747da)
+- lint 종료 0, test 통과(단위 87, E2E 51), build 종료 0.
+
+## 테스트 품질 (80747da, 새 worktree)
+- M1~M13 모두 테스트가 잡음(M3은 문구가 바뀌어 건너뛰고 M12로 대신함). 1회차의 M7 공백은 메워짐.
+- 남은 공백: R7 테스트는 정해 둔 명령만 검사하고, R13 테스트는 탭이 살아 있는 경우만 다룬다(reviewer #4).
+
+## 왜 안 고쳐지는가
+- **R7은 기준·설계 문제다.** 사람 창과 로그인을 공유하는 이상, 에이전트가 어떤 사이트 안에서 하는 행동(페이지 JS, 응답 조작, 로그아웃 버튼 누르기)은 그 사이트의 공유 로그인을 바꿀 수 있다. 페이지 세션을 차단 목록으로 거르면 새 경로가 계속 나온다(1회차 setCookie → 2회차 Fetch 응답·ServiceWorker). R7을 어디까지로 볼지 사람이 정해야 한다.
+- **R13은 설계 결함이다.** 출처를 모르는 다운로드를 사람 것으로 기본 처리한다. 고칠 방향은 분명하다(사람 창 탭인지 확인되지 않으면 막거나 묻는다). 다만 같은 항목이 두 번 연속 FAIL이어서 규칙대로 멈춘다.
+
+## code-review 2회차의 그 밖 지적 (사람 결정 뒤 3회차에서 처리 제안)
+| 심각도 | 내용 |
+|---|---|
+| Major | iframe(subFrame)으로 보내는 POST가 폼 관문을 지나감(spec은 "최상위"만 명시) |
+| Major | release() 뒤 attach 이벤트가 같은 탭을 기다리던 다른 연결로 넘어감(`router.ts:153`) |
+| Major | addTarget(비동기)과 removeTarget(동기)의 경쟁: 바로 닫힌 탭이 범위에 영영 남음(`router.ts:61`) |
+| Major | 세션 생성 중 멈추기(stopRequested)가 무시됨(`app.ts:101`) |
+| Major | 다운로드 폴더가 없으면 허용한 파일이 격리 폴더에 남고 처리되지 않은 거부(unhandled rejection)가 남(`downloadGate.ts:48`) |
+| Minor | 같은 이름의 사람 다운로드 둘이 동시에 오면 덮어씀. X-HTTP-Method-Override 헤더. 127.0.0.1 문자열이 두 곳에 있음. 창 크기 숫자 상수. Network.getAllCookies로 모든 쿠키를 읽을 수 있음(읽기만 함) |
