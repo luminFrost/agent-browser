@@ -1,0 +1,34 @@
+{
+  "items": [
+    {
+      "id": "I-001",
+      "created": "2026-11-14T19:05:40.677+09:00",
+      "task": "20261114-agent-browser",
+      "scope": "project",
+      "cause": "plan_gap",
+      "text": "plan-questions에 추가: 에이전트가 자기 탭 안에서 할 수 있는 일(페이지 JS·응답 조작·특수 주소·iframe/object POST·서비스 워커·파일 올리기) 중 무엇을 막고 무엇을 알려진 한계로 둘지 기획에서 정한다",
+      "status": "done",
+      "decided": "2026-11-14T19:07:23.217+09:00"
+    },
+    {
+      "id": "I-002",
+      "created": "2026-11-14T19:05:40.725+09:00",
+      "task": "20261114-agent-browser",
+      "scope": "framework",
+      "cause": "impl",
+      "text": "dev 역할 체크리스트: 보안 경계(명령·요청 필터)는 차단 목록이 아니라 허용 목록으로 시작하고, 같은 효과를 내는 다른 경로를 대조표로 적어 각각 테스트한다",
+      "status": "approved",
+      "decided": "2026-11-14T19:07:23.117+09:00"
+    },
+    {
+      "id": "I-003",
+      "created": "2026-11-14T19:05:40.773+09:00",
+      "task": "20261114-agent-browser",
+      "scope": "framework",
+      "cause": "setting",
+      "text": "사람에게 보이는 단계 보고(검증 결과·결정 요청·전달)는 쉬운 말 HTML로 만들고 맨 위에 결론과 '사람이 할 일'을 둔다. md 보고는 기록용으로만 쓴다",
+      "status": "approved",
+      "decided": "2026-11-14T19:07:23.167+09:00"
+    }
+  ]
+}

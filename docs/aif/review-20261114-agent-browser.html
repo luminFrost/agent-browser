@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>에이전트 브라우저 작업 돌아보기</title>
+<style>
+  body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; line-height: 1.7; color: #1f2328; background: #fff; }
+  h1 { font-size: 1.6rem; margin-bottom: .2rem; }
+  h2 { font-size: 1.15rem; margin-top: 2.2rem; border-bottom: 1px solid #d8dee4; padding-bottom: .3rem; }
+  .sub { color: #59636e; margin-top: 0; }
+  .box { background: #f0f7ff; border: 1px solid #b6d4fe; border-radius: 10px; padding: 16px 20px; }
+  .todo { background: #fff8e6; border: 1px solid #f2d48a; border-radius: 10px; padding: 16px 20px; }
+  .item { border: 1px solid #d8dee4; border-radius: 10px; padding: 14px 18px; margin: 12px 0; }
+  .item b.id { color: #0969da; }
+  .tag { display: inline-block; font-size: .8rem; padding: 1px 8px; border-radius: 99px; background: #eef1f4; color: #424a53; margin-left: 6px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { border-bottom: 1px solid #eaeef2; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { width: 34%; color: #59636e; font-weight: 500; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0d1117; color: #e6edf3; }
+    .sub, th { color: #9198a1; }
+    .box { background: #0c2d6b33; border-color: #1f6feb; }
+    .todo { background: #3b2e0a55; border-color: #9e6a03; }
+    .item, h2 { border-color: #30363d; }
+    td, th { border-color: #21262d; }
+    .tag { background: #21262d; color: #c9d1d9; }
+  }
+</style>
+</head>
+<body>
+<h1>에이전트 브라우저 작업 돌아보기</h1>
+<p class="sub">2026-11-14 · 이번 작업이 어떻게 흘러갔고, 다음엔 무엇을 바꾸면 좋을지</p>
+
+<div class="box">
+  <strong>결론:</strong> 작업이 끝났습니다. 완성 조건 13개를 모두 통과했고, 코드는 이 컴퓨터의 <code>main</code> 브랜치에 들어갔습니다. 배포는 하지 않았습니다.<br>
+  다만 검사를 다섯 번 해서야 통과했습니다. 처음 계획할 때 <em>"에이전트가 자기 탭 안에서 하는 일을 어디까지 막을지"</em>를 정하지 않아서, 검사할 때마다 새로운 빈틈이 하나씩 나왔기 때문입니다.
+</div>
+
+<h2>지금 하실 일</h2>
+<div class="todo">
+  아래 <b>개선 3가지</b>를 각각 <b>받아들일지(승인)</b> 또는 <b>버릴지(기각)</b>만 골라 주세요. 질문 창이 곧 뜹니다.<br>
+  앱을 아직 한 번도 켜 보지 않았다면 터미널에서 <code>npm start</code>를 실행해 화면과 회사 로그인을 확인해 보세요. 이건 언제 해도 됩니다.
+</div>
+
+<h2>숫자로 보면</h2>
+<table>
+  <tr><th>실제 작업 시간</th><td>2시간 50분 (쉰 시간 빼고)</td></tr>
+  <tr><th>검사 횟수</th><td>5번 (앞의 4번은 빈틈이 나와 고침)</td></tr>
+  <tr><th>당신이 고쳐 달라고 한 횟수</th><td>3번. 모두 "보고서를 이해하기 어렵다"는 내용이었습니다</td></tr>
+  <tr><th>자동 테스트</th><td>210개 모두 통과</td></tr>
+</table>
+
+<h2>잘 된 것</h2>
+<ul>
+  <li>빈틈이 나올 때마다 그 빈틈을 잡는 테스트부터 만들고 고쳤습니다. 그래서 같은 문제가 다시 생기지 않습니다.</li>
+  <li>"이건 설계상 완전히 막을 수 없다"는 문제는 제가 마음대로 정하지 않고 당신에게 물어서 정했습니다.</li>
+</ul>
+
+<h2>아쉬웠던 것과 이유</h2>
+<ul>
+  <li><b>검사를 다섯 번 해야 했습니다.</b> 계획 단계에서 막을 범위를 정하지 않았습니다. (원인: 계획 때 빠진 질문)</li>
+  <li><b>처음에는 "막을 것 목록"으로 만들어서 빈틈이 생겼습니다.</b> 세 번째 검사 뒤에 "허락할 것 목록"으로 바꾸자 빈틈이 멈췄습니다. (원인: 만드는 방식)</li>
+  <li><b>보고서가 어려웠습니다.</b> 내부 용어가 섞인 md 파일로 드렸습니다. (원인: 보고 방식이 정해져 있지 않음)</li>
+</ul>
+
+<h2>다음엔 이렇게 바꾸기 (승인할지 골라 주세요)</h2>
+<div class="item">
+  <b class="id">I-001</b><span class="tag">이 프로젝트</span><br>
+  다음 계획 때 <b>"에이전트가 자기 탭 안에서 하는 일 중 무엇을 막고, 무엇을 '알려진 한계'로 둘지"</b>를 먼저 묻습니다.<br>
+  <small>승인하면 다음 계획 질문 목록에 바로 넣습니다.</small>
+</div>
+<div class="item">
+  <b class="id">I-002</b><span class="tag">모든 프로젝트</span><br>
+  보안 장치를 만들 때는 <b>"막을 것 목록"이 아니라 "허락할 것 목록"으로 시작</b>하고, 같은 일을 하는 다른 길도 표로 적어 하나씩 테스트합니다.<br>
+  <small>승인하면 프레임워크 개선함으로 보냅니다.</small>
+</div>
+<div class="item">
+  <b class="id">I-003</b><span class="tag">모든 프로젝트</span><br>
+  사람에게 보여 주는 보고는 <b>쉬운 말로 쓴 HTML 페이지</b>로 드리고, 맨 위에 <b>결론과 "당신이 할 일"</b>을 둡니다.<br>
+  <small>이 프로젝트에서는 이미 이렇게 하고 있습니다. 승인하면 다른 프로젝트에도 기본으로 적용되도록 프레임워크 개선함으로 보냅니다.</small>
+</div>
+</body>
+</html>

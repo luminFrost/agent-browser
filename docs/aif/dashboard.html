@@ -1,0 +1,18 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI 작업 대시보드</title><style>
+:root{--fg:#1f2328;--mut:#656d76;--bd:#d0d7de;--bg:#fff;--card:#f6f8fa;--ac:#0969da;--ok:#1a7f37;--warn:#9a6700;--bad:#cf222e}
+@media(prefers-color-scheme:dark){:root{--fg:#e6edf3;--mut:#9198a1;--bd:#30363d;--bg:#0d1117;--card:#161b22;--ac:#4493f8;--ok:#3fb950;--warn:#d29922;--bad:#f85149}}
+body{font:14px/1.55 system-ui,-apple-system,"Segoe UI","Malgun Gothic",sans-serif;color:var(--fg);background:var(--bg);max-width:1100px;margin:auto;padding:24px}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:26px 0 8px}.mut{color:var(--mut);font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px}.card{border:1px solid var(--bd);border-radius:10px;padding:12px}
+.row{display:grid;grid-template-columns:96px 1fr 92px;gap:8px;align-items:center;font-size:12px;margin:2px 0}.bar{background:var(--card);border-radius:4px;height:10px}.bar i{display:block;height:10px;background:var(--ac);border-radius:4px}.v{text-align:right;color:var(--mut)}
+table{border-collapse:collapse;width:100%;font-size:13px}td,th{border-bottom:1px solid var(--bd);padding:6px;text-align:left}th{color:var(--mut);font-weight:500}
+.b{padding:0 8px;border-radius:10px;border:1px solid;font-size:12px}.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}</style></head><body>
+<h1>AI 작업 대시보드</h1><div class="mut">자동 생성 2026-11-14 19:07 · 원본: docs/aif/ledger.csv, .aif/sessions</div>
+<h2>작업</h2><table><tr><th>작업</th><th>규모</th><th>시작</th><th>완료</th><th>실작업</th><th>기대 대비</th><th>토큰</th><th>검증(FAIL)</th><th>규칙</th><th>효율</th><th>완성도</th></tr>
+<tr><td>agent-browser (Electron + CDP 에이전트 공간 브라우저)<div class="mut">20261114-agent-browser</div></td><td>L</td><td>2026-11-14 09:07</td><td>2026-11-14 19:03</td><td>2시간 50분</td><td>-</td><td>2,031,065</td><td>5(4)</td><td><span class="b warn">주의</span></td><td><span class="b bad">문제</span></td><td><span class="b bad">문제</span></td></tr></table>
+<div class="grid">
+<div class="card"><h2>일별 실작업</h2><div class="row"><span class="k">2026-11-14</span><span class="bar"><i style="width:100%"></i></span><span class="v">2시간 55분</span></div></div>
+<div class="card"><h2>일별 토큰 (캐시 읽기 제외)</h2><div class="row"><span class="k">2026-11-14</span><span class="bar"><i style="width:100%"></i></span><span class="v">2,075,669</span></div></div>
+<div class="card"><h2>주별 · 월별</h2><div class="row"><span class="k">2026-11-09</span><span class="bar"><i style="width:100%"></i></span><span class="v">2시간 55분</span></div><div class="mut" style="margin:8px 0 4px">월별 토큰</div><div class="row"><span class="k">2026-11</span><span class="bar"><i style="width:100%"></i></span><span class="v">2,075,669</span></div></div></div>
+<h2>개선 목록</h2><table><tr><th>ID</th><th>범위</th><th>원인</th><th>내용</th><th>상태</th><th>작업</th></tr><tr><td>I-001</td><td>프로젝트</td><td>기획 누락</td><td>plan-questions에 추가: 에이전트가 자기 탭 안에서 할 수 있는 일(페이지 JS·응답 조작·특수 주소·iframe/object POST·서비스 워커·파일 올리기) 중 무엇을 막고 무엇을 알려진 한계로 둘지 기획에서 정한다</td><td>반영</td><td class="mut">20261114-agent-browser</td></tr><tr><td>I-002</td><td>프레임워크</td><td>구현</td><td>dev 역할 체크리스트: 보안 경계(명령·요청 필터)는 차단 목록이 아니라 허용 목록으로 시작하고, 같은 효과를 내는 다른 경로를 대조표로 적어 각각 테스트한다</td><td>승인</td><td class="mut">20261114-agent-browser</td></tr><tr><td>I-003</td><td>프레임워크</td><td>설정 문제</td><td>사람에게 보이는 단계 보고(검증 결과·결정 요청·전달)는 쉬운 말 HTML로 만들고 맨 위에 결론과 '사람이 할 일'을 둔다. md 보고는 기록용으로만 쓴다</td><td>승인</td><td class="mut">20261114-agent-browser</td></tr></table>
+</body></html>
