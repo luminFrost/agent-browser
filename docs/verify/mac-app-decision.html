@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mac 앱 묶기 — 정해 주실 것 하나</title>
+<style>
+  body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; line-height: 1.7; color: #1f2328; background: #fff; }
+  h1 { font-size: 1.5rem; margin-bottom: .2rem; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #d8dee4; padding-bottom: .3rem; }
+  .sub { color: #59636e; margin-top: 0; }
+  .box { background: #f0f7ff; border: 1px solid #b6d4fe; border-radius: 10px; padding: 16px 20px; }
+  .todo { background: #fff8e6; border: 1px solid #f2d48a; border-radius: 10px; padding: 16px 20px; }
+  .opt { border: 1px solid #d8dee4; border-radius: 10px; padding: 14px 18px; margin: 12px 0; }
+  .rec { border-color: #2da44e; }
+  .badge { font-size: .8rem; background: #dafbe1; color: #116329; padding: 1px 8px; border-radius: 99px; margin-left: 6px; }
+  table { border-collapse: collapse; width: 100%; }
+  td { border-bottom: 1px solid #eaeef2; padding: 6px 8px; vertical-align: top; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0d1117; color: #e6edf3; }
+    .sub { color: #9198a1; }
+    .box { background: #0c2d6b33; border-color: #1f6feb; }
+    .todo { background: #3b2e0a55; border-color: #9e6a03; }
+    .opt, h2, td { border-color: #30363d; }
+    .rec { border-color: #2ea043; }
+    .badge { background: #033a16; color: #7ee787; }
+  }
+</style>
+</head>
+<body>
+<h1>Mac 앱 묶기 — 정해 주실 것 하나</h1>
+<p class="sub">2026-11-14 · 검사 2회차 결과</p>
+
+<div class="box">
+  <strong>결론:</strong> Mac 앱(.dmg)은 만들어졌고, 7개 조건 중 6개는 통과했습니다. Node 없이 실행되고, 보안 장치도 그대로이며, 끄면 깔끔하게 정리됩니다.<br>
+  <b>"두 번 열어도 하나만 뜬다"</b> 하나만 두 번 연속 실패해서, 규칙대로 멈추고 여쭙니다.
+</div>
+
+<h2>무엇이 문제인가</h2>
+<ul>
+  <li>보통처럼 몇 번 클릭하는 경우는 괜찮습니다. 검사자가 0~0.9초 간격으로 여러 번, 컴퓨터가 바쁜 상태에서도 해 봤는데 문제가 없었습니다.</li>
+  <li>그런데 <b>0.008초 간격으로 120번 연달아 실행</b>하는 극단적인 시험에서는 13번 중 4번 브라우저가 2~3개 떴습니다.</li>
+  <li>원인: 앱을 열 때 "이미 켜져 있나?"를 Chromium 내부 장치로 확인합니다. 이 장치는 켜져 있는 쪽이 바빠서 대답이 늦으면 "멈췄다"고 보고 자리를 빼앗습니다.</li>
+  <li>같은 이유로, 아주 드물게 막 켜지던 창이 꺼지거나, 컴퓨터가 시작 도중 꺼진 뒤 앱이 열리지 않을 가능성도 있습니다.</li>
+</ul>
+
+<h2>고르실 것</h2>
+<div class="opt rec">
+  <b>A. 확인 방식을 바꿔서 고친다</b><span class="badge">추천</span><br>
+  "이미 켜져 있나?"를 Chromium 장치 대신 앱이 직접 관리합니다. 켜져 있는 동안 런처가 표시를 들고 있고, 다시 열면 런처에게 "창을 앞으로" 신호만 보냅니다.<br>
+  <small>예상 30~40분 + 검사 1회 더. 극단적인 연속 실행에서도 하나만 뜨게 하는 것이 목표입니다.</small>
+</div>
+<div class="opt">
+  <b>B. 지금 상태로 마무리한다</b><br>
+  "보통 사용(몇 번 클릭)에서는 하나만 뜬다"로 조건을 좁히고, 극단적인 연속 실행은 "알려진 한계"로 기록합니다.<br>
+  <small>바로 마무리 단계로 갈 수 있습니다. 드문 경우의 "창이 안 뜸"은 남습니다.</small>
+</div>
+<div class="opt">
+  <b>C. 여기서 멈춘다</b><br>
+  코드는 그대로 두고 나중에 다시 봅니다.
+</div>
+
+<h2>지금 하실 일</h2>
+<div class="todo">
+  곧 뜨는 질문 창에서 <b>A / B / C</b> 중 하나를 고르시면 됩니다.
+</div>
+
+<h2>조건별 결과</h2>
+<table>
+  <tr><td>P1 dmg 만들기</td><td>통과</td></tr>
+  <tr><td>P2 Node 없이 실행</td><td>통과</td></tr>
+  <tr><td>P3 보안 장치 유지</td><td>통과</td></tr>
+  <tr><td>P4 끄면 정리</td><td>통과 (사람 창 닫기는 권한 문제로 자동 확인 못 함 — 직접 한 번 닫아 보시면 됩니다)</td></tr>
+  <tr><td>P5 두 번 열어도 하나</td><td><b>실패 (극단적 연속 실행)</b></td></tr>
+  <tr><td>P6 브라우저가 죽어도 정리</td><td>통과</td></tr>
+  <tr><td>P7 기존 테스트 유지</td><td>통과 (216개)</td></tr>
+</table>
+</body>
+</html>
