@@ -1,5 +1,5 @@
 # Progress
-갱신: 2026-11-14 · 단계: 개발 끝 → 검증 대기 · 작업: 20261114-agent-browser · 브랜치: feat/agent-browser
+갱신: 2026-11-14 · 단계: 검증 끝(PASS) → 전달 대기 · 작업: 20261114-agent-browser · 브랜치: feat/agent-browser
 덮어쓴다. 기록이 아니라 현재 상태다.
 
 ## 지금 상태
@@ -10,8 +10,8 @@
 - R11 상태별 스크린샷: `npm test` 뒤 `test-results/watch-*/R11-*.png`(3장: 빈 상태, 세션 2개, 멈춘 뒤).
 
 ## 다음 할 일
-- 새 세션에서 `/aif-verify`(검증자: code-review, reviewer — `.aif/config.yaml`).
-- 검증 때 사람이 볼 것: 실제 화면(창을 띄운 상태)에서 사람 창·에이전트 창·승인 요청 모양. 테스트는 창을 숨기고 돈다.
+- `/aif-deliver`로 전달한다(사람 승인 지점).
+- 검증 5회차 PASS(68dbfd1). 보고: `docs/verify/20261114-agent-browser.md`. 사람 확인 항목 4개(파일 올리기, 서비스 워커, 실제 화면, Electron 버전)와 후속 Minor가 그 보고에 있다.
 
 ## 막힌 것 · 결정 필요
 - 없음.

@@ -177,3 +177,55 @@
 | Minor | 쓰지 않는 코드(continueResponse 검사, newTab의 url 필드, router의 중복 removeTarget) |
 | 사람 확인 | `DOM.setFileInputFiles` + 묻지 않는 fetch로 로컬 파일을 밖으로 보낼 수 있음(파일 올리기 기능과 맞바꿈) |
 | 사람 확인 | reviewer #3: `Fetch.continueWithAuth`로 넣은 HTTP 인증이 공유 파티션에 남음 |
+
+---
+
+# 검증 보고 — 5회차 (최종)
+날짜: 2026-11-14 · 판정 커밋: 68dbfd1 · 검증자: 새 reviewer, 새 /code-review(high, c510912..68dbfd1), 확인 명령, 일부러 깨뜨려 보기(새 worktree), 재현 확인
+
+## 결론: PASS
+
+| 완료 기준 | 판정 | 증거 (68dbfd1) |
+|---|---|---|
+| R1 창 분리 | PASS | `humanWindow.spec.ts:17`, `control.spec.ts:24` |
+| R2 로그인 공유 | PASS | `login.spec.ts:24` (재시작 뒤 유지) |
+| R3 세션 생성 | PASS | `endpoint.spec.ts:12,20,37,50`, `control.spec.ts:17` |
+| R4 기존 도구 호환 | PASS | `compat.spec.ts:16,32`, `compatExtended.spec.ts`(chrome-devtools-mcp 조작 도구, Playwright 흔한 API) |
+| R5 탭 격리 | PASS | `isolation.spec.ts:18,33,183`(Tracing 차단). reviewer 시도: 다른 세션·사람 탭 노출 없음 |
+| R6 격리 우회 차단 | PASS | `isolation.spec.ts:56,74,86,102`. reviewer P1: 페이지 세션의 autoAttachRelated는 Chrome이 거부 |
+| R7 공유 상태 보호 | PASS | `sharedState.spec.ts:14`. reviewer P2·P3: Clear-Site-Data 위조, Set-Cookie 변형 3종 모두 막히거나 효과 없음 |
+| R8 동시 세션 | PASS | `concurrency.spec.ts:13,32` |
+| R9 종료 | PASS | `termination.spec.ts:29,40` |
+| R10 잘못된 접속 | PASS | `control.spec.ts:36,45`, `endpoint.spec.ts:60,72`. reviewer P9: 세션 포트도 127.0.0.1만 LISTEN, 외부 IP ECONNREFUSED |
+| R11 지켜보기 | PASS | `watch.spec.ts:29,36`. 스크린샷 `docs/verify/screenshots/20261114-agent-browser/R11/`(23117c7에서 찍음, 이후 화면 코드 변경 없음) |
+| R12 폼 제출 관문 | PASS | `formGate.spec.ts` 9개(iframe·object POST, Fetch 바꾸기 차단, fetch·XHR·sendBeacon·cspReport 제외) |
+| R13 다운로드 관문 | PASS | `downloadGate.spec.ts` 8개 |
+| 제약 전부 | PASS | reviewer 판정표. 보안 제약: 위 R5·R6·R7·R10. chrome:// 이동 차단은 `isolation.spec.ts`(ADR-0006) |
+
+## 확인 명령 (68dbfd1, 검증용 worktree에서 내 실행, reviewer도 따로 실행)
+- `npm run lint` 종료 0, `npm test` 통과(Vitest 7파일 146개, Playwright 64개), `npm run build` 종료 0
+
+## 테스트 품질 (68dbfd1, 손으로 깨뜨려 보기)
+- M1~M25 중 잡히지 않은 것은 2개, 둘 다 동작이 같은 변형이다.
+  - M10: setDownloadBehavior 전용 검사. 허용 목록이 같은 명령을 이미 막는다.
+  - M23: 브라우저 쪽 chrome:// 이동 검사. Chromium도 웹 페이지에서 chrome:// 이동을 스스로 막아 두 번째 방어선이다.
+- 그 밖에 이번 회차에 고친 M22(Page.navigate 주소)·M24(cspReport)·M25(Set-Cookie 공백)는 모두 잡힌다.
+
+## code-review 5회차 지적의 처리
+| # | 지적 | 판정 |
+|---|---|---|
+| 1 | 로드 실패 시 에이전트 탭이 `file://` 오류 페이지에 놓임 | Minor(후속). 재현: 오류 페이지에서 `fetch`·XHR로 `file:///etc/hosts` 읽기는 둘 다 실패 → 로컬 파일 노출 없음. ADR-0006 문구와 방어선 정리 대상 |
+| 2 | 페이지 세션 autoAttachRelated로 남의 탭에 붙기 | 오탐. reviewer 2~5회차 직접 시도에서 Chrome이 거부 |
+| 3 | srcdoc iframe이 막혀 사이트가 깨짐 | 오탐. 재현: srcdoc iframe 정상 표시(`"srcdoc-ok"`) |
+| 4 | DOM.setFileInputFiles + 묻지 않는 fetch로 로컬 파일 업로드 | 사람 확인(아래) |
+| 5~10 | probeTab attach 경쟁, autoAttached 미정리, 같은 이름 사람 다운로드 덮어쓰기, closedWindows·pageOfTab 누적, 창 크기 상수 | Minor(후속) |
+
+## 사람 확인 항목
+1. **파일 올리기:** 에이전트가 `DOM.setFileInputFiles`로 로컬 파일(프로필의 History, control.json 포함)을 페이지에 넣고 fetch로 보낼 수 있다. fetch는 묻지 않는 것이 spec 한계다. 파일 올리기 기능을 막을지 정한다.
+2. **서비스 워커(reviewer 관찰):** 에이전트가 자기 탭에서 등록한 같은 출처 서비스 워커로 사람 탭의 같은 출처 응답을 바꾸거나 이동시킬 수 있다. 서비스 워커를 거친 POST는 폼 관문을 지나간다. ADR-0004·0005 한계 안이지만 "로그인 변경"보다 넓다. 한계 문구를 넓힐지, 에이전트 탭에서 서비스 워커를 막을지 정한다.
+3. **실제 화면:** 창을 띄운 상태의 모양은 사람이 Mac에서 한 번 켜 본다(`npm start`). 상태별 스크린샷은 `docs/verify/screenshots/20261114-agent-browser/`.
+4. **Electron 버전:** 45.3.2가 지금의 최신 안정판인지 확인한다.
+
+## 후속 (FAIL 아님, 고칠지는 사람이 정한다)
+- code-review 5회차 #1, #5~#10. 4회차의 navigateTab·onBlocked 등은 5회차에 고쳤다.
+- 상한: 실작업 약 2.5시간(8시간 안), 토큰은 이 보고에서 재지 않음.
