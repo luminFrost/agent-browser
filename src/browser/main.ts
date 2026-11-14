@@ -1,7 +1,8 @@
 import { app, session } from 'electron';
 import { createHumanWindow, type HumanWindow } from './humanWindow';
+import { createAgentWindow, type AgentWindow } from './agentWindow';
 import { SHARED_PARTITION } from '../shared/constants';
-import type { BrowserToLauncher, LauncherToBrowser, WindowInfo } from '../shared/ipc';
+import type { BrowserReply, LauncherToBrowser, WindowInfo } from '../shared/ipc';
 
 const USER_DATA_FLAG = '--ab-user-data=';
 const HIDDEN_FLAG = '--ab-hidden';
@@ -15,15 +16,38 @@ if (!userDataArg || typeof process.send !== 'function') {
 app.setPath('userData', userDataArg.slice(USER_DATA_FLAG.length));
 const showWindows = !process.argv.includes(HIDDEN_FLAG);
 
-const send = (m: BrowserToLauncher) => process.send?.(m);
+const send = (m: BrowserReply, rid?: number) => process.send?.({ ...m, rid });
 let human: HumanWindow | undefined;
+const agents = new Map<string, AgentWindow>();
 
-const listWindows = (): WindowInfo[] => (human && !human.win.isDestroyed() ? [{ kind: 'human' }] : []);
+const listWindows = (): WindowInfo[] => [
+  ...(human && !human.win.isDestroyed() ? [{ kind: 'human' as const }] : []),
+  ...[...agents.keys()].map((sessionId) => ({ kind: 'agent' as const, sessionId })),
+];
+
+const handle = (m: LauncherToBrowser): BrowserReply | undefined => {
+  switch (m.type) {
+    case 'quit':
+      app.quit();
+      return undefined;
+    case 'listWindows':
+      return { type: 'windows', windows: listWindows() };
+    case 'createSession': {
+      if (agents.has(m.sessionId)) return { type: 'error', message: `이미 있는 세션: ${m.sessionId}` };
+      const agent = createAgentWindow(m.sessionId, showWindows);
+      agents.set(m.sessionId, agent);
+      agent.win.on('closed', () => agents.delete(m.sessionId));
+      return { type: 'sessionCreated', sessionId: m.sessionId };
+    }
+  }
+};
 
 process.on('message', (m: LauncherToBrowser) => {
-  switch (m.type) {
-    case 'quit': return app.quit();
-    case 'listWindows': return send({ type: 'windows', windows: listWindows() });
+  try {
+    const reply = handle(m);
+    if (reply) send(reply, m.rid);
+  } catch (e) {
+    send({ type: 'error', message: e instanceof Error ? e.message : String(e) }, m.rid);
   }
 });
 // 런처가 죽으면 같이 끝난다. 에이전트가 붙을 길이 없는 브라우저를 남기지 않는다.
@@ -39,6 +63,9 @@ app.whenReady().then(() => {
   shared.setPermissionCheckHandler(() => false);
 
   human = createHumanWindow(showWindows);
-  human.win.on('closed', () => { human = undefined; });
+  human.win.on('closed', () => {
+    human = undefined;
+    app.quit();
+  });
   send({ type: 'ready' });
 });
