@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mac 앱 묶기 — 검사 결과</title>
+<style>
+  body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; line-height: 1.7; color: #1f2328; background: #fff; }
+  h1 { font-size: 1.5rem; margin-bottom: .2rem; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #d8dee4; padding-bottom: .3rem; }
+  .sub { color: #59636e; margin-top: 0; }
+  .box { background: #f0f7ff; border: 1px solid #b6d4fe; border-radius: 10px; padding: 16px 20px; }
+  .todo { background: #fff8e6; border: 1px solid #f2d48a; border-radius: 10px; padding: 16px 20px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { border-bottom: 1px solid #eaeef2; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { color: #59636e; font-weight: 500; }
+  .ok { color: #1a7f37; font-weight: 600; }
+  code { background: #eef1f4; padding: 1px 5px; border-radius: 4px; }
+  ol li { margin-bottom: .5rem; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0d1117; color: #e6edf3; }
+    .sub, th { color: #9198a1; }
+    .box { background: #0c2d6b33; border-color: #1f6feb; }
+    .todo { background: #3b2e0a55; border-color: #9e6a03; }
+    h2, td, th { border-color: #30363d; }
+    .ok { color: #3fb950; }
+    code { background: #21262d; }
+  }
+</style>
+</head>
+<body>
+<h1>Mac 앱 묶기 — 검사 결과</h1>
+<p class="sub">2026-11-15 · 세 번째 검사에서 통과</p>
+
+<div class="box">
+  <strong>결론:</strong> <b>다 됐습니다.</b> <code>Agent Browser-0.1.0-arm64.dmg</code> 파일 하나로 다른 Mac(M1 이상)에서 Node나 npm 없이 더블클릭으로 씁니다. 7개 조건이 모두 통과했습니다.
+</div>
+
+<h2>지금 하실 일</h2>
+<div class="todo">
+<ol>
+  <li><b>직접 한 번 열어 보기.</b> Finder에서 <code>release/Agent Browser-0.1.0-arm64.dmg</code>를 열고 앱을 응용 프로그램 폴더로 끌어 놓은 뒤 엽니다.<br>
+    처음에는 "확인되지 않은 개발자" 경고가 뜹니다. <b>앱을 우클릭 → 열기</b>를 한 번 하면 다음부터는 그냥 열립니다. 사람 창을 닫았을 때 앱이 완전히 꺼지는지도 봐 주세요.</li>
+  <li><b>회사 PC에서 열리는지 확인.</b> dmg를 회사 PC로 옮겨 같은 방법으로 열어 봅니다. 회사 보안 때문에 막히면 알려 주세요. 그때는 Apple 서명을 새 작업으로 합니다.</li>
+  <li>괜찮으면 <code>/aif-deliver</code>를 입력하세요. 버전과 파일 위치를 기록하고 작업을 닫습니다. 배포는 하지 않습니다.</li>
+</ol>
+</div>
+
+<h2>조건별 결과</h2>
+<table>
+  <tr><th>조건</th><th>결과</th></tr>
+  <tr><td>dmg 파일 만들기 (<code>npm run dist</code>)</td><td class="ok">통과</td></tr>
+  <tr><td>Node 없이 더블클릭으로 실행</td><td class="ok">통과</td></tr>
+  <tr><td>보안 장치 그대로 (밖에서 접속 못 함, 열쇠 없으면 거부)</td><td class="ok">통과</td></tr>
+  <tr><td>끄면 남는 프로그램 없음</td><td class="ok">통과</td></tr>
+  <tr><td>두 번 열어도 하나만 뜸 (0.008초 간격 120번 연속 실행까지)</td><td class="ok">통과</td></tr>
+  <tr><td>브라우저가 갑자기 죽어도 깔끔히 정리, 다시 열면 정상</td><td class="ok">통과</td></tr>
+  <tr><td>기존 테스트·<code>npm start</code> 그대로</td><td class="ok">통과 (테스트 217개)</td></tr>
+</table>
+
+<h2>검사를 세 번 한 이유</h2>
+<ul>
+  <li><b>1회차:</b> 아이콘을 아주 빠르게 두 번 누르면 프로그램이 둘 떴습니다. 고쳤습니다.</li>
+  <li><b>2회차:</b> 극단적인 연속 실행에서 또 둘이 떴습니다. 원인이 Chromium 내부 장치라, 고르신 대로(A) "켜져 있나?"를 앱이 직접 판단하게 바꿨습니다.</li>
+  <li><b>3회차:</b> 모두 통과했습니다.</li>
+</ul>
+
+<h2>알아 둘 작은 한계</h2>
+<ul>
+  <li>앱을 끄고 <b>0.02초 안에</b> 다시 열면 안 열릴 수 있습니다. 그러면 한 번 더 열면 됩니다. 사람 손으로는 거의 생기지 않습니다.</li>
+  <li>앱이 켜져 있는 동안 프로필 폴더(<code>~/Library/Application Support/agent-browser</code>)를 통째로 복사해 다른 곳에서 쓰면 복사본이 안 열릴 수 있습니다. 그 안의 <code>launcher.lock</code>을 지우면 됩니다.</li>
+  <li>그 밖의 작은 정리 거리 7개는 검사 기록(<code>docs/verify/20261114-mac-app-package.md</code>)의 "후속" 표에 있습니다. 급하지 않습니다.</li>
+</ul>
+</body>
+</html>
