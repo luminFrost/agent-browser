@@ -1,3 +1,4 @@
+import { isAgentNavigable } from '../../shared/url';
 /**
  * CDP 명령을 어떻게 다룰지 정하는 표(docs/design.md 인터페이스 절).
  * 브라우저 수준(sessionId 없음)은 허용 목록, 페이지 세션은 차단 목록이다.
@@ -91,6 +92,7 @@ const SESSION_ALLOWED = new Set([
   'Emulation.setTouchEmulationEnabled', 'Emulation.setUserAgentOverride', 'Emulation.clearDeviceMetricsOverride',
   'DOM.pushNodesByBackendIdsToFrontend', 'DOM.requestNode', 'CSS.getComputedStyleForNode', 'CSS.getMatchedStylesForNode',
   'CSS.getInlineStylesForNode', 'CSS.getEnvironmentVariables', 'CSS.disable',
+  'IO.read', 'IO.close', // Page.printToPDF의 스트림 읽기(ADR-0006)
   'Runtime.awaitPromise', 'Runtime.releaseObjectGroup', 'Runtime.removeBinding', 'Log.disable', 'Page.disable', 'Runtime.disable', 'DOM.disable',
 ]);
 
@@ -98,17 +100,18 @@ const SESSION_ALLOWED = new Set([
 const DOWNLOAD_BEHAVIOR = new Set(['Page.setDownloadBehavior', 'Browser.setDownloadBehavior']);
 
 /** R12: 가로챈 요청을 이어 보낼 때 method·본문·주소를 바꾸면 관문을 건너뛰거나 승인한 곳과 다른 곳으로 간다 */
-const REQUEST_CONTINUE = new Set(['Fetch.continueRequest']);
+const REQUEST_CONTINUE = 'Fetch.continueRequest';
 
 /** R7: 가짜 응답의 Set-Cookie로 그 출처(사람과 공유)의 쿠키를 바꿀 수 있다 */
-const RESPONSE_REWRITE = new Set(['Fetch.fulfillRequest', 'Fetch.continueResponse']);
+const RESPONSE_REWRITE = 'Fetch.fulfillRequest';
 
 const hasSetCookie = (params: Record<string, unknown>): boolean => {
   const headers = Array.isArray(params.responseHeaders) ? (params.responseHeaders as { name?: unknown }[]) : [];
-  if (headers.some((h) => typeof h.name === 'string' && h.name.toLowerCase() === 'set-cookie')) return true;
+  // 헤더 이름 앞뒤 공백은 무시하고 판정한다(ADR-0006)
+  if (headers.some((h) => typeof h.name === 'string' && h.name.trim().toLowerCase() === 'set-cookie')) return true;
   if (typeof params.binaryResponseHeaders === 'string') {
     const text = Buffer.from(params.binaryResponseHeaders, 'base64').toString('latin1');
-    return text.split('\0').some((line) => line.toLowerCase().startsWith('set-cookie:'));
+    return text.split(/[\0\r\n]/).some((line) => line.split(':')[0].trim().toLowerCase() === 'set-cookie');
   }
   return false;
 };
@@ -127,7 +130,8 @@ export function sessionLevelBlockReason(method: string, params: Record<string, u
   }
   if (method === 'Browser.getVersion') return undefined;
   if (!SESSION_ALLOWED.has(method)) return '사람 창과 공유하는 로그인·저장소나 브라우저 전체에 닿을 수 있는 명령은 쓸 수 없다(허용 목록 밖)';
-  if (REQUEST_CONTINUE.has(method) && (params.method !== undefined || params.postData !== undefined || params.url !== undefined)) return '요청의 method·본문·주소를 바꿀 수 없다(폼 제출 관문)';
-  if (RESPONSE_REWRITE.has(method) && hasSetCookie(params)) return '응답에 Set-Cookie를 넣을 수 없다(공유 로그인 보호)';
+  if (method === 'Page.navigate' && !isAgentNavigable(String(params.url ?? ''))) return '이 주소로는 이동할 수 없다(웹 주소만, ADR-0006)';
+  if (method === REQUEST_CONTINUE && (params.method !== undefined || params.postData !== undefined || params.url !== undefined)) return '요청의 method·본문·주소를 바꿀 수 없다(폼 제출 관문)';
+  if (method === RESPONSE_REWRITE && hasSetCookie(params)) return '응답에 Set-Cookie를 넣을 수 없다(공유 로그인 보호)';
   return undefined;
 }

@@ -68,7 +68,9 @@ test('사이트의 권한 요청(알림·위치·카메라)은 거부된다', as
   const page = await waitFor(async () => (await targets(app)).find((t) => t.url === `${server.base}/a`), '탭 대상');
   const run = (expr: string) => evaluate<string>(app, page.targetId, expr);
   expect(await run('Notification.requestPermission()')).toBe('denied');
-  expect(await run(`navigator.mediaDevices.getUserMedia({ video: true }).then(() => 'granted', e => e.name)`)).toBe('NotAllowedError');
+  // 카메라: 장치가 없으면 NotFoundError가 먼저 나온다. 장치와 상관없이 권한 상태(denied)와 '허용되지 않음'으로 판정한다(ADR-0006)
+  expect(await run(`navigator.permissions.query({ name: 'camera' }).then(s => s.state)`)).toBe('denied');
+  expect(await run(`navigator.mediaDevices.getUserMedia({ video: true }).then(() => 'granted', e => e.name)`)).not.toBe('granted');
   // 위치: macOS의 Electron은 거부된 위치 요청에 오류 콜백을 부르지 않고 멈춘다(T2에서 확인).
   // 그래서 권한 상태가 denied이고, 위치가 끝내 전달되지 않는 것으로 확인한다.
   expect(await run(`navigator.permissions.query({ name: 'geolocation' }).then(s => s.state)`)).toBe('denied');

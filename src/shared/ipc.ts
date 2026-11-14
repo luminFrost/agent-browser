@@ -3,7 +3,7 @@ export type LauncherCommand =
   | { type: 'quit' }
   | { type: 'listWindows' }
   | { type: 'createSession'; sessionId: string }
-  | { type: 'newTab'; sessionId: string; url: string }
+  | { type: 'newTab'; sessionId: string }
   | { type: 'navigateTab'; sessionId: string; targetId: string; url: string }
   | { type: 'closeTab'; sessionId: string; targetId: string }
   | { type: 'activateTab'; sessionId: string; targetId: string }

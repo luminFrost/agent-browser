@@ -217,3 +217,22 @@ test('createTarget(url): 자동 붙기를 켠 클라이언트는 이동이 시�
     await waitFor(async () => (await list(a)).some((t) => t.url === `${server.base}/b?created`), '그다음 이동');
   } finally { client.close(); }
 });
+
+test('ADR-0006: 에이전트는 chrome:// 등 내부 페이지로 갈 수 없다 (검증 4회차)', async () => {
+  const a = await createSession(app);
+  const client = await browserWs(a);
+  try {
+    const [tab] = await list(a);
+    const { sessionId } = await client.send('Target.attachToTarget', { targetId: tab.id, flatten: true });
+    for (const url of ['chrome://accessibility', 'chrome://process-internals', 'devtools://devtools/bundled/inspector.html', 'file:///etc/hosts']) {
+      expect((await client.call('Page.navigate', { url }, sessionId as string)).error?.message, `Page.navigate ${url}`).toMatch(/agent-browser/);
+      expect((await client.call('Target.createTarget', { url })).error?.message, `createTarget ${url}`).toMatch(/agent-browser/);
+    }
+    // 페이지 쪽 이동(JS)과 팝업도
+    await client.send('Page.navigate', { url: `${server.base}/a` }, sessionId as string);
+    await waitFor(async () => (await list(a))[0].url === `${server.base}/a`, 'A로 이동');
+    await client.send('Runtime.evaluate', { expression: `location.href = 'chrome://accessibility'; window.open('chrome://process-internals'); 1`, userGesture: true }, sessionId as string);
+    await new Promise((r) => setTimeout(r, 1000));
+    for (const t of await list(a)) expect(t.url, '에이전트 탭 주소').not.toMatch(/^chrome:/);
+  } finally { client.close(); }
+});

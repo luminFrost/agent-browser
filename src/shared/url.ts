@@ -13,3 +13,15 @@ export function normalizeAddress(input: string): string | null {
   if (HAS_SCHEME.test(text) || OPAQUE_SCHEMES.test(text)) return text;
   return (LOCAL_HOST.test(text) ? 'http://' : 'https://') + text;
 }
+
+/** ADR-0006: 에이전트 탭이 이동할 수 있는 스킴. chrome:·devtools:·file: 등 내부·로컬 주소는 사람 창 정보에 닿을 수 있다 */
+const AGENT_SCHEMES = new Set(['http:', 'https:', 'data:', 'blob:']);
+
+export function isAgentNavigable(url: string): boolean {
+  if (url === 'about:blank') return true;
+  try {
+    return AGENT_SCHEMES.has(new URL(url).protocol);
+  } catch {
+    return false;
+  }
+}

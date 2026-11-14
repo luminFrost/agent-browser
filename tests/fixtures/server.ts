@@ -21,6 +21,10 @@ export async function startTestServer(): Promise<TestServer> {
     res.setHeader('content-type', 'text/html; charset=utf-8');
     const cookies = req.headers.cookie ?? '';
     switch (url.pathname) {
+      case '/csp':
+        res.setHeader('content-security-policy', "img-src 'none'; report-uri /csp-report");
+        return res.end(html('CSP', '<img src="/blocked.png">'));
+      case '/csp-report': await readBody(req); res.statusCode = 204; return res.end();
       case '/widgets': return res.end(html('Widgets', `
         <label>name <input id="name"></label>
         <button id="go" onclick="document.getElementById('out').textContent = 'hello ' + document.getElementById('name').value">go</button>

@@ -127,9 +127,10 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
       // 첫 탭의 tabAdded를 받을 수 있게 창보다 먼저 만든다
       const scope = router.addScope(id, {
         async newTab(url) {
-          const { targetId } = await request({ type: 'newTab', sessionId: id, url: 'about:blank' }, 'tabCreated');
+          const { targetId } = await request({ type: 'newTab', sessionId: id }, 'tabCreated');
           await added(id, targetId); // 소유권이 범위에 반영되고 흉내(자동 붙기)가 끝난 뒤에
-          if (url !== 'about:blank') await request({ type: 'navigateTab', sessionId: id, targetId, url }, 'done'); // 이동한다(design.md 순서)
+          // 이동한다(design.md 순서). 이동이 실패해도 탭은 이미 있으므로 targetId를 돌려준다
+          if (url !== 'about:blank') await request({ type: 'navigateTab', sessionId: id, targetId, url }, 'done').catch(() => undefined);
           return targetId;
         },
         async closeTab(targetId) { await request({ type: 'closeTab', sessionId: id, targetId }, 'done'); },

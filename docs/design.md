@@ -30,6 +30,8 @@ spec: docs/spec.md · 코드로 알 수 없는 결정만 적는다 · 관련 ADR
 - 페이지 세션에서 따로 검사하는 것: `Page/Browser.setDownloadBehavior`는 막는다(R13 우회). method·postData·url을 바꾸는 `Fetch.continueRequest`는 막는다(R12 우회, 승인한 곳과 다른 곳). `Network.continueInterceptedRequest`는 목록에 없다. Set-Cookie가 든 `Fetch.fulfillRequest`·`continueResponse`도 막는다(R7: 응답으로 공유 쿠키 바꾸기). 쿠키 쓰기·지우기는 허용 목록에 없다. 알려진 한계: 에이전트가 자기 탭으로 어떤 사이트 안에서 한 행동(페이지 JS, 로그아웃 버튼)은 그 사이트의 공유 로그인을 바꿀 수 있다(ADR-0004).
 - 도구가 보내지만 막히는 것: chrome-devtools-mcp(puppeteer)의 `Autofill.enable`·`setAddresses`, `WebMCP.enable`(도구가 오류를 무시하고 계속 동작한다), `resize_page`의 `Browser.getWindowForTarget`·`setWindowBounds`(OS 창 크기를 바꾸면 사람 창에도 닿을 수 있다).
 - 폼 관문은 에이전트 탭의 POST 중 resourceType이 xhr(fetch 포함)·ping(sendBeacon)이 아닌 것을 모두 묻는다(ADR-0005).
+- 에이전트 탭 이동 주소(ADR-0006): `http:`·`https:`·`about:blank`·`data:`·`blob:`만 허용한다. 정책(`Page.navigate`·`createTarget`의 url)과 브라우저(`will-navigate`·`will-redirect`·`will-frame-navigate`·팝업) 두 겹으로 막는다. `chrome://` 내부 페이지로 사람 탭 정보를 읽은 것(검증 4회차) 때문이다.
+- 폼 관문은 브라우저가 스스로 보내는 CSP 위반 보고(cspReport)를 묻지 않는다(ADR-0006).
 - createTarget(url): about:blank로 만들어 범위에 반영하고 자동 붙기를 마친 뒤 이동한다. 그래야 클라이언트가 첫 요청을 놓치지 않는다.
 
 ## 오류 처리

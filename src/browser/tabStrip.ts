@@ -29,6 +29,8 @@ export interface TabStripOptions {
   onTabCreated?(contents: Electron.WebContents): void;
   /** 탭이 닫히기 직전(내용 webContents id) */
   onTabClosing?(contentsId: number): void;
+  /** 이 주소로 이동·팝업을 허용하는가(에이전트 창: 웹 주소만, ADR-0006). 없으면 모두 허용 */
+  allowNavigation?(url: string): boolean;
 }
 
 /** 오류 페이지 문구. 앱이 막은 경우(관문 거부) 다른 문구를 쓴다 */
@@ -108,7 +110,7 @@ export class TabStrip {
   navigate(input: string, id = this.activeId): void {
     const url = normalizeAddress(input);
     const tab = id === null ? undefined : this.find(id);
-    if (!url || !tab) return;
+    if (!url || !tab || this.options.allowNavigation?.(url) === false) return;
     tab.view.webContents.loadURL(url).catch(() => undefined); // 실패는 did-fail-load에서 다룬다
   }
 
@@ -162,7 +164,12 @@ export class TabStrip {
     wc.once('destroyed', () => this.forget(tab)); // 팝업의 window.close() 등
     // 팝업(window.open, target=_blank)은 새 창이 아니라 같은 창의 새 탭으로 연다.
     // createWindow로 Electron이 만든 webContents를 그대로 받아 opener 관계를 잇는다.
-    wc.setWindowOpenHandler(() => ({
+    const allowed = (url: string) => this.options.allowNavigation?.(url) !== false;
+    const guard = (event: { preventDefault(): void; url: string }) => { if (!allowed(event.url)) event.preventDefault(); };
+    wc.on('will-navigate', guard);
+    wc.on('will-redirect', guard);
+    wc.on('will-frame-navigate', guard);
+    wc.setWindowOpenHandler(({ url }) => (!allowed(url) ? { action: 'deny' } : {
       action: 'allow',
       createWindow: (options) => {
         // Electron은 opener와 이어진 webContents를 options.webContents로 넘긴다(타입 정의에는 없다)

@@ -22,7 +22,7 @@ describe('브라우저 수준 허용 목록 (design.md 표)', () => {
 });
 
 describe('페이지 세션 명령', () => {
-  it.each(['Runtime.evaluate', 'Page.navigate', 'DOM.getDocument', 'Input.dispatchMouseEvent', 'Target.setAutoAttach', 'Target.getTargetInfo', 'Browser.getVersion'])(
+  it.each(['Runtime.evaluate', 'DOM.getDocument', 'Input.dispatchMouseEvent', 'Target.setAutoAttach', 'Target.getTargetInfo', 'Browser.getVersion'])(
     '%s는 넘긴다',
     (method) => { expect(sessionLevelBlockReason(method)).toBeUndefined(); },
   );
@@ -119,7 +119,7 @@ describe('ADR-0004: 페이지 세션은 허용 목록으로 거른다', () => {
   });
 
   it.each([
-    'Page.navigate', 'Page.enable', 'Page.captureScreenshot', 'Runtime.evaluate', 'DOM.getDocument', 'Input.dispatchMouseEvent',
+    'Page.enable', 'Page.captureScreenshot', 'Runtime.evaluate', 'DOM.getDocument', 'Input.dispatchMouseEvent',
     'Accessibility.getFullAXTree', 'Emulation.setDeviceMetricsOverride', 'Network.enable', 'Network.getResponseBody',
     'Fetch.enable', 'Fetch.continueRequest', 'Log.enable', 'Target.setAutoAttach', 'DOM.setFileInputFiles', 'Page.reload',
   ])('%s는 넘긴다', (method) => {
@@ -140,5 +140,25 @@ describe('ADR-0005: 도메인을 통째로 열지 않는다', () => {
     'CacheStorage.requestCacheNames', 'Storage.getUsageAndQuota', 'Network.getAllCookies', 'Network.getCookies', 'Network.continueInterceptedRequest',
     'Network.setRequestInterception', 'Page.setWebLifecycleState', 'Runtime.someFutureMethod'])('%s는 막는다', (method) => {
     expect(sessionLevelBlockReason(method)).toBeTypeOf('string');
+  });
+});
+
+describe('ADR-0006: 에이전트 탭 이동 주소, 응답 헤더 검사 보강', () => {
+  it('Page.navigate는 웹 스킴만', () => {
+    expect(sessionLevelBlockReason('Page.navigate', { url: 'https://example.com' })).toBeUndefined();
+    expect(sessionLevelBlockReason('Page.navigate', { url: 'chrome://accessibility' })).toMatch(/주소/);
+    expect(sessionLevelBlockReason('Page.navigate', { url: 'file:///etc/passwd' })).toMatch(/주소/);
+  });
+
+  it('Set-Cookie 헤더 이름 앞뒤 공백도 잡는다', () => {
+    const b = (t: string) => Buffer.from(t).toString('base64');
+    expect(sessionLevelBlockReason('Fetch.fulfillRequest', { requestId: '1', responseCode: 200, binaryResponseHeaders: b('A: b\0Set-Cookie : sid=\0') })).toMatch(/Set-Cookie/);
+    expect(sessionLevelBlockReason('Fetch.fulfillRequest', { requestId: '1', responseCode: 200, binaryResponseHeaders: b('A: b\0 Set-Cookie: sid=\0') })).toMatch(/Set-Cookie/);
+    expect(sessionLevelBlockReason('Fetch.fulfillRequest', { requestId: '1', responseCode: 200, responseHeaders: [{ name: ' Set-Cookie ', value: 'x' }] })).toMatch(/Set-Cookie/);
+  });
+
+  it('PDF 저장에 쓰는 IO.read·IO.close는 연다', () => {
+    expect(sessionLevelBlockReason('IO.read', { handle: 'h' })).toBeUndefined();
+    expect(sessionLevelBlockReason('IO.close', { handle: 'h' })).toBeUndefined();
   });
 });

@@ -119,3 +119,9 @@ test('R12: fetch·XHR·sendBeacon은 묻지 않는다 (spec의 알려진 한계)
   await waitFor(async () => posts() === 2, 'fetch와 beacon POST가 서버에');
   expect(await approvals(app)).toEqual([]);
 });
+
+test('R12: 브라우저가 보내는 CSP 위반 보고는 묻지 않는다 (ADR-0006)', async () => {
+  await page.goto(`${server.base}/csp`);
+  await waitFor(async () => server.hits.includes('POST /csp-report'), 'CSP 보고가 서버에');
+  expect(await approvals(app)).toEqual([]);
+});

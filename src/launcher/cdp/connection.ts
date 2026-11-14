@@ -4,6 +4,7 @@ import { browserLevelAction, matchesTargetFilter, sessionLevelBlockReason, type 
 import type { Router } from './router';
 import type { SessionScope } from './scope';
 import { blockedError, type ClientRequest } from './types';
+import { isAgentNavigable } from '../../shared/url';
 
 /** 정책 위반으로 끊을 때 쓰는 WebSocket 종료 코드 */
 const WS_POLICY_VIOLATION = 1008;
@@ -119,8 +120,14 @@ export class Connection {
     this.sendToClient({ id: req.id, result, ...(req.sessionId ? { sessionId: req.sessionId } : {}) });
   }
 
+  /** 정책으로 막는다: 응답한 뒤 onBlocked로 알린다(알림이 실패해도 클라이언트는 응답을 받는다) */
   private refuse(req: ClientRequest, reason: string): void {
-    this.scope.onBlocked?.(req.method, reason);
+    this.fail(req, reason);
+    try { this.scope.onBlocked?.(req.method, reason); } catch { /* 알림 쪽 오류는 무시 */ }
+  }
+
+  /** 실행 중 실패(정책 거부가 아님). onBlocked로 알리지 않는다 */
+  private fail(req: ClientRequest, reason: string): void {
     this.sendToClient({ id: req.id, error: blockedError(reason), ...(req.sessionId ? { sessionId: req.sessionId } : {}) });
   }
 
@@ -180,19 +187,22 @@ export class Connection {
         // 붙이기를 마친 뒤 응답한다: Playwright는 응답 전에 기존 탭의 attachedToTarget을 받기를 기대한다
         Promise.all([...this.scope.targets].map((id) => this.attachOnBehalf(id))).then(() => this.reply(req, {}));
         return;
-      case 'createTarget':
-        this.scope.actions.newTab(typeof params.url === 'string' && params.url ? params.url : 'about:blank').then(
+      case 'createTarget': {
+        const url = typeof params.url === 'string' && params.url ? params.url : 'about:blank';
+        if (!isAgentNavigable(url)) return this.refuse(req, '이 주소로는 이동할 수 없다(웹 주소만, ADR-0006)');
+        this.scope.actions.newTab(url).then(
           (targetId) => this.reply(req, { targetId }),
-          (e: unknown) => this.refuse(req, `탭을 만들지 못했다: ${e instanceof Error ? e.message : String(e)}`),
+          (e: unknown) => this.fail(req, `탭을 만들지 못했다: ${e instanceof Error ? e.message : String(e)}`),
         );
         return;
+      }
       case 'closeTarget':
         if (!this.scope.owns(params.targetId)) return this.refuse(req, '이 세션의 탭이 아니다');
-        this.scope.actions.closeTab(params.targetId as string).then(() => this.reply(req, { success: true }), () => this.refuse(req, '탭을 닫지 못했다'));
+        this.scope.actions.closeTab(params.targetId as string).then(() => this.reply(req, { success: true }), () => this.fail(req, '탭을 닫지 못했다'));
         return;
       case 'activateTarget':
         if (!this.scope.owns(params.targetId)) return this.refuse(req, '이 세션의 탭이 아니다');
-        this.scope.actions.activateTab(params.targetId as string).then(() => this.reply(req, {}), () => this.refuse(req, '탭을 앞으로 가져오지 못했다'));
+        this.scope.actions.activateTab(params.targetId as string).then(() => this.reply(req, {}), () => this.fail(req, '탭을 앞으로 가져오지 못했다'));
         return;
     }
   }

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { TabStrip } from './tabStrip';
 import { targetIdOf } from './targetId';
 import { SHARED_PARTITION } from '../shared/constants';
+import { isAgentNavigable } from '../shared/url';
 import type { TabStripState } from '../shared/tabState';
 
 /** 에이전트 창 머리줄 높이(px). renderer/agent/agent.css의 --header-height와 같아야 한다 */
@@ -69,6 +70,7 @@ export function createAgentWindow(sessionId: string, show: boolean, events: Agen
       events.stateChanged(sessionId, state);
     },
     onTabCreated: announce,
+    allowNavigation: isAgentNavigable,
     onTabClosing: (contentsId) => {
       contentsIds.delete(contentsId);
       events.tabClosing(contentsId);

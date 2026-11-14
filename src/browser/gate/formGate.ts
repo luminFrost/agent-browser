@@ -1,8 +1,11 @@
 import type { Session } from 'electron';
 import type { ApprovalQueue } from './approvals';
 
-/** 묻지 않는 POST 종류: fetch·XHR(xhr)과 sendBeacon(ping). spec의 알려진 한계(ADR-0005). 나머지 POST는 모두 묻는다 */
-const NOT_ASKED = new Set(['xhr', 'ping']);
+/**
+ * 묻지 않는 POST 종류: fetch·XHR(xhr)과 sendBeacon(ping)은 spec의 알려진 한계(ADR-0005).
+ * 브라우저가 스스로 보내는 CSP 위반 보고(cspReport)는 에이전트가 내용을 정하지 않으므로 묻지 않는다(ADR-0006). 나머지 POST는 모두 묻는다
+ */
+const NOT_ASKED = new Set(['xhr', 'ping', 'cspReport']);
 
 /**
  * R12: 에이전트 탭의 POST(페이지·iframe·object 이동 등)를 서버에 보내기 전에 붙잡고 사람에게 묻는다(ADR-0003~0005).

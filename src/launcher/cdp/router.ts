@@ -75,10 +75,7 @@ export class Router {
       if (tabId) {
         scope.pairTab(pageId, tabId);
         await scope.addTarget(tabId);
-        if (this.removedWhileAdding.has(key)) { // tab을 더하는 동안 닫혔다
-          scope.removeTarget(tabId);
-          return;
-        }
+        if (this.removedWhileAdding.has(key)) return; // tab을 더하는 동안 닫혔다(짝 tab은 removeTarget이 이미 뺐다)
       }
       await scope.addTarget(pageId);
     } finally {
