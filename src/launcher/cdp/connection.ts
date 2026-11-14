@@ -71,6 +71,7 @@ export class Connection {
 
   /** 범위에서 탭이 빠졌다 */
   onTargetRemoved(targetId: string): void {
+    if (targetId === this.pinnedTargetId) return this.close(); // 페이지 WebSocket은 그 탭이 닫히면 끊는다(원래 Chrome처럼)
     this.autoAttached.delete(targetId);
     if (this.announced.delete(targetId)) this.sendToClient({ method: 'Target.targetDestroyed', params: { targetId } });
   }
@@ -119,6 +120,7 @@ export class Connection {
   }
 
   private refuse(req: ClientRequest, reason: string): void {
+    this.scope.onBlocked?.(req.method, reason);
     this.sendToClient({ id: req.id, error: blockedError(reason), ...(req.sessionId ? { sessionId: req.sessionId } : {}) });
   }
 

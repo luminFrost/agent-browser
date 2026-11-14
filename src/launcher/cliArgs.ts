@@ -7,6 +7,8 @@ export interface CliOptions {
   controlPort: number;
   /** 창을 띄우지 않는다(테스트용) */
   hidden: boolean;
+  /** 막힌 에이전트 명령을 표준 오류로 남긴다 */
+  logBlocked: boolean;
 }
 
 type Env = Record<string, string | undefined>;
@@ -33,6 +35,7 @@ export function parseCliArgs(argv: string[], env: Env): CliOptions {
     profile: env.AGENT_BROWSER_PROFILE ?? defaultProfileDir(env),
     controlPort: env.AGENT_BROWSER_CONTROL_PORT ? parsePort(env.AGENT_BROWSER_CONTROL_PORT) : 0,
     hidden: false,
+    logBlocked: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -44,6 +47,7 @@ export function parseCliArgs(argv: string[], env: Env): CliOptions {
     if (arg === '--profile') options.profile = value();
     else if (arg === '--control-port') options.controlPort = parsePort(value());
     else if (arg === '--hidden') options.hidden = true;
+    else if (arg === '--log-blocked') options.logBlocked = true;
     else throw new Error(`모르는 인자: ${arg}`);
   }
   return options;

@@ -21,6 +21,14 @@ export async function startTestServer(): Promise<TestServer> {
     res.setHeader('content-type', 'text/html; charset=utf-8');
     const cookies = req.headers.cookie ?? '';
     switch (url.pathname) {
+      case '/widgets': return res.end(html('Widgets', `
+        <label>name <input id="name"></label>
+        <button id="go" onclick="document.getElementById('out').textContent = 'hello ' + document.getElementById('name').value">go</button>
+        <button id="alert" onclick="document.getElementById('out').textContent = String(confirm('ok?'))">ask</button>
+        <a id="to-b" href="/b">to b</a>
+        <input id="file" type="file">
+        <p id="out"></p>
+        <script>console.log('widgets ready')</script>`));
       case '/a': return res.end(html('Page A', '<h1>A</h1><a id="to-b" href="/b">b</a>'));
       case '/b': return res.end(html('Page B', '<h1>B</h1>'));
       case '/slow': return setTimeout(() => res.end(html('Slow', 'done')), Number(url.searchParams.get('ms') ?? 1500));
@@ -44,6 +52,8 @@ export async function startTestServer(): Promise<TestServer> {
           res.end(Buffer.alloc(1000, 2));
         }, Number(url.searchParams.get('ms') ?? 1500));
       }
+      case '/objform': return res.end(html('Object form', '<object name="o" data="about:blank" type="text/html"></object><form method="post" action="/submit" target="o"><input name="a" value="1"><button id="submit">go</button></form>'));
+      case '/popupdownload': return res.end(html('Popup download', '<button id="go" onclick="const w = window.open(\'/file\'); setTimeout(() => w && w.close(), 50)">dl</button>'));
       case '/frameform': return res.end(html('Frame form', '<iframe name="x"></iframe><form method="post" action="/submit" target="x"><input name="a" value="1"><button id="submit">go</button></form>'));
       case '/file': {
         res.setHeader('content-type', 'application/octet-stream');

@@ -1,7 +1,7 @@
 import { test, expect, chromium, type Browser, type Page } from '@playwright/test';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { launch, createSession, humanUi, evaluate, waitFor, approvals, decide, tempDir, CdpClient, type SessionInfo } from './helpers';
+import { launch, createSession, humanUi, evaluate, targets, waitFor, approvals, decide, tempDir, CdpClient, type SessionInfo } from './helpers';
 import { startTestServer, type TestServer } from '../fixtures/server';
 import type { RunningApp } from '../../src/launcher/app';
 
@@ -110,4 +110,12 @@ test('R13: 다운로드 폴더가 아직 없어도, 허용하면 만들어서 �
   const req = await request();
   await decide(app, req.id, 'allow');
   await waitFor(async () => existsSync(join(missing, 'data.bin')), '없던 폴더에 저장');
+});
+
+test('R13: 사람 창에서 팝업이 다운로드를 시작하고 바로 닫혀도 사람 다운로드는 묻지 않고 저장된다', async () => {
+  await evaluate(app, (await humanUi(app)).targetId, `(() => { const i = document.querySelector('#address'); i.value = ${JSON.stringify(server.base + '/popupdownload')}; i.form.requestSubmit(); })()`);
+  const human = await waitFor(async () => (await targets(app)).find((t) => t.url === `${server.base}/popupdownload` && t.title === 'Popup download'), '사람 탭');
+  await evaluate(app, human.targetId, `document.querySelector('#go').click(); 1`);
+  await waitFor(async () => files().includes('data.bin'), '사람 다운로드 저장');
+  expect(await approvals(app)).toEqual([]);
 });

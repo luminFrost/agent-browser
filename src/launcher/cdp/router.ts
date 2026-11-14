@@ -48,8 +48,8 @@ export class Router {
     for (const t of targetInfos as TargetInfo[]) this.targetInfos.set(t.targetId, t);
   }
 
-  addScope(id: string, actions: TabActions): SessionScope {
-    const scope = new SessionScope(id, actions);
+  addScope(id: string, actions: TabActions, onBlocked?: (method: string, reason: string) => void): SessionScope {
+    const scope = new SessionScope(id, actions, onBlocked);
     this.scopes.set(id, scope);
     return scope;
   }
@@ -75,6 +75,10 @@ export class Router {
       if (tabId) {
         scope.pairTab(pageId, tabId);
         await scope.addTarget(tabId);
+        if (this.removedWhileAdding.has(key)) { // tab을 더하는 동안 닫혔다
+          scope.removeTarget(tabId);
+          return;
+        }
       }
       await scope.addTarget(pageId);
     } finally {

@@ -56,39 +56,49 @@ export function browserLevelAction(method: string): BrowserLevelAction | undefin
 const SESSION_TARGET_ALLOWED = new Set(['Target.setAutoAttach', 'Target.autoAttachRelated', 'Target.detachFromTarget', 'Target.getTargetInfo']);
 
 /**
- * ADR-0004: 페이지 세션 명령의 허용 목록. 그 탭 안에서만 일하는 도메인은 통째로 연다.
- * 공유 상태에 닿는 도메인은 메서드를 골라 연다. 목록에 없는 도메인·메서드는 막는다(새 우회가 새지 않게).
+ * ADR-0005: 페이지 세션 명령의 허용 목록(메서드 단위). 도메인을 통째로 열지 않는다.
+ * 1) 확장 호환 테스트(tests/e2e/compatExtended.spec.ts)에서 chrome-devtools-mcp·Playwright가 실제로 보낸 명령
+ * 2) 흔한 에이전트 기능에 필요한 같은 탭 범위의 명령(이번 실행엔 안 나왔지만 같은 도구가 쓰는 것)
+ * 목록에 없으면 막는다. Tracing·Memory·ServiceWorker·Security·저장소 쓰기는 없다(프로세스 전체·공유 상태에 닿음).
+ * 도구가 새 명령을 쓰다 막히면 `--log-blocked`로 보고, 이유와 함께 여기에 더한다.
  */
-const WHOLE_DOMAINS = new Set([
-  'Accessibility', 'Animation', 'Audits', 'CSS', 'Console', 'DOM', 'DOMDebugger', 'DOMSnapshot', 'Debugger', 'Emulation',
-  'EventBreakpoints', 'HeapProfiler', 'IO', 'Input', 'Inspector', 'LayerTree', 'Log', 'Media', 'Overlay', 'Page',
-  'Performance', 'PerformanceTimeline', 'Preload', 'Profiler', 'Runtime', 'Schema', 'Tracing', 'WebAudio',
-]);
-
-/** 이름이 이 접두어로 시작하는 메서드만 여는 도메인(출처 사이에 걸친 저장소: 읽기만) */
-const READ_ONLY_PREFIXES = ['enable', 'disable', 'get', 'request', 'track', 'untrack'];
-const READ_ONLY_DOMAINS = new Set(['IndexedDB', 'DOMStorage', 'CacheStorage', 'Storage']);
-
-/** 메서드를 하나씩 여는 도메인 */
-const METHOD_ALLOWED = new Set([
-  // Network: 그 탭의 요청 관찰·조절. 쿠키 쓰기·지우기, 쿠키 제어, 캐시 지우기는 없다
-  'Network.enable', 'Network.disable', 'Network.setCacheDisabled', 'Network.setBypassServiceWorker', 'Network.setExtraHTTPHeaders',
-  'Network.setUserAgentOverride', 'Network.emulateNetworkConditions', 'Network.overrideNetworkState', 'Network.getResponseBody',
-  'Network.getRequestPostData', 'Network.getResponseBodyForInterception', 'Network.takeResponseBodyForInterceptionAsStream',
-  'Network.getCookies', 'Network.getAllCookies', 'Network.getCertificate', 'Network.searchInResponseBody', 'Network.setBlockedURLs',
-  'Network.setAttachDebugStack', 'Network.setRequestInterception', 'Network.continueInterceptedRequest', 'Network.replayXHR',
-  'Network.setAcceptedEncodings', 'Network.clearAcceptedEncodingsOverride', 'Network.loadNetworkResource', 'Network.streamResourceContent',
-  'Network.enableReportingApi', 'Network.getSecurityIsolationStatus',
-  // Fetch: 그 탭의 요청 가로채기. 바꾸기는 아래에서 따로 검사한다
-  'Fetch.enable', 'Fetch.disable', 'Fetch.failRequest', 'Fetch.fulfillRequest', 'Fetch.continueRequest', 'Fetch.continueWithAuth',
-  'Fetch.continueResponse', 'Fetch.getResponseBody', 'Fetch.takeResponseBodyAsStream',
+const SESSION_ALLOWED = new Set([
+  // 1) 실제로 쓴 명령
+  'Accessibility.getFullAXTree', 'Accessibility.queryAXTree', 'Audits.enable', 'CSS.enable',
+  'Debugger.enable', 'Debugger.setAsyncCallStackDepth', 'Debugger.setBlackboxExecutionContexts', 'Debugger.setBlackboxPatterns',
+  'Debugger.setPauseOnExceptions', 'Debugger.setSkipAllPauses',
+  'DOM.describeNode', 'DOM.enable', 'DOM.getContentQuads', 'DOM.resolveNode', 'DOM.scrollIntoViewIfNeeded',
+  'Emulation.clearGeolocationOverride', 'Emulation.setCPUThrottlingRate', 'Emulation.setDeviceMetricsOverride',
+  'Emulation.setEmulatedMedia', 'Emulation.setFocusEmulationEnabled',
+  'Fetch.continueRequest', 'Fetch.enable', 'Fetch.fulfillRequest',
+  'Input.dispatchKeyEvent', 'Input.dispatchMouseEvent', 'Input.insertText',
+  'Inspector.enable', 'Log.enable', 'Log.startViolationsReport',
+  'Network.emulateNetworkConditionsByRule', 'Network.enable', 'Network.overrideNetworkState', 'Network.setAttachDebugStack',
+  'Network.setCacheDisabled', 'Network.setExtraHTTPHeaders', 'Network.setUserAgentOverride',
+  'Page.addScriptToEvaluateOnNewDocument', 'Page.captureScreenshot', 'Page.createIsolatedWorld', 'Page.enable', 'Page.getFrameTree',
+  'Page.getLayoutMetrics', 'Page.getResourceTree', 'Page.handleJavaScriptDialog', 'Page.navigate', 'Page.setLifecycleEventsEnabled',
+  'Performance.enable', 'Profiler.enable',
+  'Runtime.addBinding', 'Runtime.callFunctionOn', 'Runtime.enable', 'Runtime.evaluate', 'Runtime.getIsolateId', 'Runtime.getProperties',
+  'Runtime.releaseObject', 'Runtime.runIfWaitingForDebugger',
+  'Storage.getStorageKey',
+  // 2) 같은 탭 범위의 흔한 기능: 파일 올리기, 이동, 응답 읽기, 가로채기 마무리, 드래그·터치, 닫기
+  'DOM.setFileInputFiles', 'DOM.getDocument', 'DOM.querySelector', 'DOM.querySelectorAll', 'DOM.getBoxModel', 'DOM.focus', 'DOM.getOuterHTML',
+  'Page.reload', 'Page.stopLoading', 'Page.getNavigationHistory', 'Page.navigateToHistoryEntry', 'Page.close', 'Page.bringToFront',
+  'Page.setInterceptFileChooserDialog', 'Page.printToPDF', 'Page.addScriptToEvaluateOnLoad', 'Page.removeScriptToEvaluateOnNewDocument',
+  'Network.getResponseBody', 'Network.getRequestPostData', 'Network.disable',
+  'Fetch.disable', 'Fetch.failRequest', 'Fetch.continueWithAuth', 'Fetch.getResponseBody',
+  'Input.dispatchDragEvent', 'Input.dispatchTouchEvent',
+  'Emulation.setTouchEmulationEnabled', 'Emulation.setUserAgentOverride', 'Emulation.clearDeviceMetricsOverride',
+  'DOM.pushNodesByBackendIdsToFrontend', 'DOM.requestNode', 'CSS.getComputedStyleForNode', 'CSS.getMatchedStylesForNode',
+  'CSS.getInlineStylesForNode', 'CSS.getEnvironmentVariables', 'CSS.disable',
+  'Runtime.awaitPromise', 'Runtime.releaseObjectGroup', 'Runtime.removeBinding', 'Log.disable', 'Page.disable', 'Runtime.disable', 'DOM.disable',
 ]);
 
 /** R13: 다운로드 처리 방식을 바꾸면 관문(will-download)을 건너뛰고 사람 창 다운로드 경로까지 바뀐다 */
 const DOWNLOAD_BEHAVIOR = new Set(['Page.setDownloadBehavior', 'Browser.setDownloadBehavior']);
 
-/** R12: 가로챈 요청을 이어 보낼 때 method·본문을 바꾸면 GET 이동이 POST(폼 제출)가 되어 관문을 건너뛴다 */
-const REQUEST_CONTINUE = new Set(['Fetch.continueRequest', 'Network.continueInterceptedRequest']);
+/** R12: 가로챈 요청을 이어 보낼 때 method·본문·주소를 바꾸면 관문을 건너뛰거나 승인한 곳과 다른 곳으로 간다 */
+const REQUEST_CONTINUE = new Set(['Fetch.continueRequest']);
 
 /** R7: 가짜 응답의 Set-Cookie로 그 출처(사람과 공유)의 쿠키를 바꿀 수 있다 */
 const RESPONSE_REWRITE = new Set(['Fetch.fulfillRequest', 'Fetch.continueResponse']);
@@ -103,12 +113,6 @@ const hasSetCookie = (params: Record<string, unknown>): boolean => {
   return false;
 };
 
-const isAllowed = (method: string): boolean => {
-  const [domain, name = ''] = method.split('.');
-  if (WHOLE_DOMAINS.has(domain)) return true;
-  if (READ_ONLY_DOMAINS.has(domain)) return READ_ONLY_PREFIXES.some((p) => name.startsWith(p));
-  return METHOD_ALLOWED.has(method);
-};
 
 /**
  * 페이지 세션 명령을 막아야 하면 그 이유를, 넘겨도 되면 undefined를 돌려준다.
@@ -122,8 +126,8 @@ export function sessionLevelBlockReason(method: string, params: Record<string, u
     return undefined;
   }
   if (method === 'Browser.getVersion') return undefined;
-  if (!isAllowed(method)) return '사람 창과 공유하는 로그인·저장소나 브라우저 전체에 닿을 수 있는 명령은 쓸 수 없다(허용 목록 밖)';
-  if (REQUEST_CONTINUE.has(method) && (params.method !== undefined || params.postData !== undefined)) return '요청의 method·본문을 바꿀 수 없다(폼 제출 관문)';
+  if (!SESSION_ALLOWED.has(method)) return '사람 창과 공유하는 로그인·저장소나 브라우저 전체에 닿을 수 있는 명령은 쓸 수 없다(허용 목록 밖)';
+  if (REQUEST_CONTINUE.has(method) && (params.method !== undefined || params.postData !== undefined || params.url !== undefined)) return '요청의 method·본문·주소를 바꿀 수 없다(폼 제출 관문)';
   if (RESPONSE_REWRITE.has(method) && hasSetCookie(params)) return '응답에 Set-Cookie를 넣을 수 없다(공유 로그인 보호)';
   return undefined;
 }

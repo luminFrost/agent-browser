@@ -62,3 +62,32 @@ describe('Router (검증 2회차 경쟁 상황)', () => {
     expect(scope.owns('P')).toBe(false);
   });
 });
+
+describe('Router (검증 3회차)', () => {
+  it('짝 tab을 더하는 동안(연결의 자동 붙기를 기다리는 동안) 닫혀도 page는 범위에 남지 않는다', async () => {
+    const pipe = new FakePipe();
+    const router = new Router(pipe as unknown as CdpPipe);
+    const scope = router.addScope('s1', { newTab: async () => '', closeTab: async () => undefined, activateTab: async () => undefined });
+    let releaseTabAdd!: () => void;
+    const slowConn = { onTargetAdded: () => new Promise<void>((r) => { releaseTabAdd = r; }), onTargetRemoved: () => undefined };
+    scope.connections.add(slowConn as unknown as Connection);
+    const adding = router.addTarget('s1', 'P');
+    await tick();
+    pipe.answer('Target.getTargetInfo', { targetInfo: { targetId: 'P', type: 'page', title: '', url: '' } });
+    await tick();
+    pipe.answer('Target.getTargets', { targetInfos: [{ targetId: 'T', type: 'tab', title: '', url: '' }] });
+    await tick();
+    pipe.answer('Target.attachToTarget', { sessionId: 'TS' }); // probeTab
+    await tick();
+    pipe.emitBrowser({ sessionId: 'TS', method: 'Target.attachedToTarget', params: { sessionId: 'PS', targetInfo: { targetId: 'P', type: 'page', title: '', url: '' } } });
+    pipe.answer('Target.setAutoAttach', {});
+    await tick();
+    pipe.answer('Target.detachFromTarget', {});
+    await tick();
+    expect(scope.owns('T')).toBe(true); // tab을 더하고 연결을 기다리는 중
+    router.removeTarget('s1', 'P');
+    releaseTabAdd();
+    await adding;
+    expect(scope.owns('P')).toBe(false);
+  });
+});

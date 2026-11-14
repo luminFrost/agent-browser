@@ -100,3 +100,22 @@ test('R12: iframe 안으로 보내는 폼 제출도 묻는다 (ADR-0004)', async
   await new Promise((r) => setTimeout(r, 500));
   expect(posts()).toBe(0);
 });
+
+test('R12: <object> 안으로 보내는 폼 제출도 묻는다 (검증 3회차, ADR-0005)', async () => {
+  await page.goto(`${server.base}/objform`);
+  await submit();
+  const [req] = await waitFor(async () => { const l = await approvals(app); return l.length ? l : undefined; }, '승인 요청');
+  expect(req).toMatchObject({ sessionId: a.id, kind: 'form' });
+  await new Promise((r) => setTimeout(r, 500));
+  expect(posts()).toBe(0);
+  await decide(app, req.id, 'deny');
+  await new Promise((r) => setTimeout(r, 500));
+  expect(posts()).toBe(0);
+});
+
+test('R12: fetch·XHR·sendBeacon은 묻지 않는다 (spec의 알려진 한계)', async () => {
+  await page.goto(`${server.base}/a`);
+  await page.evaluate(async (u) => { await fetch(u, { method: 'POST', body: 'a=1' }); navigator.sendBeacon(u, 'b=1'); }, `${server.base}/submit`);
+  await waitFor(async () => posts() === 2, 'fetch와 beacon POST가 서버에');
+  expect(await approvals(app)).toEqual([]);
+});

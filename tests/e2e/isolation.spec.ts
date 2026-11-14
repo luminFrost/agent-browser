@@ -179,3 +179,41 @@ test('팝업이 스스로 닫히면(window.close) 목록에서 빠지고 창은 
     expect((await list(a)).map((t) => t.id)).toContain(targetId);
   } finally { client.close(); }
 });
+
+test('R5: 페이지 세션에서 Tracing으로 다른 탭을 엿볼 수 없다 (검증 3회차)', async () => {
+  const a = await createSession(app);
+  const client = await browserWs(a);
+  try {
+    const { sessionId } = await client.send('Target.attachToTarget', { targetId: (await list(a))[0].id, flatten: true });
+    expect((await client.call('Tracing.start', {}, sessionId as string)).error?.message).toMatch(/agent-browser/);
+  } finally { client.close(); }
+});
+
+test('페이지 WebSocket은 그 탭이 닫히면 끊긴다', async () => {
+  const a = await createSession(app);
+  const browserClient = await browserWs(a);
+  try {
+    const { targetId } = await browserClient.send('Target.createTarget', { url: 'about:blank' });
+    const pageWs = (await list(a)).find((t) => t.id === targetId) as unknown as { webSocketDebuggerUrl: string };
+    const pageClient = await CdpClient.connect(pageWs.webSocketDebuggerUrl);
+    let closed = false;
+    pageClient.ws.on('close', () => { closed = true; });
+    await browserClient.send('Target.closeTarget', { targetId });
+    await waitFor(async () => closed, '페이지 WebSocket이 끊김');
+  } finally { browserClient.close(); }
+});
+
+test('createTarget(url): 자동 붙기를 켠 클라이언트는 이동이 시작되기 전에 붙는다', async () => {
+  const a = await createSession(app);
+  const client = await browserWs(a);
+  try {
+    await client.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
+    const before = server.hits.length;
+    const { targetId } = await client.send('Target.createTarget', { url: `${server.base}/b?created` });
+    const attached = client.events.find((e) => e.method === 'Target.attachedToTarget' && (e.params.targetInfo as { targetId: string }).targetId === targetId);
+    expect(attached, '응답 전에 attachedToTarget').toBeTruthy();
+    expect((attached!.params.targetInfo as { url: string }).url).toBe('about:blank');
+    expect(server.hits.slice(before)).not.toContain('GET /b?created'); // 아직 요청 전
+    await waitFor(async () => (await list(a)).some((t) => t.url === `${server.base}/b?created`), '그다음 이동');
+  } finally { client.close(); }
+});

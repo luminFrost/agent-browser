@@ -5,7 +5,12 @@ import { parseCliArgs } from './cliArgs';
 async function main(): Promise<void> {
   const options = parseCliArgs(process.argv.slice(2), process.env);
   mkdirSync(options.profile, { recursive: true, mode: 0o700 });
-  const app = await startApp({ userDataDir: options.profile, controlPort: options.controlPort, hidden: options.hidden });
+  const app = await startApp({
+    userDataDir: options.profile,
+    controlPort: options.controlPort,
+    hidden: options.hidden,
+    onBlocked: options.logBlocked ? (e) => console.error(`agent-browser: 막음 [세션 ${e.sessionId}] ${e.method} — ${e.reason}`) : undefined,
+  });
   console.log(`agent-browser 실행 중. 제어 파일(포트·토큰): ${app.controlFile}`);
 
   let stopping = false;

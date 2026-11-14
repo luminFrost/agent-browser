@@ -80,9 +80,15 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
     }
     case 'newTab': {
       const agent = agentOf(m.sessionId);
-      const targetId = await agent.openTab();
-      if (m.url && m.url !== 'about:blank') agent.tabs.navigate(m.url, agent.tabIdOf(targetId));
+      const targetId = await agent.openTab(); // 이동은 런처가 범위에 반영한 뒤 navigateTab으로 한다
       return { type: 'tabCreated', targetId };
+    }
+    case 'navigateTab': {
+      const agent = agentOf(m.sessionId);
+      const tabId = agent.tabIdOf(m.targetId);
+      if (tabId === undefined) return { type: 'error', message: '이 세션의 탭이 아니다' };
+      agent.tabs.navigate(m.url, tabId);
+      return { type: 'done' };
     }
     case 'closeTab': {
       const agent = agentOf(m.sessionId);

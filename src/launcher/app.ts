@@ -23,6 +23,8 @@ export interface StartOptions {
   browserMain?: string;
   /** 다운로드 폴더. 기본값은 OS의 다운로드 폴더 */
   downloadsDir?: string;
+  /** 에이전트 명령이 막힐 때마다 불린다(ADR-0005: 도구가 새 명령을 쓰다 막혔는지 찾기) */
+  onBlocked?(event: { sessionId: string; method: string; reason: string }): void;
   /** 창을 화면에 띄우지 않는다(테스트용). */
   hidden?: boolean;
   /** 브라우저 응답을 기다리는 최대 시간(ms). */
@@ -125,13 +127,14 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
       // 첫 탭의 tabAdded를 받을 수 있게 창보다 먼저 만든다
       const scope = router.addScope(id, {
         async newTab(url) {
-          const { targetId } = await request({ type: 'newTab', sessionId: id, url }, 'tabCreated');
-          await added(id, targetId); // 소유권이 범위에 반영되고 흉내(자동 붙기)가 끝난 뒤 응답한다
+          const { targetId } = await request({ type: 'newTab', sessionId: id, url: 'about:blank' }, 'tabCreated');
+          await added(id, targetId); // 소유권이 범위에 반영되고 흉내(자동 붙기)가 끝난 뒤에
+          if (url !== 'about:blank') await request({ type: 'navigateTab', sessionId: id, targetId, url }, 'done'); // 이동한다(design.md 순서)
           return targetId;
         },
         async closeTab(targetId) { await request({ type: 'closeTab', sessionId: id, targetId }, 'done'); },
         async activateTab(targetId) { await request({ type: 'activateTab', sessionId: id, targetId }, 'done'); },
-      });
+      }, (method, reason) => options.onBlocked?.({ sessionId: id, method, reason }));
       let endpoint: SessionEndpoint | undefined;
       try {
         const created = await request({ type: 'createSession', sessionId: id }, 'sessionCreated');

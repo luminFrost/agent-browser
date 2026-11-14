@@ -89,7 +89,7 @@ describe('R7: 브라우저 전체(공유 파티션)에 영향을 주는 페이�
   });
 
   it('자기 페이지의 일은 막지 않는다', () => {
-    for (const m of ['Network.enable', 'Network.getCookies', 'Storage.getCookies', 'Page.reload', 'IndexedDB.requestDatabaseNames', 'DOMStorage.getDOMStorageItems', 'Fetch.enable', 'Fetch.fulfillRequest']) expect(sessionLevelBlockReason(m), m).toBeUndefined();
+    for (const m of ['Network.enable', 'Page.reload', 'Fetch.enable', 'Fetch.fulfillRequest']) expect(sessionLevelBlockReason(m), m).toBeUndefined();
   });
 });
 
@@ -102,9 +102,10 @@ describe('관문 우회 막기 (검증 1회차)', () => {
   it('R12: 가로챈 요청의 method·postData를 바꾸는 이어 보내기는 막는다', () => {
     expect(sessionLevelBlockReason('Fetch.continueRequest', { requestId: '1', method: 'POST' })).toMatch(/폼 제출/);
     expect(sessionLevelBlockReason('Fetch.continueRequest', { requestId: '1', postData: 'YT0x' })).toMatch(/폼 제출/);
-    expect(sessionLevelBlockReason('Network.continueInterceptedRequest', { interceptionId: '1', method: 'POST' })).toMatch(/폼 제출/);
+    expect(sessionLevelBlockReason('Network.continueInterceptedRequest', { interceptionId: '1', method: 'POST' })).toBeTypeOf('string');
+    expect(sessionLevelBlockReason('Fetch.continueRequest', { requestId: '1', url: 'https://evil.example/' })).toMatch(/폼 제출/);
     expect(sessionLevelBlockReason('Fetch.continueRequest', { requestId: '1' })).toBeUndefined();
-    expect(sessionLevelBlockReason('Fetch.continueRequest', { requestId: '1', url: 'https://x', headers: [] })).toBeUndefined();
+    expect(sessionLevelBlockReason('Fetch.continueRequest', { requestId: '1', headers: [] })).toBeUndefined();
   });
 });
 
@@ -120,8 +121,7 @@ describe('ADR-0004: 페이지 세션은 허용 목록으로 거른다', () => {
   it.each([
     'Page.navigate', 'Page.enable', 'Page.captureScreenshot', 'Runtime.evaluate', 'DOM.getDocument', 'Input.dispatchMouseEvent',
     'Accessibility.getFullAXTree', 'Emulation.setDeviceMetricsOverride', 'Network.enable', 'Network.getResponseBody',
-    'Fetch.enable', 'Fetch.continueRequest', 'IndexedDB.requestDatabaseNames', 'DOMStorage.getDOMStorageItems',
-    'CacheStorage.requestCacheNames', 'Storage.getUsageAndQuota', 'Log.enable', 'Tracing.start', 'Target.setAutoAttach',
+    'Fetch.enable', 'Fetch.continueRequest', 'Log.enable', 'Target.setAutoAttach', 'DOM.setFileInputFiles', 'Page.reload',
   ])('%s는 넘긴다', (method) => {
     expect(sessionLevelBlockReason(method)).toBeUndefined();
   });
@@ -130,7 +130,15 @@ describe('ADR-0004: 페이지 세션은 허용 목록으로 거른다', () => {
     expect(sessionLevelBlockReason('Fetch.fulfillRequest', { requestId: '1', responseCode: 200, responseHeaders: [{ name: 'set-COOKIE', value: 'sid=; Max-Age=0' }] })).toMatch(/Set-Cookie/);
     const binary = Buffer.from('Content-Type: text/html\0Set-Cookie: sid=; Max-Age=0\0').toString('base64');
     expect(sessionLevelBlockReason('Fetch.fulfillRequest', { requestId: '1', responseCode: 200, binaryResponseHeaders: binary })).toMatch(/Set-Cookie/);
-    expect(sessionLevelBlockReason('Fetch.continueResponse', { requestId: '1', responseHeaders: [{ name: 'Set-Cookie', value: 'a=b' }] })).toMatch(/Set-Cookie/);
+    expect(sessionLevelBlockReason('Fetch.continueResponse', { requestId: '1', responseHeaders: [{ name: 'Set-Cookie', value: 'a=b' }] })).toBeTypeOf('string'); // 허용 목록 밖(ADR-0005)
     expect(sessionLevelBlockReason('Fetch.fulfillRequest', { requestId: '1', responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'text/html' }] })).toBeUndefined();
+  });
+});
+
+describe('ADR-0005: 도메인을 통째로 열지 않는다', () => {
+  it.each(['Tracing.start', 'Tracing.end', 'Memory.getDOMCounters', 'IndexedDB.requestDatabaseNames', 'DOMStorage.getDOMStorageItems',
+    'CacheStorage.requestCacheNames', 'Storage.getUsageAndQuota', 'Network.getAllCookies', 'Network.getCookies', 'Network.continueInterceptedRequest',
+    'Network.setRequestInterception', 'Page.setWebLifecycleState', 'Runtime.someFutureMethod'])('%s는 막는다', (method) => {
+    expect(sessionLevelBlockReason(method)).toBeTypeOf('string');
   });
 });

@@ -4,6 +4,7 @@ export type LauncherCommand =
   | { type: 'listWindows' }
   | { type: 'createSession'; sessionId: string }
   | { type: 'newTab'; sessionId: string; url: string }
+  | { type: 'navigateTab'; sessionId: string; targetId: string; url: string }
   | { type: 'closeTab'; sessionId: string; targetId: string }
   | { type: 'activateTab'; sessionId: string; targetId: string }
   | { type: 'closeSession'; sessionId: string };

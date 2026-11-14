@@ -18,7 +18,7 @@ export class SessionScope {
   /** page targetId → 짝 tab targetId */
   private readonly tabs = new Map<string, string>();
 
-  constructor(readonly id: string, readonly actions: TabActions) {}
+  constructor(readonly id: string, readonly actions: TabActions, readonly onBlocked?: (method: string, reason: string) => void) {}
 
   pairTab(pageId: string, tabId: string): void { this.tabs.set(pageId, tabId); }
 
