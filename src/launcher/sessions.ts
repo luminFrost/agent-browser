@@ -20,5 +20,10 @@ export class SessionRegistry {
 
   add(session: Session): void { this.sessions.set(session.id, session); }
   get(id: string): Session | undefined { return this.sessions.get(id); }
+  remove(id: string): Session | undefined {
+    const s = this.sessions.get(id);
+    this.sessions.delete(id);
+    return s;
+  }
   all(): Session[] { return [...this.sessions.values()]; }
 }

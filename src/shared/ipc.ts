@@ -5,7 +5,8 @@ export type LauncherCommand =
   | { type: 'createSession'; sessionId: string }
   | { type: 'newTab'; sessionId: string; url: string }
   | { type: 'closeTab'; sessionId: string; targetId: string }
-  | { type: 'activateTab'; sessionId: string; targetId: string };
+  | { type: 'activateTab'; sessionId: string; targetId: string }
+  | { type: 'closeSession'; sessionId: string };
 
 export type LauncherToBrowser = LauncherCommand & { rid?: number };
 
@@ -21,6 +22,7 @@ export type BrowserReply =
   | { type: 'error'; message: string }
   // 아래는 요청 없이 오는 알림(rid 없음). 에이전트 탭의 소유권은 이것으로만 정한다(design.md)
   | { type: 'tabAdded'; sessionId: string; targetId: string }
-  | { type: 'tabRemoved'; sessionId: string; targetId: string };
+  | { type: 'tabRemoved'; sessionId: string; targetId: string }
+  | { type: 'sessionClosed'; sessionId: string };
 
 export type BrowserToLauncher = BrowserReply & { rid?: number };

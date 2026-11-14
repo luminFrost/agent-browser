@@ -47,7 +47,10 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
         tabRemoved: (sessionId, targetId) => send({ type: 'tabRemoved', sessionId, targetId }),
       });
       agents.set(m.sessionId, agent);
-      agent.win.on('closed', () => agents.delete(m.sessionId));
+      agent.win.on('closed', () => {
+        agents.delete(m.sessionId);
+        send({ type: 'sessionClosed', sessionId: m.sessionId }); // 사람이 창을 닫은 경우도 런처가 세션을 끝낸다(R9)
+      });
       const targetId = await agent.ready; // 첫 탭의 tabAdded가 sessionCreated보다 먼저 가게 한다
       return { type: 'sessionCreated', sessionId: m.sessionId, targetId };
     }
@@ -62,6 +65,11 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
       const tabId = agent.tabIdOf(m.targetId);
       if (tabId === undefined) return { type: 'error', message: '이 세션의 탭이 아니다' };
       agent.tabs.close(tabId);
+      return { type: 'done' };
+    }
+    case 'closeSession': {
+      const agent = agents.get(m.sessionId);
+      if (agent && !agent.win.isDestroyed()) agent.win.close();
       return { type: 'done' };
     }
     case 'activateTab': {

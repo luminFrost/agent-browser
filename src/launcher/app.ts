@@ -34,6 +34,8 @@ export interface RunningApp {
   rawCdp: CdpPipe;
   browserPid: number;
   controlFile: string;
+  /** 세션을 끝낸다: 엔드포인트를 닫아 연결을 끊고, 세션 창을 닫는다(R9). 없는 세션이면 아무 일도 없다 */
+  stopSession(id: string): Promise<void>;
   /** 브라우저 main에 명령을 보내고, 같은 요청 번호의 응답을 기다린다. */
   request<T extends BrowserReply['type']>(command: LauncherCommand, expect: T): Promise<Reply<T>>;
   stop(): Promise<void>;
@@ -88,6 +90,7 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
   const added = (sessionId: string, targetId: string) => additions.get(`${sessionId}/${targetId}`) ?? router.addTarget(sessionId, targetId);
   child.on('message', (m: BrowserToLauncher) => {
     if (m.type === 'tabAdded') additions.set(`${m.sessionId}/${m.targetId}`, router.addTarget(m.sessionId, m.targetId).catch(() => undefined));
+    if (m.type === 'sessionClosed') stopSession(m.sessionId).catch(() => undefined);
     if (m.type === 'tabRemoved') {
       additions.delete(`${m.sessionId}/${m.targetId}`);
       router.removeTarget(m.sessionId, m.targetId);
@@ -95,6 +98,14 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
   });
 
   const sessions = new SessionRegistry();
+  /** 여러 번 불려도 한 번만 끝낸다(멈추기 버튼 → 창 닫힘 → sessionClosed가 다시 부른다) */
+  async function stopSession(id: string): Promise<void> {
+    const session = sessions.remove(id);
+    if (!session) return;
+    await session.endpoint.close(); // 먼저 끊는다: 창이 닫히는 동안 에이전트가 더 움직이지 못하게
+    router.removeScope(id);
+    if (child.exitCode === null) await request({ type: 'closeSession', sessionId: id }, 'done').catch(() => undefined);
+  }
   const token = newToken();
   const control = await startControlServer(token, options.controlPort ?? 0, {
     async createSession() {
@@ -124,6 +135,7 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
     browserPid: child.pid as number,
     controlFile,
     request,
+    stopSession,
     async stop() {
       await control.close();
       await Promise.all(sessions.all().map((s) => s.endpoint.close()));
