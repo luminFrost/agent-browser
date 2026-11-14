@@ -101,3 +101,43 @@
 | Major | 세션 생성 중 멈추기(stopRequested)가 무시됨(`app.ts:101`) |
 | Major | 다운로드 폴더가 없으면 허용한 파일이 격리 폴더에 남고 처리되지 않은 거부(unhandled rejection)가 남(`downloadGate.ts:48`) |
 | Minor | 같은 이름의 사람 다운로드 둘이 동시에 오면 덮어씀. X-HTTP-Method-Override 헤더. 127.0.0.1 문자열이 두 곳에 있음. 창 크기 숫자 상수. Network.getAllCookies로 모든 쿠키를 읽을 수 있음(읽기만 함) |
+
+---
+
+# 검증 보고 — 3회차
+날짜: 2026-11-14 · 판정 커밋: e673cf4 · 검증자: 새 reviewer, 새 /code-review(high, c510912..e673cf4), 확인 명령, 일부러 깨뜨려 보기(새 worktree), 상태별 스크린샷
+
+## 결론: FAIL. 자동 수정 한도(2회)와 사람이 승인한 3회차를 넘어 멈추고 결정을 받는다
+
+| 완료 기준 | 판정 | 증거 (e673cf4) |
+|---|---|---|
+| R1~R4, R6, R8~R11 | PASS | reviewer 판정표. npm test: 단위 119, E2E 54 통과 |
+| R5 탭 격리 | **FAIL (새 결함)** | reviewer P8: 페이지 세션의 `Tracing.start`로 받은 트레이스에 B 탭과 사람 탭 URL이 섞여 들어옴(이벤트 2743개 중 62개). code-review #3도 같은 지적. ADR-0004에서 Tracing을 "그 탭 안에서만 일하는 도메인"으로 분류한 것이 틀림 |
+| R7 공유 상태 보호 | PASS (reviewer) / code-review 지적 | reviewer: 명령 19종과 Fetch Set-Cookie 막힘, 변형 4가지 막힘. code-review #1: `Network.continueInterceptedRequest`의 `rawResponse`(base64 HTTP 응답)에 든 Set-Cookie는 검사하지 않음. reviewer 탐침 P1로는 `Network.setRequestInterception`이 Chrome 156에 없어 지금은 쓸 수 없음 |
+| R12 폼 제출 관문 | **FAIL (3회 연속 지적)** | reviewer P4: `<object>`·`<embed>` 안으로 보내는 폼 POST는 묻지 않고 서버에 도착. 관문이 resourceType `mainFrame`·`subFrame`만 봄(`formGate.ts:5`) |
+| R13 다운로드 관문 | PASS | `downloadGate.spec.ts` 7개. code-review #6: 사람 창 팝업이 다운로드를 시작하고 바로 닫히면 사람 다운로드도 막힘(회귀) |
+| 제약: 보안(사람 탭 비노출) | FAIL | R5와 같음 |
+
+## 확인 명령 (e673cf4)
+- lint 종료 0, test 통과(Vitest 7파일 119개, Playwright 54개), build 종료 0
+
+## 테스트 품질 (e673cf4, 새 worktree)
+- M1~M17 모두 테스트가 잡음. 이번 수정으로 코드 줄이 바뀐 M3·M6·M12는 건너뛰고, M15(subFrame 관문)·M16(허용 목록)·M17(Set-Cookie 응답)이 대신함
+
+## 상태별 스크린샷 (e673cf4에서 새로 찍음)
+- `docs/verify/screenshots/20261114-agent-browser/1-사람창-폼제출-승인요청.png`, `2-에이전트창-머리줄.png`, `3-에이전트탭-차단오류페이지.png`
+- `docs/verify/screenshots/20261114-agent-browser/R11/R11-1-빈-상태.png`, `R11-2-세션-2개.png`, `R11-3-A-멈춘-뒤.png`
+
+## 그 밖의 code-review 3회차 지적
+| 심각도 | 내용 |
+|---|---|
+| Major | router.ts:79 더하는 중 닫힘 검사가 tab 추가 전에 한 번뿐이라, page 추가 직전에 닫히면 남음 |
+| Major | main.ts:84 createTarget(url)이 범위 반영·자동 붙기 전에 이동을 시작함(design.md 순서와 다름). 첫 요청을 클라이언트가 놓침 |
+| Major | connection.ts:62 페이지 WebSocket은 탭이 닫혀도 끊기지 않음 |
+| Major | downloadGate.ts:47 사람 창의 닫힌 팝업이 시작한 다운로드도 막힘(spec: 사람 다운로드는 묻지 않음) |
+| Major | policy.ts:126 continueRequest로 url을 바꾸면 승인한 호스트와 다른 곳으로 POST가 갈 수 있음 |
+| Minor | closedWindows·additions·pageOfTab이 계속 커짐. 127.0.0.1 문자열 중복. 창 크기 숫자 상수 |
+
+## 왜 멈추는가
+- 회차마다 허용 목록이나 관문의 분류를 한 겹 더 파고드는 새 경로가 나온다(1회차 setCookie → 2회차 Fetch 응답·닫힌 탭 → 3회차 Tracing·object/embed).
+- 이번 결함은 고칠 방향이 분명하다: Tracing 막기, 관문은 xhr·fetch가 아닌 모든 POST를 묻기, rawResponse·url 바꾸기 검사. 그러나 규칙상 사람의 결정 없이 4회차로 가지 않는다.
