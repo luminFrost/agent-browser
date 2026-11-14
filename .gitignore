@@ -9,7 +9,7 @@
 # T0 스파이크 (남기지 않음)
 spike/
 node_modules/
-dist/
+/dist/
 test-results/
 playwright-report/
-release/
+/release/
