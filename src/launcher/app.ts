@@ -97,7 +97,8 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
   const added = (sessionId: string, targetId: string) => additions.get(`${sessionId}/${targetId}`) ?? router.addTarget(sessionId, targetId);
   child.on('message', (m: BrowserToLauncher) => {
     if (m.type === 'tabAdded') additions.set(`${m.sessionId}/${m.targetId}`, router.addTarget(m.sessionId, m.targetId).catch(() => undefined));
-    if (m.type === 'sessionClosed') closedWindows.add(m.sessionId);
+    // 창이 닫혔거나 사람이 멈추기를 눌렀다: 아직 만드는 중이면 끝나는 즉시 거둔다
+    if (m.type === 'sessionClosed' || m.type === 'stopRequested') closedWindows.add(m.sessionId);
     if (m.type === 'sessionClosed' || m.type === 'stopRequested') stopSession(m.sessionId).catch(() => undefined);
     if (m.type === 'tabRemoved') {
       additions.delete(`${m.sessionId}/${m.targetId}`);
@@ -106,7 +107,7 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
   });
 
   const sessions = new SessionRegistry();
-  /** 창이 닫혔다고 알려 온 세션(생성 중에 닫힌 경우를 알아채려고) */
+  /** 창이 닫혔거나 멈추기를 요청한 세션(생성 중에 그런 경우를 알아채려고) */
   const closedWindows = new Set<string>();
   /** 여러 번 불려도 한 번만 끝낸다(멈추기 버튼 → 창 닫힘 → sessionClosed가 다시 부른다) */
   async function stopSession(id: string): Promise<void> {
@@ -136,7 +137,7 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
         const created = await request({ type: 'createSession', sessionId: id }, 'sessionCreated');
         await added(id, created.targetId); // 첫 탭이 범위에 들어간 뒤 응답한다(바로 /json/list에 보이게)
         endpoint = await startSessionEndpoint(scope, router, version);
-        if (closedWindows.has(id)) throw new Error('세션 창이 만들어지는 중에 닫혔다');
+        if (closedWindows.has(id)) throw new Error('세션이 만들어지는 중에 닫혔거나 멈췄다');
       } catch (e) {
         // 실패하면 만든 것을 모두 거둔다(범위·엔드포인트·창)
         await endpoint?.close();

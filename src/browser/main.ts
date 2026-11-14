@@ -124,7 +124,10 @@ app.whenReady().then(() => {
   shared.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   shared.setPermissionCheckHandler(() => false);
   installFormGate(shared, sessionOfContents, approvals);
-  installDownloadGate(shared, sessionOfContents, approvals, {
+  installDownloadGate(shared, {
+    sessionOf: sessionOfContents,
+    isHuman: (contentsId) => human?.tabs.webContentsIds.includes(contentsId) ?? false,
+  }, approvals, {
     downloadsDir: process.argv.find((a) => a.startsWith(DOWNLOADS_FLAG))?.slice(DOWNLOADS_FLAG.length) ?? app.getPath('downloads'),
     quarantineDir: join(app.getPath('userData'), QUARANTINE_DIR_NAME),
   });

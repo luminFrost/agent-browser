@@ -56,31 +56,32 @@ export function browserLevelAction(method: string): BrowserLevelAction | undefin
 const SESSION_TARGET_ALLOWED = new Set(['Target.setAutoAttach', 'Target.autoAttachRelated', 'Target.detachFromTarget', 'Target.getTargetInfo']);
 
 /**
- * R7: 공유 파티션(사람 창과 같은 로그인·저장소)을 지우거나 덮어쓰는 명령. 페이지 세션에서 보내도
- * 다른 출처와 사람 창에 닿는다. 쿠키 설정도 지난 만료 시각으로 쿠키를 지울 수 있어 막는다(검증 1회차).
+ * ADR-0004: 페이지 세션 명령의 허용 목록. 그 탭 안에서만 일하는 도메인은 통째로 연다.
+ * 공유 상태에 닿는 도메인은 메서드를 골라 연다. 목록에 없는 도메인·메서드는 막는다(새 우회가 새지 않게).
  */
-const SHARED_STATE_DESTRUCTIVE = new Set([
-  'Network.clearBrowserCookies',
-  'Network.clearBrowserCache',
-  'Network.deleteCookies',
-  'Storage.clearDataForOrigin',
-  'Storage.clearDataForStorageKey',
-  'Storage.clearCookies',
-  'Storage.clearSharedStorageEntries',
-  'Storage.deleteSharedStorageEntry',
-  'Storage.deleteStorageBucket',
-  'Storage.clearTrustTokens',
-  'Storage.setCookies',
-  'Network.setCookie',
-  'Network.setCookies',
-  'IndexedDB.deleteDatabase',
-  'IndexedDB.clearObjectStore',
-  'IndexedDB.deleteObjectStoreEntries',
-  'DOMStorage.clear',
-  'DOMStorage.removeDOMStorageItem',
-  'DOMStorage.setDOMStorageItem',
-  'CacheStorage.deleteCache',
-  'CacheStorage.deleteEntry',
+const WHOLE_DOMAINS = new Set([
+  'Accessibility', 'Animation', 'Audits', 'CSS', 'Console', 'DOM', 'DOMDebugger', 'DOMSnapshot', 'Debugger', 'Emulation',
+  'EventBreakpoints', 'HeapProfiler', 'IO', 'Input', 'Inspector', 'LayerTree', 'Log', 'Media', 'Overlay', 'Page',
+  'Performance', 'PerformanceTimeline', 'Preload', 'Profiler', 'Runtime', 'Schema', 'Tracing', 'WebAudio',
+]);
+
+/** 이름이 이 접두어로 시작하는 메서드만 여는 도메인(출처 사이에 걸친 저장소: 읽기만) */
+const READ_ONLY_PREFIXES = ['enable', 'disable', 'get', 'request', 'track', 'untrack'];
+const READ_ONLY_DOMAINS = new Set(['IndexedDB', 'DOMStorage', 'CacheStorage', 'Storage']);
+
+/** 메서드를 하나씩 여는 도메인 */
+const METHOD_ALLOWED = new Set([
+  // Network: 그 탭의 요청 관찰·조절. 쿠키 쓰기·지우기, 쿠키 제어, 캐시 지우기는 없다
+  'Network.enable', 'Network.disable', 'Network.setCacheDisabled', 'Network.setBypassServiceWorker', 'Network.setExtraHTTPHeaders',
+  'Network.setUserAgentOverride', 'Network.emulateNetworkConditions', 'Network.overrideNetworkState', 'Network.getResponseBody',
+  'Network.getRequestPostData', 'Network.getResponseBodyForInterception', 'Network.takeResponseBodyForInterceptionAsStream',
+  'Network.getCookies', 'Network.getAllCookies', 'Network.getCertificate', 'Network.searchInResponseBody', 'Network.setBlockedURLs',
+  'Network.setAttachDebugStack', 'Network.setRequestInterception', 'Network.continueInterceptedRequest', 'Network.replayXHR',
+  'Network.setAcceptedEncodings', 'Network.clearAcceptedEncodingsOverride', 'Network.loadNetworkResource', 'Network.streamResourceContent',
+  'Network.enableReportingApi', 'Network.getSecurityIsolationStatus',
+  // Fetch: 그 탭의 요청 가로채기. 바꾸기는 아래에서 따로 검사한다
+  'Fetch.enable', 'Fetch.disable', 'Fetch.failRequest', 'Fetch.fulfillRequest', 'Fetch.continueRequest', 'Fetch.continueWithAuth',
+  'Fetch.continueResponse', 'Fetch.getResponseBody', 'Fetch.takeResponseBodyAsStream',
 ]);
 
 /** R13: 다운로드 처리 방식을 바꾸면 관문(will-download)을 건너뛰고 사람 창 다운로드 경로까지 바뀐다 */
@@ -89,17 +90,40 @@ const DOWNLOAD_BEHAVIOR = new Set(['Page.setDownloadBehavior', 'Browser.setDownl
 /** R12: 가로챈 요청을 이어 보낼 때 method·본문을 바꾸면 GET 이동이 POST(폼 제출)가 되어 관문을 건너뛴다 */
 const REQUEST_CONTINUE = new Set(['Fetch.continueRequest', 'Network.continueInterceptedRequest']);
 
+/** R7: 가짜 응답의 Set-Cookie로 그 출처(사람과 공유)의 쿠키를 바꿀 수 있다 */
+const RESPONSE_REWRITE = new Set(['Fetch.fulfillRequest', 'Fetch.continueResponse']);
+
+const hasSetCookie = (params: Record<string, unknown>): boolean => {
+  const headers = Array.isArray(params.responseHeaders) ? (params.responseHeaders as { name?: unknown }[]) : [];
+  if (headers.some((h) => typeof h.name === 'string' && h.name.toLowerCase() === 'set-cookie')) return true;
+  if (typeof params.binaryResponseHeaders === 'string') {
+    const text = Buffer.from(params.binaryResponseHeaders, 'base64').toString('latin1');
+    return text.split('\0').some((line) => line.toLowerCase().startsWith('set-cookie:'));
+  }
+  return false;
+};
+
+const isAllowed = (method: string): boolean => {
+  const [domain, name = ''] = method.split('.');
+  if (WHOLE_DOMAINS.has(domain)) return true;
+  if (READ_ONLY_DOMAINS.has(domain)) return READ_ONLY_PREFIXES.some((p) => name.startsWith(p));
+  return METHOD_ALLOWED.has(method);
+};
+
 /**
  * 페이지 세션 명령을 막아야 하면 그 이유를, 넘겨도 되면 undefined를 돌려준다.
  */
 export function sessionLevelBlockReason(method: string, params: Record<string, unknown> = {}): string | undefined {
-  if (SHARED_STATE_DESTRUCTIVE.has(method)) return '사람 창과 공유하는 로그인·저장소를 지우거나 바꾸는 명령은 쓸 수 없다';
   if (DOWNLOAD_BEHAVIOR.has(method)) return '다운로드 처리 방식은 바꿀 수 없다(다운로드 관문)';
-  if (REQUEST_CONTINUE.has(method) && (params.method !== undefined || params.postData !== undefined)) return '요청의 method·본문을 바꿀 수 없다(폼 제출 관문)';
   if (method.startsWith('Browser.') && method !== 'Browser.getVersion') return '페이지 세션에서 Browser 명령은 쓸 수 없다';
   if (method.startsWith('Target.')) {
     if (!SESSION_TARGET_ALLOWED.has(method)) return '페이지 세션에서 이 Target 명령은 쓸 수 없다';
     if (method === 'Target.getTargetInfo' && params.targetId !== undefined) return '페이지 세션에서 다른 대상의 정보는 볼 수 없다';
+    return undefined;
   }
+  if (method === 'Browser.getVersion') return undefined;
+  if (!isAllowed(method)) return '사람 창과 공유하는 로그인·저장소나 브라우저 전체에 닿을 수 있는 명령은 쓸 수 없다(허용 목록 밖)';
+  if (REQUEST_CONTINUE.has(method) && (params.method !== undefined || params.postData !== undefined)) return '요청의 method·본문을 바꿀 수 없다(폼 제출 관문)';
+  if (RESPONSE_REWRITE.has(method) && hasSetCookie(params)) return '응답에 Set-Cookie를 넣을 수 없다(공유 로그인 보호)';
   return undefined;
 }

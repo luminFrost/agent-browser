@@ -85,7 +85,7 @@ describe('R7: 브라우저 전체(공유 파티션)에 영향을 주는 페이�
     'Network.setCookies',
     'Storage.setCookies',
   ])('%s', (method) => {
-    expect(sessionLevelBlockReason(method)).toMatch(/공유/);
+    expect(sessionLevelBlockReason(method)).toMatch(/공유하는 로그인·저장소/);
   });
 
   it('자기 페이지의 일은 막지 않는다', () => {
@@ -105,5 +105,32 @@ describe('관문 우회 막기 (검증 1회차)', () => {
     expect(sessionLevelBlockReason('Network.continueInterceptedRequest', { interceptionId: '1', method: 'POST' })).toMatch(/폼 제출/);
     expect(sessionLevelBlockReason('Fetch.continueRequest', { requestId: '1' })).toBeUndefined();
     expect(sessionLevelBlockReason('Fetch.continueRequest', { requestId: '1', url: 'https://x', headers: [] })).toBeUndefined();
+  });
+});
+
+describe('ADR-0004: 페이지 세션은 허용 목록으로 거른다', () => {
+  it.each([
+    'ServiceWorker.unregister', 'ServiceWorker.stopAllWorkers', 'Security.setIgnoreCertificateErrors',
+    'Storage.overrideQuotaForOrigin', 'Network.setCookieControls', 'SystemInfo.getInfo', 'Memory.forciblyPurgeJavaScriptMemory',
+    'Foo.bar', 'Network.someFutureMethod', 'IndexedDB.someFutureWrite',
+  ])('목록에 없는 %s는 막는다', (method) => {
+    expect(sessionLevelBlockReason(method)).toBeTypeOf('string');
+  });
+
+  it.each([
+    'Page.navigate', 'Page.enable', 'Page.captureScreenshot', 'Runtime.evaluate', 'DOM.getDocument', 'Input.dispatchMouseEvent',
+    'Accessibility.getFullAXTree', 'Emulation.setDeviceMetricsOverride', 'Network.enable', 'Network.getResponseBody',
+    'Fetch.enable', 'Fetch.continueRequest', 'IndexedDB.requestDatabaseNames', 'DOMStorage.getDOMStorageItems',
+    'CacheStorage.requestCacheNames', 'Storage.getUsageAndQuota', 'Log.enable', 'Tracing.start', 'Target.setAutoAttach',
+  ])('%s는 넘긴다', (method) => {
+    expect(sessionLevelBlockReason(method)).toBeUndefined();
+  });
+
+  it('Fetch 가짜 응답·응답 이어 보내기에 Set-Cookie가 있으면 막는다(대소문자, 바이너리 헤더 포함)', () => {
+    expect(sessionLevelBlockReason('Fetch.fulfillRequest', { requestId: '1', responseCode: 200, responseHeaders: [{ name: 'set-COOKIE', value: 'sid=; Max-Age=0' }] })).toMatch(/Set-Cookie/);
+    const binary = Buffer.from('Content-Type: text/html\0Set-Cookie: sid=; Max-Age=0\0').toString('base64');
+    expect(sessionLevelBlockReason('Fetch.fulfillRequest', { requestId: '1', responseCode: 200, binaryResponseHeaders: binary })).toMatch(/Set-Cookie/);
+    expect(sessionLevelBlockReason('Fetch.continueResponse', { requestId: '1', responseHeaders: [{ name: 'Set-Cookie', value: 'a=b' }] })).toMatch(/Set-Cookie/);
+    expect(sessionLevelBlockReason('Fetch.fulfillRequest', { requestId: '1', responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'text/html' }] })).toBeUndefined();
   });
 });

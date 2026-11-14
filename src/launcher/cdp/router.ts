@@ -28,6 +28,10 @@ export class Router {
   /** attach 응답·이벤트보다 먼저 온 attach 요청들(targetId별, 먼저 온 순서) */
   private readonly pendingAttach = new Map<string, Connection[]>();
   readonly targetInfos = new Map<string, TargetInfo>();
+  /** 범위에 더하는 중에 닫힌 탭(scopeId/pageId). 더하기가 끝나도 넣지 않는다 */
+  private readonly removedWhileAdding = new Set<string>();
+  /** 지금 범위에 더하는 중인 탭(scopeId/pageId) */
+  private readonly adding = new Set<string>();
   private readonly scopes = new Map<string, SessionScope>();
   /** 런처 자신이 잠깐 붙은 세션의 이벤트를 받는 곳(어떤 연결에도 주지 않는다) */
   private readonly internalSessions = new Map<string, (m: CdpMessage) => void>();
@@ -61,18 +65,29 @@ export class Router {
   async addTarget(scopeId: string, pageId: string): Promise<void> {
     const scope = this.scopes.get(scopeId);
     if (!scope) return;
-    await this.ensureInfo(pageId);
-    const tabId = await this.tabOf(pageId);
-    if (tabId) {
-      scope.pairTab(pageId, tabId);
-      await scope.addTarget(tabId);
+    const key = `${scopeId}/${pageId}`;
+    this.removedWhileAdding.delete(key);
+    this.adding.add(key);
+    try {
+      await this.ensureInfo(pageId);
+      const tabId = await this.tabOf(pageId);
+      if (this.removedWhileAdding.has(key)) return; // 찾는 동안 닫혔다
+      if (tabId) {
+        scope.pairTab(pageId, tabId);
+        await scope.addTarget(tabId);
+      }
+      await scope.addTarget(pageId);
+    } finally {
+      this.adding.delete(key);
+      this.removedWhileAdding.delete(key);
     }
-    await scope.addTarget(pageId);
   }
 
   removeTarget(scopeId: string, pageId: string): void {
     const scope = this.scopes.get(scopeId);
     if (!scope) return;
+    const key = `${scopeId}/${pageId}`;
+    if (this.adding.has(key)) this.removedWhileAdding.add(key);
     const tabId = scope.tabOfPage(pageId);
     scope.removeTarget(pageId);
     if (tabId) {
@@ -157,10 +172,8 @@ export class Router {
     }
     conn.sessions.clear();
     // 응답이 아직 안 온 요청은 남겨 둔다: attach 응답이 오면 own()이 닫힌 연결을 보고 세션을 뗀다
-    for (const [targetId, list] of this.pendingAttach) {
-      const rest = list.filter((c) => c !== conn);
-      if (rest.length) this.pendingAttach.set(targetId, rest); else this.pendingAttach.delete(targetId);
-    }
+    // 대기 중인 attach 항목도 남겨 둔다: 브라우저는 요청 순서대로 attachedToTarget을 보내므로,
+    // 이 연결 몫의 이벤트가 같은 탭을 기다리는 다른 연결로 넘어가지 않게 순서를 지킨다(own()이 바로 뗀다)
   }
 
   private expectAttach(conn: Connection, targetId: string): void {

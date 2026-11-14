@@ -36,6 +36,15 @@ export async function startTestServer(): Promise<TestServer> {
       case '/me': return res.end(html('Me', cookies.includes('sid=ok') ? '<p id="state">logged-in</p>' : '<p id="state">anonymous</p>'));
       case '/form': return res.end(html('Form', '<form method="post" action="/submit"><input name="a" value="1"><button id="submit">go</button></form>'));
       case '/submit': await readBody(req); return res.end(html('Submitted', 'received'));
+      case '/slowfile': {
+        // 응답 헤더를 늦게 보내는 다운로드(응답 전에 탭을 닫는 경우)
+        return setTimeout(() => {
+          res.setHeader('content-type', 'application/octet-stream');
+          res.setHeader('content-disposition', 'attachment; filename="sneaky.bin"');
+          res.end(Buffer.alloc(1000, 2));
+        }, Number(url.searchParams.get('ms') ?? 1500));
+      }
+      case '/frameform': return res.end(html('Frame form', '<iframe name="x"></iframe><form method="post" action="/submit" target="x"><input name="a" value="1"><button id="submit">go</button></form>'));
       case '/file': {
         res.setHeader('content-type', 'application/octet-stream');
         res.setHeader('content-disposition', 'attachment; filename="data.bin"');

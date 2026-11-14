@@ -86,3 +86,28 @@ test('R13: 에이전트가 Page.setDownloadBehavior로 관문을 건너뛸 수 �
     await decide(app, req.id, 'deny');
   } finally { client.close(); }
 });
+
+test('R13: 응답이 오기 전에 탭을 닫아도 승인 없이 저장되지 않는다 (검증 2회차 P1)', async () => {
+  await page.goto(`${server.base}/a`);
+  const extra = await browser.contexts()[0].newPage();
+  await extra.goto(`${server.base}/a`);
+  await extra.evaluate((u) => { const l = document.createElement('a'); l.href = u; l.download = ''; document.body.append(l); l.click(); }, `${server.base}/slowfile?ms=1500`);
+  await new Promise((r) => setTimeout(r, 200));
+  await extra.close();
+  await new Promise((r) => setTimeout(r, 2500));
+  expect(files()).toEqual([]);
+});
+
+test('R13: 다운로드 폴더가 아직 없어도, 허용하면 만들어서 저장한다', async () => {
+  await browser.close().catch(() => undefined);
+  await app.stop();
+  const missing = join(tempDir('dl-parent-'), 'not-yet');
+  app = await launch({ userDataDir: tempDir(), downloadsDir: missing });
+  a = await createSession(app);
+  browser = await chromium.connectOverCDP(a.browserUrl);
+  page = browser.contexts()[0].pages()[0];
+  await startDownload();
+  const req = await request();
+  await decide(app, req.id, 'allow');
+  await waitFor(async () => existsSync(join(missing, 'data.bin')), '없던 폴더에 저장');
+});

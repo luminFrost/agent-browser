@@ -47,6 +47,8 @@ test('R7: A가 브라우저 전체에 영향을 주는 명령을 보내면 오�
       ['IndexedDB.deleteDatabase', { securityOrigin: origin, databaseName: 'x' }],
       ['DOMStorage.clear', { storageId: { securityOrigin: origin, isLocalStorage: true } }],
       ['CacheStorage.deleteCache', { cacheId: 'x' }],
+      ['ServiceWorker.unregister', { scopeURL: origin + '/' }],
+      ['Security.setIgnoreCertificateErrors', { ignore: true }],
     ];
     for (const [method, params] of browserLevel) {
       expect((await client.call(method, params)).error?.message, `브라우저 수준 ${method}`).toMatch(/agent-browser/);
@@ -54,6 +56,13 @@ test('R7: A가 브라우저 전체에 영향을 주는 명령을 보내면 오�
     for (const [method, params] of pageLevel) {
       expect((await client.call(method, params, sessionId as string)).error?.message, `페이지 세션 ${method}`).toMatch(/agent-browser/);
     }
+    // Fetch 가짜 응답으로 Set-Cookie를 넣어 사람의 쿠키를 지우려 한다(검증 2회차 P2)
+    await client.send('Fetch.enable', { patterns: [{ urlPattern: '*zap*' }] }, sessionId as string);
+    client.call('Page.navigate', { url: `${origin}/zap` }, sessionId as string).catch(() => undefined);
+    const paused = await waitFor(async () => client.events.find((e) => e.method === 'Fetch.requestPaused'), '요청 가로챔');
+    const r = await client.call('Fetch.fulfillRequest', { requestId: paused.params.requestId, responseCode: 200, responseHeaders: [{ name: 'Set-Cookie', value: 'sid=gone; Path=/; Max-Age=0' }] }, sessionId as string);
+    expect(r.error?.message, 'Fetch.fulfillRequest Set-Cookie').toMatch(/agent-browser/);
+    await client.call('Fetch.failRequest', { requestId: paused.params.requestId, errorReason: 'Aborted' }, sessionId as string);
   } finally { client.close(); }
 
   // 앱은 살아 있고, 사람의 로그인은 그대로다

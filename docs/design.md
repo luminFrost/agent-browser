@@ -6,7 +6,7 @@ spec: docs/spec.md · 코드로 알 수 없는 결정만 적는다 · 관련 ADR
   - 버린 대안: 세션마다 브라우저 프로세스를 따로 띄우기. 로그인 공유(R2)가 깨진다.
 - **소유권은 브라우저 main이 정한다.** 에이전트 창에 탭이 생기면(세션 생성, `createTarget` 흉내, 팝업) 브라우저 main이 그 탭의 targetId를 알아내 런처에 `tabAdded {sessionId, targetId}`로 알린다. targetId는 `webContents.debugger`로 `Target.getTargetInfo`를 불러 얻는다. 탭이 닫히면 `tabRemoved`를 보낸다. 런처의 세션 범위(scope)는 이 알림으로만 커진다. 전역 `targetCreated` 이벤트로는 소유권을 정하지 않는다.
 - **page와 짝 tab 대상을 함께 범위에 넣는다.** Chrome(Electron 포함)에는 page마다 `tab` 종류의 대상이 따로 있다. 최신 puppeteer(chrome-devtools-mcp)는 page를 빼고 tab에 붙은 뒤, tab 세션 안의 autoAttach로 page를 받는다(T7에서 확인). 그래서 런처는 소유권 알림(page)을 받으면 짝 tab을 찾아 함께 넣는다. 짝은 tab 대상에 잠깐 붙어 `setAutoAttach`로 자식 page를 확인해 찾고, tab마다 한 번만 확인해 기억한다. `Target.getTargets`는 CDP 기본 filter(browser·tab 제외)를 따르므로 Playwright에는 tab이 보이지 않는다.
-- **허용 목록 방식.** 브라우저 수준(sessionId 없음) 명령은 아래 표에 있는 것만 처리하고, 나머지는 오류로 돌려준다. 페이지 세션 명령은 넘기되, 공유 상태를 바꾸는 명령 목록(R7)과 `Target.*`·`Browser.*`는 막는다. 표는 `src/launcher/cdp/policy.ts`에 있다.
+- **허용 목록 방식(ADR-0004).** 브라우저 수준(sessionId 없음) 명령은 아래 표에 있는 것만 처리하고 나머지는 오류로 돌려준다. 페이지 세션 명령도 허용 목록이다. 그 탭 안에서만 일하는 도메인(Page·Runtime·DOM·Input·Emulation·Accessibility 등)은 통째로 연다. Network·Fetch는 메서드를 골라 연다. 출처 사이에 걸친 저장소(IndexedDB·DOMStorage·CacheStorage·Storage)는 읽기만 연다. 그 밖(ServiceWorker·Security·Autofill 등, 새로 생긴 도메인 포함)은 막는다. 표는 `src/launcher/cdp/policy.ts`에 있다.
 
 ## 인터페이스
 | 브라우저 수준 명령 | 처리 |
@@ -27,8 +27,8 @@ spec: docs/spec.md · 코드로 알 수 없는 결정만 적는다 · 관련 ADR
 - 이벤트 경로: sessionId가 있는 메시지는 그 sessionId의 주인 연결에만 보낸다. 브라우저 수준 `attachedToTarget`은 `params.sessionId`로 경로를 정한다. 아직 주인이 없으면 같은 targetId를 붙이고 있는 연결(먼저 온 순서)에 준다. 자식 세션(iframe·worker)의 `attachedToTarget`은 부모 세션 주인에게 주고, 자식 sessionId도 그 연결 것으로 등록한다.
 - 엔드포인트: `http://127.0.0.1:<세션 포트>/<세션 비밀>/` 아래에 `json/version`, `json/list`(`json`), `devtools/browser/<id>`, `devtools/page/<targetId>`. Host 헤더가 127.0.0.1·localhost가 아니면 거부한다(DNS rebinding).
 
-- 페이지 세션 차단(R7): 공유 파티션을 **지우거나 바꾸는** 명령. 대상은 `Network.clearBrowserCookies`·`clearBrowserCache`·`deleteCookies`·`setCookie[s]`, `Storage.clear*`·`delete*`·`setCookies`, `IndexedDB.delete*`·`clearObjectStore`, `DOMStorage.clear`·`set/removeDOMStorageItem`, `CacheStorage.delete*`이다. 쿠키 설정도 막는다: 지난 만료 시각으로 사람의 로그인 쿠키를 지울 수 있다(검증 1회차에서 수행 때의 "설정 허용" 결정을 뒤집음). 그 밖에 `Browser.*`(getVersion 제외), 범위를 벗어나는 `Target.*`도 막는다.
-- 관문 우회 차단: `Page/Browser.setDownloadBehavior`(R13 우회), method·postData를 바꾸는 `Fetch.continueRequest`·`Network.continueInterceptedRequest`(GET 이동을 POST로 바꿔 R12 우회).
+- 페이지 세션에서 따로 검사하는 것: `Page/Browser.setDownloadBehavior`는 막는다(R13 우회). method·postData를 바꾸는 `Fetch.continueRequest`·`Network.continueInterceptedRequest`는 막는다(R12 우회). Set-Cookie가 든 `Fetch.fulfillRequest`·`continueResponse`도 막는다(R7: 응답으로 공유 쿠키 바꾸기). 쿠키 쓰기·지우기는 허용 목록에 없다. 알려진 한계: 에이전트가 자기 탭으로 어떤 사이트 안에서 한 행동(페이지 JS, 로그아웃 버튼)은 그 사이트의 공유 로그인을 바꿀 수 있다(ADR-0004).
+- 도구가 보내지만 막히는 것: chrome-devtools-mcp(puppeteer)의 `Autofill.enable`·`setAddresses`, `WebMCP.enable`. 도구는 오류를 무시하고 계속 동작한다(검증 3회차 확인).
 
 ## 오류 처리
 - 막힌 명령: CDP 오류 `{code: -32000, message: "agent-browser: <이유>"}`로 응답한다. 연결은 끊지 않는다.

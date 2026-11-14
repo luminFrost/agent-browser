@@ -88,3 +88,15 @@ test('R12: 에이전트가 Fetch로 최상위 이동을 POST로 바꿔 관문을
     expect(posts()).toBe(0);
   } finally { client.close(); }
 });
+
+test('R12: iframe 안으로 보내는 폼 제출도 묻는다 (ADR-0004)', async () => {
+  await page.goto(`${server.base}/frameform`);
+  await submit();
+  const [req] = await waitFor(async () => { const l = await approvals(app); return l.length ? l : undefined; }, '승인 요청');
+  expect(req).toMatchObject({ sessionId: a.id, kind: 'form' });
+  await new Promise((r) => setTimeout(r, 500));
+  expect(posts()).toBe(0);
+  await decide(app, req.id, 'deny');
+  await new Promise((r) => setTimeout(r, 500));
+  expect(posts()).toBe(0);
+});

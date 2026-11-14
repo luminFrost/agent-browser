@@ -30,11 +30,22 @@ const finished = (item: DownloadItem) => new Promise<string>((resolve) => item.o
  * R13: 에이전트 탭의 다운로드는 격리 폴더에 받고 사람에게 묻는다(ADR-0003).
  * 허용 → 다운로드 폴더로 옮김. 거부 → 취소하고 격리 폴더의 파일을 지움. 사람 창의 다운로드는 묻지 않는다.
  */
-export function installDownloadGate(session: Session, sessionOf: (contentsId: number) => string | undefined, queue: ApprovalQueue, options: DownloadGateOptions): void {
-  session.on('will-download', (_event, item, contents) => {
+export interface DownloadOwners {
+  /** 에이전트 세션의 탭이면 세션 id */
+  sessionOf(contentsId: number): string | undefined;
+  /** 사람 창의 탭인가 */
+  isHuman(contentsId: number): boolean;
+}
+
+export function installDownloadGate(session: Session, owners: DownloadOwners, queue: ApprovalQueue, options: DownloadGateOptions): void {
+  session.on('will-download', (event, item, contents) => {
     const name = safeFileName(item.getFilename());
-    const sessionId = contents ? sessionOf(contents.id) : undefined;
+    const contentsId = contents && !contents.isDestroyed() ? contents.id : undefined;
+    const sessionId = contentsId === undefined ? undefined : owners.sessionOf(contentsId);
     if (!sessionId) {
+      // 사람 창 탭으로 확인된 것만 묻지 않고 저장한다. 출처를 모르면(이미 닫힌 탭 등) 막는다(검증 2회차 P1)
+      if (contentsId === undefined || !owners.isHuman(contentsId)) return event.preventDefault();
+      mkdirSync(options.downloadsDir, { recursive: true });
       item.setSavePath(finalPath(options.downloadsDir, name));
       return;
     }
@@ -42,11 +53,18 @@ export function installDownloadGate(session: Session, sessionOf: (contentsId: nu
     const quarantined = join(options.quarantineDir, `${randomUUID()}-${name}`);
     item.setSavePath(quarantined);
     const done = finished(item);
-    const decision = queue.ask({ sessionId, host: new URL(item.getURL()).host, kind: 'download', detail: name }, contents.id);
+    const decision = queue.ask({ sessionId, host: new URL(item.getURL()).host, kind: 'download', detail: name }, contentsId as number);
     decision.then((allowed) => { if (!allowed && item.getState() === 'progressing') item.cancel(); });
     Promise.all([decision, done]).then(([allowed, state]) => {
-      if (allowed && state === 'completed') moveFile(quarantined, finalPath(options.downloadsDir, name));
-      else rmSync(quarantined, { force: true });
+      try {
+        if (allowed && state === 'completed') {
+          mkdirSync(options.downloadsDir, { recursive: true }); // 다운로드 폴더가 아직 없을 수 있다
+          moveFile(quarantined, finalPath(options.downloadsDir, name));
+        } else rmSync(quarantined, { force: true });
+      } catch (e) {
+        console.error(`agent-browser: 다운로드를 옮기지 못했다: ${e instanceof Error ? e.message : String(e)}`);
+        rmSync(quarantined, { force: true });
+      }
     });
   });
 }
