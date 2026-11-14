@@ -10,7 +10,7 @@
     "start": "npm run build && node dist/launcher/cli.js",
     "lint": "eslint . && tsc -p tsconfig.json --noEmit",
     "test": "npm run build && vitest run && playwright test",
-    "dist": "npm run build && electron-builder --mac dmg --arm64",
+    "dist": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && npm run build && electron-builder --mac dmg --arm64",
     "test:dist": "npm run dist && playwright test -c playwright.dist.config.ts"
   },
   "dependencies": {

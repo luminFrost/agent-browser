@@ -55,13 +55,19 @@ async function waitFor<T>(fn: () => T | undefined | false | Promise<T | undefine
 }
 
 /** 더블클릭과 같이 앱 실행 파일을 인자 없이 띄운다. 처음 뜬 프로세스는 런처를 띄우고 끝난다 */
-async function openApp(profile: string): Promise<number | null> {
+async function openApp(profile: string, extraEnv: Record<string, string> = {}): Promise<number | null> {
   const starter = spawn(BINARY, [], {
-    env: { HOME: process.env.HOME, PATH: NO_NODE_PATH, AGENT_BROWSER_PROFILE: profile },
+    env: { HOME: process.env.HOME, PATH: NO_NODE_PATH, AGENT_BROWSER_PROFILE: profile, ...extraEnv },
     stdio: 'ignore',
   });
   return new Promise((ok) => starter.on('exit', (code) => ok(code)));
 }
+
+/** 런처: 같은 앱 실행 파일로 cli.js를 도는 프로세스. 명령줄에 프로필이 없어 환경 변수(ps -E)로 찾는다 */
+const launchersOf = (profile: string): number[] =>
+  execFileSync('ps', ['-axwwE', '-o', 'pid=,command='], { encoding: 'utf8' }).split('\n')
+    .filter((l) => l.includes(BINARY) && l.includes('dist/launcher/cli.js') && l.includes(`AGENT_BROWSER_PROFILE=${profile} `))
+    .map((l) => Number(l.trim().split(/\s+/)[0]));
 
 const controlFileOf = (profile: string) => join(profile, 'control.json');
 const readControl = (profile: string) => JSON.parse(readFileSync(controlFileOf(profile), 'utf8')) as { port: number; token: string };
@@ -136,8 +142,14 @@ test.describe('한 번 띄운 앱', () => {
     expect(res.status).toBe(401);
   });
 
+  test('런처 출력은 프로필의 launcher.log에 남는다', () => {
+    expect(readFileSync(join(profile, 'launcher.log'), 'utf8')).toContain('agent-browser 실행 중');
+  });
+
   test('P5 두 번 열기: 새로 띄우지 않고 control.json은 그대로, 기존 창이 앞으로 온다', async () => {
     const before = readFileSync(controlFileOf(profile), 'utf8');
+    execFileSync('open', ['-a', 'Finder']); // 다른 앱을 앞에 둔다. 그래야 "앞으로 온다"를 볼 수 있다
+    await waitFor(() => frontmostPid() !== browserPid, '다른 앱이 앞에 옴');
     expect(await openApp(profile)).toBe(0);
     await waitFor(() => frontmostPid() === browserPid, '기존 앱이 앞으로 옴');
     const { browser, launcher, all } = appProcesses(profile);
@@ -167,4 +179,43 @@ test('P6 브라우저가 강제로 죽으면 런처도 끝나고, 다음 실행�
   await createSession(profile);
   process.kill(second.browser!.pid, 'SIGTERM');
   await waitFor(() => leftovers(profile, second.launcher!.pid).length === 0, '정리');
+});
+
+/** 시작 직후 경쟁(검증 1회차): 첫 실행이 자물쇠를 놓은 뒤 브라우저가 잡기 전에 둘째가 들어오는 간격들 */
+const RACE_GAPS_MS = [30, 80, 150, 300];
+const RACE_WATCH_MS = 6_000;
+const POLL_MS = 20;
+
+for (const gap of RACE_GAPS_MS) {
+  test(`P5 시작 중 두 번 열기(${gap}ms 간격): 런처·브라우저는 한 번도 둘이 되지 않는다`, async () => {
+    const profile = mkdtempSync(join(tmpdir(), 'ab-dist-'));
+    let maxLaunchers = 0;
+    let maxBrowsers = 0;
+    const first = openApp(profile);
+    await new Promise((r) => setTimeout(r, gap));
+    const second = openApp(profile);
+    const until = Date.now() + RACE_WATCH_MS;
+    while (Date.now() < until) {
+      maxLaunchers = Math.max(maxLaunchers, launchersOf(profile).length);
+      maxBrowsers = Math.max(maxBrowsers, processes().filter((p) => isBrowser(p, profile)).length);
+      await new Promise((r) => setTimeout(r, POLL_MS));
+    }
+    expect(await Promise.all([first, second])).toEqual([0, 0]);
+    const { browser, launcher } = appProcesses(profile);
+    expect(browser && launcher).toBeTruthy();
+    expect({ maxLaunchers, maxBrowsers }).toEqual({ maxLaunchers: 1, maxBrowsers: 1 });
+    process.kill(browser!.pid, 'SIGTERM');
+    await waitFor(() => leftovers(profile, launcher!.pid).length === 0, '정리');
+  });
+}
+
+test('잘못된 환경 값이면 시작 프로세스가 남지 않고 실패로 끝난다', async () => {
+  const profile = mkdtempSync(join(tmpdir(), 'ab-dist-'));
+  const code = await Promise.race([
+    openApp(profile, { AGENT_BROWSER_CONTROL_PORT: 'abc' }),
+    new Promise<'hang'>((ok) => setTimeout(() => ok('hang'), 10_000)),
+  ]);
+  expect(code).not.toBe('hang');
+  expect(code).not.toBe(0);
+  expect(leftovers(profile)).toEqual([]);
 });
