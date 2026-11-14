@@ -1,6 +1,6 @@
 import type { CdpMessage, CdpPipe } from '../cdpPipe';
 import type { Connection } from './connection';
-import { SessionScope } from './scope';
+import { SessionScope, type TabActions } from './scope';
 import type { TargetInfo } from './types';
 
 interface Pending {
@@ -38,8 +38,8 @@ export class Router {
     for (const t of targetInfos as TargetInfo[]) this.targetInfos.set(t.targetId, t);
   }
 
-  addScope(id: string): SessionScope {
-    const scope = new SessionScope(id);
+  addScope(id: string, actions: TabActions): SessionScope {
+    const scope = new SessionScope(id, actions);
     this.scopes.set(id, scope);
     return scope;
   }
@@ -54,7 +54,7 @@ export class Router {
       const r = await this.pipe.send('Target.getTargetInfo', { targetId }).catch(() => undefined);
       if (r) this.targetInfos.set(targetId, r.targetInfo as TargetInfo);
     }
-    this.scopes.get(scopeId)?.addTarget(targetId);
+    await this.scopes.get(scopeId)?.addTarget(targetId);
   }
 
   removeTarget(scopeId: string, targetId: string): void {

@@ -11,6 +11,11 @@ export type BrowserLevelAction =
   | 'attach' // 자기 탭에 flatten으로 붙는다
   | 'detach' // 자기 세션만 뗀다
   | 'getTargets' // 자기 탭만 돌려준다
+  | 'setDiscoverTargets' // 연결 상태로 흉내
+  | 'setAutoAttach' // 연결 상태로 흉내
+  | 'createTarget' // 앱이 세션 창에 탭을 만든다
+  | 'closeTarget' // 자기 탭만, 앱이 닫는다
+  | 'activateTarget' // 자기 탭만, 앱이 앞으로 가져온다
   | 'ignore'; // 넘기지 않고 {}로 답한다
 
 const BROWSER_LEVEL: Record<string, BrowserLevelAction> = {
@@ -21,8 +26,26 @@ const BROWSER_LEVEL: Record<string, BrowserLevelAction> = {
   'Target.attachToTarget': 'attach',
   'Target.detachFromTarget': 'detach',
   'Target.getDevToolsTarget': 'requireOwnTarget',
+  'Target.setDiscoverTargets': 'setDiscoverTargets',
+  'Target.setAutoAttach': 'setAutoAttach',
+  'Target.createTarget': 'createTarget',
+  'Target.closeTarget': 'closeTarget',
+  'Target.activateTarget': 'activateTarget',
   'Browser.setDownloadBehavior': 'ignore',
 };
+
+export interface TargetFilterEntry { type?: string; exclude?: boolean }
+
+/** filter를 주지 않았을 때 CDP의 기본값 */
+const DEFAULT_FILTER: TargetFilterEntry[] = [{ type: 'browser', exclude: true }, { type: 'tab', exclude: true }, {}];
+
+/** CDP TargetFilter: 처음 맞는 항목이 포함·제외를 정하고, 맞는 항목이 없으면 제외 */
+export function matchesTargetFilter(type: string, filter: TargetFilterEntry[] | undefined): boolean {
+  for (const entry of filter ?? DEFAULT_FILTER) {
+    if (entry.type === undefined || entry.type === type) return !entry.exclude;
+  }
+  return false;
+}
 
 /** 브라우저 수준 명령의 처리 방식. 표에 없으면 undefined(= 막는다) */
 export function browserLevelAction(method: string): BrowserLevelAction | undefined {

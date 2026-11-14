@@ -44,13 +44,27 @@ export class TabStrip {
 
   newTab(url?: string): number {
     const view = new WebContentsView({ webPreferences: { partition: this.options.partition, sandbox: true, contextIsolation: true } });
+    const id = this.adopt(view);
+    if (url) this.navigate(url);
+    return id;
+  }
+
+  /** 탭의 내용 webContents id로 찾기(런처 명령은 targetId → webContents id로 온다) */
+  idOfContents(contentsId: number): number | undefined {
+    return this.tabs.find((t) => t.view.webContents.id === contentsId)?.id;
+  }
+
+  contentsOf(id: number): Electron.WebContents | undefined {
+    return this.find(id)?.view.webContents;
+  }
+
+  private adopt(view: WebContentsView): number {
     const tab: Tab = { id: nextTabId++, view };
     this.tabs.push(tab);
     this.win.contentView.addChildView(view);
     this.watch(tab);
     this.options.onTabCreated?.(view.webContents);
     this.activate(tab.id);
-    if (url) this.navigate(url);
     return tab.id;
   }
 
@@ -73,9 +87,9 @@ export class TabStrip {
     this.emit();
   }
 
-  navigate(input: string): void {
+  navigate(input: string, id = this.activeId): void {
     const url = normalizeAddress(input);
-    const tab = this.active();
+    const tab = id === null ? undefined : this.find(id);
     if (!url || !tab) return;
     tab.view.webContents.loadURL(url).catch(() => undefined); // 실패는 did-fail-load에서 다룬다
   }
@@ -127,6 +141,18 @@ export class TabStrip {
 
   private watch(tab: Tab): void {
     const wc = tab.view.webContents;
+    // 팝업(window.open, target=_blank)은 새 창이 아니라 같은 창의 새 탭으로 연다.
+    // createWindow로 Electron이 만든 webContents를 그대로 받아 opener 관계를 잇는다.
+    wc.setWindowOpenHandler(() => ({
+      action: 'allow',
+      createWindow: (options) => {
+        // Electron은 opener와 이어진 webContents를 options.webContents로 넘긴다(타입 정의에는 없다)
+        const opened = (options as { webContents?: Electron.WebContents }).webContents;
+        const view = new WebContentsView({ webContents: opened, webPreferences: { partition: this.options.partition, sandbox: true, contextIsolation: true } } as Electron.WebContentsViewConstructorOptions);
+        this.adopt(view);
+        return view.webContents;
+      },
+    }));
     const update = () => this.emit();
     wc.on('did-start-loading', update);
     wc.on('did-stop-loading', update);

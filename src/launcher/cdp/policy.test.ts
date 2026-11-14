@@ -36,3 +36,28 @@ describe('페이지 세션 명령', () => {
     expect(sessionLevelBlockReason('Target.getTargetInfo', { targetId: 'OTHER' })).toBeTypeOf('string');
   });
 });
+
+import { matchesTargetFilter } from './policy';
+
+describe('TargetFilter 판정 (setAutoAttach·setDiscoverTargets의 filter)', () => {
+  it('filter가 없으면 browser·tab을 뺀 모든 것(page 포함)', () => {
+    expect(matchesTargetFilter('page', undefined)).toBe(true);
+    expect(matchesTargetFilter('browser', undefined)).toBe(false);
+    expect(matchesTargetFilter('tab', undefined)).toBe(false);
+  });
+
+  it('처음 맞는 항목이 정한다: [{page 제외}, {}] → page 제외, 나머지 포함 (chrome-devtools-mcp)', () => {
+    const f = [{ type: 'page', exclude: true }, {}];
+    expect(matchesTargetFilter('page', f)).toBe(false);
+    expect(matchesTargetFilter('iframe', f)).toBe(true);
+  });
+
+  it('맞는 항목이 없으면 포함하지 않는다', () => {
+    expect(matchesTargetFilter('page', [{ type: 'worker' }])).toBe(false);
+    expect(matchesTargetFilter('page', [])).toBe(false);
+  });
+
+  it('[{}]는 모든 것', () => {
+    expect(matchesTargetFilter('page', [{}])).toBe(true);
+  });
+});

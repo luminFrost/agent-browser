@@ -25,6 +25,12 @@ const listWindows = (): WindowInfo[] => [
   ...[...agents.keys()].map((sessionId) => ({ kind: 'agent' as const, sessionId })),
 ];
 
+const agentOf = (sessionId: string): AgentWindow => {
+  const agent = agents.get(sessionId);
+  if (!agent) throw new Error(`없는 세션: ${sessionId}`);
+  return agent;
+};
+
 const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> => {
   switch (m.type) {
     case 'quit':
@@ -42,6 +48,26 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
       agent.win.on('closed', () => agents.delete(m.sessionId));
       await agent.ready; // 첫 탭의 tabAdded가 sessionCreated보다 먼저 가게 한다
       return { type: 'sessionCreated', sessionId: m.sessionId };
+    }
+    case 'newTab': {
+      const agent = agentOf(m.sessionId);
+      const targetId = await agent.openTab();
+      if (m.url && m.url !== 'about:blank') agent.tabs.navigate(m.url, agent.tabIdOf(targetId));
+      return { type: 'tabCreated', targetId };
+    }
+    case 'closeTab': {
+      const agent = agentOf(m.sessionId);
+      const tabId = agent.tabIdOf(m.targetId);
+      if (tabId === undefined) return { type: 'error', message: '이 세션의 탭이 아니다' };
+      agent.tabs.close(tabId);
+      return { type: 'done' };
+    }
+    case 'activateTab': {
+      const agent = agentOf(m.sessionId);
+      const tabId = agent.tabIdOf(m.targetId);
+      if (tabId === undefined) return { type: 'error', message: '이 세션의 탭이 아니다' };
+      agent.tabs.activate(tabId);
+      return { type: 'done' };
     }
   }
 };

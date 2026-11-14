@@ -1,6 +1,6 @@
 import type WebSocket from 'ws';
 import type { CdpMessage } from '../cdpPipe';
-import { browserLevelAction, sessionLevelBlockReason } from './policy';
+import { browserLevelAction, matchesTargetFilter, sessionLevelBlockReason, type TargetFilterEntry } from './policy';
 import type { Router } from './router';
 import type { SessionScope } from './scope';
 import { blockedError, type ClientRequest } from './types';
@@ -25,6 +25,12 @@ export class Connection {
   /** 이 연결이 가진 CDP sessionId들 */
   readonly sessions = new Set<string>();
   private pinnedSession?: string;
+  /** setDiscoverTargets 흉내 상태와, targetCreated를 이미 보낸 탭 */
+  private discover?: { filter?: TargetFilterEntry[] };
+  private readonly announced = new Set<string>();
+  /** setAutoAttach 흉내 상태와, 이미 대신 붙은 탭 */
+  private autoAttach?: { filter?: TargetFilterEntry[] };
+  private readonly autoAttached = new Set<string>();
   private readonly queue: string[] = [];
   private ready: boolean;
 
@@ -57,10 +63,44 @@ export class Connection {
     this.sendToClient(m);
   }
 
-  /** 범위에 탭이 생겼다(T5에서 discover·autoAttach 흉내) */
-  onTargetAdded(_targetId: string): void { /* T5 */ }
-  onTargetRemoved(_targetId: string): void { /* T5 */ }
-  onTargetEvent(_m: CdpMessage): void { /* T5 */ }
+  /** 범위에 탭이 생겼다: discover면 targetCreated, autoAttach면 대신 붙는다 */
+  async onTargetAdded(targetId: string): Promise<void> {
+    this.announceCreated(targetId);
+    await this.attachOnBehalf(targetId);
+  }
+
+  /** 범위에서 탭이 빠졌다 */
+  onTargetRemoved(targetId: string): void {
+    this.autoAttached.delete(targetId);
+    if (this.announced.delete(targetId)) this.sendToClient({ method: 'Target.targetDestroyed', params: { targetId } });
+  }
+
+  /** 자기 탭의 targetInfoChanged·targetDestroyed (targetCreated는 소유권이 정해질 때 따로 보낸다) */
+  onTargetEvent(m: CdpMessage): void {
+    if (!this.discover || this.pinnedTargetId) return;
+    const targetId = (m.params?.targetInfo as { targetId?: string } | undefined)?.targetId ?? (m.params?.targetId as string | undefined);
+    if (!targetId) return;
+    if (m.method === 'Target.targetInfoChanged' && this.announced.has(targetId)) this.sendToClient(m);
+    if (m.method === 'Target.targetDestroyed') this.onTargetRemoved(targetId);
+  }
+
+  private announceCreated(targetId: string): void {
+    if (!this.discover || this.pinnedTargetId || this.announced.has(targetId)) return;
+    const info = this.router.targetInfos.get(targetId);
+    if (!info || !matchesTargetFilter(info.type, this.discover.filter)) return;
+    this.announced.add(targetId);
+    this.sendToClient({ method: 'Target.targetCreated', params: { targetInfo: info } });
+  }
+
+  /** autoAttach 흉내: 브라우저 수준 setAutoAttach를 넘기지 않고, 자기 탭에만 하나씩 붙는다(design.md) */
+  private async attachOnBehalf(targetId: string): Promise<void> {
+    if (!this.autoAttach || this.autoAttached.has(targetId) || this.closed) return;
+    const info = this.router.targetInfos.get(targetId);
+    if (!info || !matchesTargetFilter(info.type, this.autoAttach.filter)) return;
+    this.autoAttached.add(targetId);
+    // 브라우저가 attachedToTarget 이벤트를 보내고, 라우터가 그것을 이 연결로 보낸다
+    await this.router.call(this, 'Target.attachToTarget', { targetId, flatten: true }).catch(() => this.autoAttached.delete(targetId));
+  }
 
   close(): void {
     this.ws.close();
@@ -126,6 +166,32 @@ export class Connection {
         return this.reply(req, { targetInfos: this.ownTargetInfos() });
       case 'ignore':
         return this.reply(req, {});
+      case 'setDiscoverTargets':
+        this.discover = params.discover === true ? { filter: params.filter as TargetFilterEntry[] | undefined } : undefined;
+        if (!this.discover) this.announced.clear();
+        this.reply(req, {});
+        for (const id of this.scope.targets) this.announceCreated(id);
+        return;
+      case 'setAutoAttach':
+        if (params.autoAttach === true && params.flatten !== true) return this.refuse(req, 'flatten 모드(flatten: true)만 지원한다');
+        this.autoAttach = params.autoAttach === true ? { filter: params.filter as TargetFilterEntry[] | undefined } : undefined;
+        // 붙이기를 마친 뒤 응답한다: Playwright는 응답 전에 기존 탭의 attachedToTarget을 받기를 기대한다
+        Promise.all([...this.scope.targets].map((id) => this.attachOnBehalf(id))).then(() => this.reply(req, {}));
+        return;
+      case 'createTarget':
+        this.scope.actions.newTab(typeof params.url === 'string' && params.url ? params.url : 'about:blank').then(
+          (targetId) => this.reply(req, { targetId }),
+          (e: unknown) => this.refuse(req, `탭을 만들지 못했다: ${e instanceof Error ? e.message : String(e)}`),
+        );
+        return;
+      case 'closeTarget':
+        if (!this.scope.owns(params.targetId)) return this.refuse(req, '이 세션의 탭이 아니다');
+        this.scope.actions.closeTab(params.targetId as string).then(() => this.reply(req, { success: true }), () => this.refuse(req, '탭을 닫지 못했다'));
+        return;
+      case 'activateTarget':
+        if (!this.scope.owns(params.targetId)) return this.refuse(req, '이 세션의 탭이 아니다');
+        this.scope.actions.activateTab(params.targetId as string).then(() => this.reply(req, {}), () => this.refuse(req, '탭을 앞으로 가져오지 못했다'));
+        return;
     }
   }
 

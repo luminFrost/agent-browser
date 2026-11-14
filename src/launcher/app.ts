@@ -83,10 +83,15 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
   const router = new Router(rawCdp);
   await router.start();
   const version = (await rawCdp.send('Browser.getVersion')) as unknown as BrowserVersion;
-  // 소유권 알림(요청 없이 오는 tabAdded/tabRemoved)
+  // 소유권 알림(요청 없이 오는 tabAdded/tabRemoved). 범위 반영이 끝나는 약속을 targetId별로 들고 있는다
+  const additions = new Map<string, Promise<void>>();
+  const added = (sessionId: string, targetId: string) => additions.get(`${sessionId}/${targetId}`) ?? router.addTarget(sessionId, targetId);
   child.on('message', (m: BrowserToLauncher) => {
-    if (m.type === 'tabAdded') router.addTarget(m.sessionId, m.targetId).catch(() => undefined);
-    if (m.type === 'tabRemoved') router.removeTarget(m.sessionId, m.targetId);
+    if (m.type === 'tabAdded') additions.set(`${m.sessionId}/${m.targetId}`, router.addTarget(m.sessionId, m.targetId).catch(() => undefined));
+    if (m.type === 'tabRemoved') {
+      additions.delete(`${m.sessionId}/${m.targetId}`);
+      router.removeTarget(m.sessionId, m.targetId);
+    }
   });
 
   const sessions = new SessionRegistry();
@@ -94,7 +99,16 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
   const control = await startControlServer(token, options.controlPort ?? 0, {
     async createSession() {
       const id = sessions.newId();
-      const scope = router.addScope(id); // 첫 탭의 tabAdded를 받을 수 있게 창보다 먼저 만든다
+      // 첫 탭의 tabAdded를 받을 수 있게 창보다 먼저 만든다
+      const scope = router.addScope(id, {
+        async newTab(url) {
+          const { targetId } = await request({ type: 'newTab', sessionId: id, url }, 'tabCreated');
+          await added(id, targetId); // 소유권이 범위에 반영되고 흉내(자동 붙기)가 끝난 뒤 응답한다
+          return targetId;
+        },
+        async closeTab(targetId) { await request({ type: 'closeTab', sessionId: id, targetId }, 'done'); },
+        async activateTab(targetId) { await request({ type: 'activateTab', sessionId: id, targetId }, 'done'); },
+      });
       await request({ type: 'createSession', sessionId: id }, 'sessionCreated');
       const endpoint = await startSessionEndpoint(scope, router, version);
       sessions.add({ id, endpoint });

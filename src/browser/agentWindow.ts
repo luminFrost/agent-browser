@@ -15,6 +15,10 @@ export interface AgentWindow {
   targetIds: Map<number, string>;
   /** 첫 탭의 targetId를 알릴 때까지 기다린다 */
   ready: Promise<void>;
+  /** 새 탭을 만들고, 소유권을 알린 뒤 targetId를 돌려준다 */
+  openTab(): Promise<string>;
+  /** targetId로 탭 찾기(이 창의 탭이 아니면 undefined) */
+  tabIdOf(targetId: string): number | undefined;
 }
 
 export interface AgentWindowEvents {
@@ -35,15 +39,17 @@ export function createAgentWindow(sessionId: string, show: boolean, events: Agen
     webPreferences: { preload: join(__dirname, 'preload', 'agent.js'), sandbox: true, contextIsolation: true, additionalArguments: [`--ab-session=${sessionId}`] },
   });
   const targetIds = new Map<number, string>();
-  const pending: Promise<void>[] = [];
+  /** webContents id → 소유권 알림이 끝나면 풀리는 약속 */
+  const announced = new Map<number, Promise<string | undefined>>();
 
   const announce = (contents: WebContents) => {
     const p = targetIdOf(contents).then((targetId) => {
-      if (contents.isDestroyed()) return;
+      if (contents.isDestroyed()) return undefined;
       targetIds.set(contents.id, targetId);
       events.tabAdded(sessionId, targetId);
-    });
-    pending.push(p.catch(() => undefined));
+      return targetId;
+    }).catch(() => undefined);
+    announced.set(contents.id, p);
   };
 
   const tabs = new TabStrip(win, {
@@ -61,6 +67,17 @@ export function createAgentWindow(sessionId: string, show: boolean, events: Agen
   win.webContents.on('did-finish-load', () => win.webContents.send('agent:state', tabs.state()));
   win.on('close', () => tabs.destroy()); // 창을 닫으면 탭마다 tabRemoved를 알린다
   win.loadFile(join(__dirname, 'renderer', 'agent', 'index.html')).catch(() => undefined);
-  tabs.newTab('about:blank');
-  return { sessionId, win, tabs, targetIds, ready: Promise.all(pending).then(() => undefined) };
+  const openTab = async () => {
+    const id = tabs.newTab('about:blank');
+    const contents = tabs.contentsOf(id);
+    const targetId = contents ? await announced.get(contents.id) : undefined;
+    if (!targetId) throw new Error('새 탭의 targetId를 알아내지 못했다');
+    return targetId;
+  };
+  const tabIdOf = (targetId: string) => {
+    for (const [contentsId, t] of targetIds) if (t === targetId) return tabs.idOfContents(contentsId);
+    return undefined;
+  };
+  const ready = openTab().then(() => undefined);
+  return { sessionId, win, tabs, targetIds, ready, openTab, tabIdOf };
 }
