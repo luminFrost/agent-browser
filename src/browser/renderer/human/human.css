@@ -25,3 +25,11 @@ body { margin: 0; height: 100vh; overflow: hidden; background: Canvas; }
 .session ul { list-style: none; margin: 0; padding: 0; }
 .tab-url { font-size: 11px; color: GrayText; word-break: break-all; }
 .tab-url.active { color: CanvasText; }
+#approvals-section { margin-bottom: 14px; }
+#approvals { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.approval { padding: 8px; border-radius: 6px; background: color-mix(in srgb, #e0a800 18%, Canvas); border: 1px solid #e0a800; }
+.approval .what { margin-bottom: 6px; word-break: break-all; }
+.approval .buttons { display: flex; gap: 6px; }
+.approval button { flex: 1; padding: 3px 0; border-radius: 4px; font: inherit; border: 1px solid color-mix(in srgb, CanvasText 30%, Canvas); background: Canvas; color: inherit; }
+.approval .allow { border-color: #2f7d32; color: #2f7d32; }
+.approval .deny { border-color: #c4373c; color: #c4373c; }

@@ -21,7 +21,8 @@ export type HumanCommand =
   | { cmd: 'newTab' }
   | { cmd: 'activate'; id: number }
   | { cmd: 'close'; id: number }
-  | { cmd: 'stopSession'; sessionId: string };
+  | { cmd: 'stopSession'; sessionId: string }
+  | { cmd: 'decide'; id: string; allow: boolean };
 
 /** 지켜보기 패널에 보이는 세션 하나(R11) */
 export interface SessionView {

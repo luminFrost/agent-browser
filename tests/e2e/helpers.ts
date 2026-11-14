@@ -100,3 +100,15 @@ export class CdpClient {
 
   close() { this.ws.close(); }
 }
+
+export interface ApprovalView { id: string; sessionId: string; host: string; kind: string; text: string }
+
+/** 사람 창 패널의 승인 요청 목록(R12·R13) */
+export async function approvals(app: RunningApp): Promise<ApprovalView[]> {
+  return evaluate<ApprovalView[]>(app, (await humanUi(app)).targetId, `[...document.querySelectorAll('#approvals .approval')].map(a => ({ id: a.dataset.id, sessionId: a.dataset.sessionId, host: a.dataset.host, kind: a.dataset.kind, text: a.textContent }))`);
+}
+
+/** 승인 요청에 허용/거부를 누른다 */
+export async function decide(app: RunningApp, id: string, choice: 'allow' | 'deny'): Promise<void> {
+  await evaluate(app, (await humanUi(app)).targetId, `document.querySelector('#approvals .approval[data-id="${id}"] .${choice}').click()`);
+}

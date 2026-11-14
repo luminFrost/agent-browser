@@ -1,6 +1,7 @@
 // 사람 창 UI (주소창·탭 막대). 모듈이 아닌 스크립트로 읽힌다.
 interface HumanTabView { id: number; title: string; url: string; loading: boolean }
 interface HumanState { tabs: HumanTabView[]; activeId: number | null; canGoBack: boolean; canGoForward: boolean }
+interface HumanApprovalView { id: string; sessionId: string; host: string; kind: 'form' | 'download'; detail?: string }
 interface HumanSessionView { sessionId: string; tabs: HumanTabView[]; activeId: number | null }
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- 전역 Window 확장(preload가 연 humanApi)이라 선언만 있다
 interface Window {
@@ -8,6 +9,7 @@ interface Window {
     command(c: { cmd: string; [k: string]: unknown }): void;
     onState(listener: (s: HumanState) => void): void;
     onSessions(listener: (s: HumanSessionView[]) => void): void;
+    onApprovals(listener: (a: HumanApprovalView[]) => void): void;
   };
 }
 
@@ -83,6 +85,36 @@ interface Window {
         return u;
       }));
       li.append(header, urls);
+      return li;
+    }));
+  });
+
+  // 승인 요청(R12·R13): "세션 · 호스트 · 무엇 — 허용/거부"
+  const approvalsEl = byId<HTMLUListElement>('approvals');
+  const approvalsSection = byId<HTMLElement>('approvals-section');
+  const KIND_LABEL = { form: '폼 제출', download: '다운로드' } as const;
+  api.onApprovals((list) => {
+    approvalsSection.hidden = list.length === 0;
+    approvalsEl.replaceChildren(...list.map((a) => {
+      const li = document.createElement('li');
+      li.className = 'approval';
+      li.dataset.id = a.id;
+      li.dataset.sessionId = a.sessionId;
+      li.dataset.host = a.host;
+      li.dataset.kind = a.kind;
+      const what = document.createElement('div');
+      what.className = 'what';
+      what.textContent = `세션 ${a.sessionId} · ${a.host} · ${KIND_LABEL[a.kind]}${a.detail ? ` (${a.detail})` : ''}`;
+      const buttons = document.createElement('div');
+      buttons.className = 'buttons';
+      for (const [cls, label, allow] of [['allow', '허용', true], ['deny', '거부', false]] as const) {
+        const b = document.createElement('button');
+        b.className = cls;
+        b.textContent = label;
+        b.addEventListener('click', () => { b.disabled = true; api.command({ cmd: 'decide', id: a.id, allow }); });
+        buttons.append(b);
+      }
+      li.append(what, buttons);
       return li;
     }));
   });

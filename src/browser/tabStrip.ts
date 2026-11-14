@@ -29,6 +29,13 @@ export interface TabStripOptions {
   onTabClosing?(contents: Electron.WebContents): void;
 }
 
+/** 오류 페이지 문구. 앱이 막은 경우(관문 거부) 다른 문구를 쓴다 */
+const ERR_BLOCKED_BY_CLIENT = -20;
+const describeFailure = (code: number, description: string) =>
+  code === ERR_BLOCKED_BY_CLIENT
+    ? { heading: '차단되었습니다', error: '사람이 폼 제출을 거부했습니다' }
+    : { heading: '페이지를 열 수 없습니다', error: description };
+
 let nextTabId = 1;
 
 /** 한 창 안의 탭 묶음. 탭마다 WebContentsView 하나. 사람 창과 에이전트 창이 같이 쓴다 */
@@ -167,7 +174,7 @@ export class TabStrip {
     wc.on('did-fail-load', (_e, code, description, validatedURL, isMainFrame) => {
       if (!isMainFrame || code === ERR_ABORTED || validatedURL.startsWith(ERROR_PAGE_URL)) return;
       tab.failedUrl = validatedURL;
-      wc.loadFile(ERROR_PAGE, { query: { url: validatedURL, error: description } }).catch(() => undefined);
+      wc.loadFile(ERROR_PAGE, { query: { url: validatedURL, ...describeFailure(code, description) } }).catch(() => undefined);
       update();
     });
   }

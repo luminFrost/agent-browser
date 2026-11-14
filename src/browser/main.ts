@@ -2,6 +2,8 @@ import { app, session } from 'electron';
 import { createHumanWindow, type HumanWindow } from './humanWindow';
 import { createAgentWindow, type AgentWindow } from './agentWindow';
 import { SHARED_PARTITION } from '../shared/constants';
+import { ApprovalQueue } from './gate/approvals';
+import { installFormGate } from './gate/formGate';
 import type { BrowserReply, LauncherToBrowser, WindowInfo } from '../shared/ipc';
 
 const USER_DATA_FLAG = '--ab-user-data=';
@@ -19,6 +21,13 @@ const showWindows = !process.argv.includes(HIDDEN_FLAG);
 const send = (m: BrowserReply, rid?: number) => process.send?.({ ...m, rid });
 let human: HumanWindow | undefined;
 const agents = new Map<string, AgentWindow>();
+const approvals = new ApprovalQueue((views) => human?.showApprovals(views));
+
+/** 이 webContents가 어느 세션의 탭인가(사람 창이면 undefined) */
+const sessionOfContents = (contentsId: number): string | undefined => {
+  for (const a of agents.values()) if (a.contentsIds.has(contentsId)) return a.sessionId;
+  return undefined;
+};
 
 const listWindows = (): WindowInfo[] => [
   ...(human && !human.win.isDestroyed() ? [{ kind: 'human' as const }] : []),
@@ -52,6 +61,7 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
       if (agents.has(m.sessionId)) return { type: 'error', message: `이미 있는 세션: ${m.sessionId}` };
       const agent = createAgentWindow(m.sessionId, showWindows, {
         stateChanged: () => refreshPanel(),
+        tabClosing: (contentsId) => approvals.cancelContents(contentsId),
         tabAdded: (sessionId, targetId) => send({ type: 'tabAdded', sessionId, targetId }),
         tabRemoved: (sessionId, targetId) => send({ type: 'tabRemoved', sessionId, targetId }),
       });
@@ -109,9 +119,11 @@ app.whenReady().then(() => {
   // 사이트의 권한 요청(카메라·위치·알림 등)은 기본적으로 거부한다(spec 제약).
   shared.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   shared.setPermissionCheckHandler(() => false);
+  installFormGate(shared, sessionOfContents, approvals);
 
   human = createHumanWindow(showWindows, {
     stopSession: (sessionId) => send({ type: 'stopRequested', sessionId }),
+    decide: (id, allow) => approvals.decide(id, allow),
   });
   human.win.on('closed', () => {
     human = undefined;

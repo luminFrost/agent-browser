@@ -17,7 +17,7 @@ spec: docs/spec.md · 작업 하나 = 리뷰 가능한 크기, 커밋 하나 · 
 | T9 | 동시 세션: A·B 동시 navigate | `tests/e2e/concurrency.spec.ts` | R8 | `npm test` | [x] |
 | T10 | 종료: 멈추기·창 닫기 → 연결 끊김, browserUrl 응답 없음, B는 유지 | `src/launcher/sessions.ts`, `src/browser/sessionWindows.ts` | R9 | `npm test` | [x] |
 | T11 | 지켜보기: 사람 창의 세션 목록·탭 URL·멈추기 버튼, 빈 상태 문구, 상태별 스크린샷 | `src/browser/renderer/human/sessions*` | R11 | `npm test` + 스크린샷 | [x] |
-| T12 | 폼 제출 관문: 에이전트 창의 최상위 POST를 붙잡고 사람 창에 허용/거부, 거부 시 차단 오류 페이지, GET은 묻지 않음 | `src/browser/gate/**` | R12 | `npm test` | [ ] |
+| T12 | 폼 제출 관문: 에이전트 창의 최상위 POST를 붙잡고 사람 창에 허용/거부, 거부 시 차단 오류 페이지, GET은 묻지 않음 | `src/browser/gate/**` | R12 | `npm test` | [x] |
 | T13 | 다운로드 관문: 에이전트 창의 다운로드 허용/거부, 사람 창 다운로드는 묻지 않음 | `src/browser/gate/**` | R13 | `npm test` | [ ] |
 
 T0 결과에 따라 T4·T12·T13의 방식이 바뀔 수 있다. 완료 기준을 지킬 수 없다고 나오면 진행하지 않고 spec 수정·ADR·재승인을 거친다.

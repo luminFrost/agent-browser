@@ -14,6 +14,8 @@ export interface AgentWindow {
   tabs: TabStrip;
   /** 이 창의 탭 webContents id → CDP targetId */
   targetIds: Map<number, string>;
+  /** 이 창의 탭 webContents id. 탭이 생기는 즉시 들어간다(관문 판별용, targetId 알림을 기다리지 않는다) */
+  contentsIds: Set<number>;
   /** 첫 탭의 targetId를 알린 뒤 그 targetId로 풀린다 */
   ready: Promise<string>;
   /** 새 탭을 만들고, 소유권을 알린 뒤 targetId를 돌려준다 */
@@ -25,6 +27,8 @@ export interface AgentWindow {
 export interface AgentWindowEvents {
   /** 탭 상태가 바뀜(지켜보기 패널용) */
   stateChanged(sessionId: string, state: TabStripState): void;
+  /** 탭이 닫히기 직전(관문의 기다리는 요청 취소용) */
+  tabClosing(contentsId: number): void;
   tabAdded(sessionId: string, targetId: string): void;
   tabRemoved(sessionId: string, targetId: string): void;
 }
@@ -42,10 +46,12 @@ export function createAgentWindow(sessionId: string, show: boolean, events: Agen
     webPreferences: { preload: join(__dirname, 'preload', 'agent.js'), sandbox: true, contextIsolation: true, additionalArguments: [`--ab-session=${sessionId}`] },
   });
   const targetIds = new Map<number, string>();
+  const contentsIds = new Set<number>();
   /** webContents id → 소유권 알림이 끝나면 풀리는 약속 */
   const announced = new Map<number, Promise<string | undefined>>();
 
   const announce = (contents: WebContents) => {
+    contentsIds.add(contents.id);
     const p = targetIdOf(contents).then((targetId) => {
       if (contents.isDestroyed()) return undefined;
       targetIds.set(contents.id, targetId);
@@ -64,6 +70,8 @@ export function createAgentWindow(sessionId: string, show: boolean, events: Agen
     },
     onTabCreated: announce,
     onTabClosing: (contents) => {
+      contentsIds.delete(contents.id);
+      events.tabClosing(contents.id);
       const targetId = targetIds.get(contents.id);
       if (!targetId) return;
       targetIds.delete(contents.id);
@@ -85,5 +93,5 @@ export function createAgentWindow(sessionId: string, show: boolean, events: Agen
     return undefined;
   };
   const ready = openTab();
-  return { sessionId, win, tabs, targetIds, ready, openTab, tabIdOf };
+  return { sessionId, win, tabs, targetIds, contentsIds, ready, openTab, tabIdOf };
 }
