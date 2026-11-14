@@ -2,8 +2,8 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import { join, resolve } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
-import electron from 'electron';
 import { CdpPipe } from './cdpPipe';
+import { USER_DATA_FLAG } from '../shared/constants';
 import { newToken } from './control/auth';
 import { removeControlFile, writeControlFile } from './control/controlFile';
 import { startControlServer } from './control/server';
@@ -51,16 +51,29 @@ const DEFAULT_BROWSER_MAIN = resolve(__dirname, '..', '..', 'dist', 'browser', '
 const DEFAULT_REPLY_TIMEOUT_MS = 30_000;
 const CONTROL_FILE_NAME = 'control.json';
 
-/** Electron 패키지는 Node에서 불리면 실행 파일 경로(문자열)를 내보낸다. */
-const electronBinary = electron as unknown as string;
+/**
+ * 브라우저로 띄울 Electron 실행 파일.
+ * 묶은 앱의 런처는 앱 실행 파일 자신을 Node 모드로 돌리므로 그 파일을 다시 쓴다(spec-mac-app.md).
+ * 개발·테스트에서는 electron 패키지가 Node에 실행 파일 경로(문자열)를 내보낸다.
+ */
+const electronBinary = (): string =>
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  process.versions.electron ? process.execPath : (require('electron') as string);
+
+/** 런처의 Node 모드 표시를 브라우저에 물려주지 않는다. 물려주면 브라우저도 Node로 돈다 */
+const browserEnv = (): NodeJS.ProcessEnv => {
+  const env = { ...process.env };
+  delete env.ELECTRON_RUN_AS_NODE;
+  return env;
+};
 
 export async function startApp(options: StartOptions): Promise<RunningApp> {
   const timeoutMs = options.replyTimeoutMs ?? DEFAULT_REPLY_TIMEOUT_MS;
   const child: ChildProcess = spawn(
-    electronBinary,
-    [options.browserMain ?? DEFAULT_BROWSER_MAIN, '--remote-debugging-pipe', `--ab-user-data=${options.userDataDir}`, ...(options.hidden ? ['--ab-hidden'] : []), ...(options.downloadsDir ? [`--ab-downloads=${options.downloadsDir}`] : [])],
+    electronBinary(),
+    [options.browserMain ?? DEFAULT_BROWSER_MAIN, '--remote-debugging-pipe', `${USER_DATA_FLAG}${options.userDataDir}`, ...(options.hidden ? ['--ab-hidden'] : []), ...(options.downloadsDir ? [`--ab-downloads=${options.downloadsDir}`] : [])],
     // fd 3·4: CDP 파이프, fd 5: 런처 ↔ 브라우저 명령 채널(ipc). TCP는 쓰지 않는다.
-    { stdio: ['ignore', 'inherit', 'inherit', 'pipe', 'pipe', 'ipc'] },
+    { stdio: ['ignore', 'inherit', 'inherit', 'pipe', 'pipe', 'ipc'], env: browserEnv() },
   );
   const rawCdp = new CdpPipe(child.stdio[3] as Writable, child.stdio[4] as Readable);
   // ipc 채널이 닫힌 뒤 보내기 오류가 런처를 죽이지 않게 한다(사람 창을 닫아 브라우저가 끝나는 중 등)
@@ -89,7 +102,11 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
     return reply;
   };
 
-  await waitFor<'ready'>((m) => m.type === 'ready', 'ready');
+  // 브라우저가 준비 전에 끝나면(같은 프로필을 이미 다른 브라우저가 씀 등) 기다리지 않고 실패한다
+  await Promise.race([
+    waitFor<'ready'>((m) => m.type === 'ready', 'ready'),
+    exited.then(() => { throw new Error('브라우저가 준비되기 전에 끝났다'); }),
+  ]);
 
   const router = new Router(rawCdp);
   await router.start();

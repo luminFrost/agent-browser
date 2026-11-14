@@ -1,14 +1,13 @@
 import { app, session } from 'electron';
 import { createHumanWindow, type HumanWindow } from './humanWindow';
 import { createAgentWindow, type AgentWindow } from './agentWindow';
-import { SHARED_PARTITION } from '../shared/constants';
+import { SHARED_PARTITION, USER_DATA_FLAG } from '../shared/constants';
 import { ApprovalQueue } from './gate/approvals';
 import { installFormGate } from './gate/formGate';
 import { installDownloadGate } from './gate/downloadGate';
 import { join } from 'node:path';
 import type { BrowserReply, LauncherToBrowser, WindowInfo } from '../shared/ipc';
 
-const USER_DATA_FLAG = '--ab-user-data=';
 const HIDDEN_FLAG = '--ab-hidden';
 const DOWNLOADS_FLAG = '--ab-downloads=';
 const QUARANTINE_DIR_NAME = 'quarantine';
@@ -20,6 +19,11 @@ if (!userDataArg || typeof process.send !== 'function') {
   process.exit(1);
 }
 app.setPath('userData', userDataArg.slice(USER_DATA_FLAG.length));
+// 한 프로필에는 브라우저 하나만 돈다. 둘째가 뜨면 끝내고, 이미 도는 쪽이 사람 창을 앞으로 가져온다(spec-mac-app.md P5).
+if (!app.requestSingleInstanceLock()) {
+  console.error('agent-browser: 이 프로필은 이미 다른 브라우저가 쓰고 있다');
+  process.exit(1);
+}
 const showWindows = !process.argv.includes(HIDDEN_FLAG);
 
 const send = (m: BrowserReply, rid?: number) => process.send?.({ ...m, rid });
@@ -123,6 +127,16 @@ process.on('disconnect', () => app.quit());
 
 // 사람 창을 닫으면 앱을 끝낸다. 지켜보기·관문이 사람 창에 있으므로 사람 창 없이 에이전트만 돌게 두지 않는다.
 app.on('window-all-closed', () => app.quit());
+
+/** 앱을 다시 열면(Dock·Finder·두 번째 실행) 사람 창을 앞으로 가져온다 */
+const bringHumanToFront = () => {
+  if (!human || human.win.isDestroyed() || !showWindows) return;
+  if (human.win.isMinimized()) human.win.restore();
+  human.win.show();
+  app.focus({ steal: true });
+};
+app.on('second-instance', bringHumanToFront);
+app.on('activate', bringHumanToFront);
 
 app.whenReady().then(() => {
   const shared = session.fromPartition(SHARED_PARTITION);
