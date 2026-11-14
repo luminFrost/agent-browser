@@ -56,9 +56,27 @@ export function browserLevelAction(method: string): BrowserLevelAction | undefin
 const SESSION_TARGET_ALLOWED = new Set(['Target.setAutoAttach', 'Target.autoAttachRelated', 'Target.detachFromTarget', 'Target.getTargetInfo']);
 
 /**
+ * R7: 공유 파티션(사람 창과 같은 로그인)을 지우는 명령. 페이지 세션에서 보내도 브라우저 전체에 닿는다.
+ * 쿠키 설정(setCookie[s])은 에이전트가 정상적으로 쓸 수 있어 막지 않는다. 지우기·삭제만 막는다.
+ */
+const SHARED_STATE_DESTRUCTIVE = new Set([
+  'Network.clearBrowserCookies',
+  'Network.clearBrowserCache',
+  'Network.deleteCookies',
+  'Storage.clearDataForOrigin',
+  'Storage.clearDataForStorageKey',
+  'Storage.clearCookies',
+  'Storage.clearSharedStorageEntries',
+  'Storage.deleteSharedStorageEntry',
+  'Storage.deleteStorageBucket',
+  'Storage.clearTrustTokens',
+]);
+
+/**
  * 페이지 세션 명령을 막아야 하면 그 이유를, 넘겨도 되면 undefined를 돌려준다.
  */
 export function sessionLevelBlockReason(method: string, params: Record<string, unknown> = {}): string | undefined {
+  if (SHARED_STATE_DESTRUCTIVE.has(method)) return '사람 창과 공유하는 로그인·저장소를 지우는 명령은 쓸 수 없다';
   if (method.startsWith('Browser.') && method !== 'Browser.getVersion') return '페이지 세션에서 Browser 명령은 쓸 수 없다';
   if (method.startsWith('Target.')) {
     if (!SESSION_TARGET_ALLOWED.has(method)) return '페이지 세션에서 이 Target 명령은 쓸 수 없다';

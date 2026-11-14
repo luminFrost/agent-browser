@@ -26,6 +26,8 @@ spec: docs/spec.md · 코드로 알 수 없는 결정만 적는다 · 관련 ADR
 - 이벤트 경로: sessionId가 있는 메시지는 그 sessionId의 주인 연결에만 보낸다. 브라우저 수준 `attachedToTarget`은 `params.sessionId`로 경로를 정한다. 아직 주인이 없으면 같은 targetId를 붙이고 있는 연결(먼저 온 순서)에 준다. 자식 세션(iframe·worker)의 `attachedToTarget`은 부모 세션 주인에게 주고, 자식 sessionId도 그 연결 것으로 등록한다.
 - 엔드포인트: `http://127.0.0.1:<세션 포트>/<세션 비밀>/` 아래에 `json/version`, `json/list`(`json`), `devtools/browser/<id>`, `devtools/page/<targetId>`. Host 헤더가 127.0.0.1·localhost가 아니면 거부한다(DNS rebinding).
 
+- 페이지 세션 차단(R7): 공유 파티션을 **지우는** 명령(`Network.clearBrowserCookies`·`clearBrowserCache`·`deleteCookies`, `Storage.clear*`·`delete*` 등)과 `Browser.*`(getVersion 제외), 범위를 벗어나는 `Target.*`. 쿠키 **설정**(`Network.setCookie[s]`)은 에이전트가 정상적으로 쓰는 일이라 막지 않는다. 덮어쓰기로 사람 쿠키를 바꿀 수는 있다. 이것은 R7(지우기) 밖으로 두고 지켜보기·멈추기(R11)로 대응한다.
+
 ## 오류 처리
 - 막힌 명령: CDP 오류 `{code: -32000, message: "agent-browser: <이유>"}`로 응답한다. 연결은 끊지 않는다.
 - 잘못된 JSON이나 숫자가 아닌 id: 연결을 끊는다(1008).

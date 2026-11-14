@@ -61,3 +61,22 @@ describe('TargetFilter 판정 (setAutoAttach·setDiscoverTargets의 filter)', ()
     expect(matchesTargetFilter('page', [{}])).toBe(true);
   });
 });
+
+describe('R7: 브라우저 전체(공유 파티션)에 영향을 주는 페이지 세션 명령은 막는다', () => {
+  it.each([
+    'Network.clearBrowserCookies',
+    'Network.clearBrowserCache',
+    'Network.deleteCookies',
+    'Storage.clearDataForOrigin',
+    'Storage.clearDataForStorageKey',
+    'Storage.clearCookies',
+    'Storage.clearSharedStorageEntries',
+    'Storage.deleteStorageBucket',
+  ])('%s', (method) => {
+    expect(sessionLevelBlockReason(method)).toMatch(/공유/);
+  });
+
+  it('자기 페이지의 일은 막지 않는다', () => {
+    for (const m of ['Network.enable', 'Network.getCookies', 'Network.setCookie', 'Network.setCookies', 'Storage.getCookies', 'Page.reload']) expect(sessionLevelBlockReason(m), m).toBeUndefined();
+  });
+});
