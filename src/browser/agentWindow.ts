@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { TabStrip } from './tabStrip';
 import { targetIdOf } from './targetId';
 import { SHARED_PARTITION } from '../shared/constants';
+import type { TabStripState } from '../shared/tabState';
 
 /** 에이전트 창 머리줄 높이(px). renderer/agent/agent.css의 --header-height와 같아야 한다 */
 const HEADER_HEIGHT = 36;
@@ -22,6 +23,8 @@ export interface AgentWindow {
 }
 
 export interface AgentWindowEvents {
+  /** 탭 상태가 바뀜(지켜보기 패널용) */
+  stateChanged(sessionId: string, state: TabStripState): void;
   tabAdded(sessionId: string, targetId: string): void;
   tabRemoved(sessionId: string, targetId: string): void;
 }
@@ -55,7 +58,10 @@ export function createAgentWindow(sessionId: string, show: boolean, events: Agen
   const tabs = new TabStrip(win, {
     partition: SHARED_PARTITION,
     topInset: HEADER_HEIGHT,
-    onChange: (state) => win.webContents.send('agent:state', state),
+    onChange: (state) => {
+      win.webContents.send('agent:state', state);
+      events.stateChanged(sessionId, state);
+    },
     onTabCreated: announce,
     onTabClosing: (contents) => {
       const targetId = targetIds.get(contents.id);

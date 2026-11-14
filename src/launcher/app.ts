@@ -36,6 +36,8 @@ export interface RunningApp {
   controlFile: string;
   /** 세션을 끝낸다: 엔드포인트를 닫아 연결을 끊고, 세션 창을 닫는다(R9). 없는 세션이면 아무 일도 없다 */
   stopSession(id: string): Promise<void>;
+  /** 브라우저 프로세스가 끝나면 풀린다 */
+  exited: Promise<void>;
   /** 브라우저 main에 명령을 보내고, 같은 요청 번호의 응답을 기다린다. */
   request<T extends BrowserReply['type']>(command: LauncherCommand, expect: T): Promise<Reply<T>>;
   stop(): Promise<void>;
@@ -90,7 +92,7 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
   const added = (sessionId: string, targetId: string) => additions.get(`${sessionId}/${targetId}`) ?? router.addTarget(sessionId, targetId);
   child.on('message', (m: BrowserToLauncher) => {
     if (m.type === 'tabAdded') additions.set(`${m.sessionId}/${m.targetId}`, router.addTarget(m.sessionId, m.targetId).catch(() => undefined));
-    if (m.type === 'sessionClosed') stopSession(m.sessionId).catch(() => undefined);
+    if (m.type === 'sessionClosed' || m.type === 'stopRequested') stopSession(m.sessionId).catch(() => undefined);
     if (m.type === 'tabRemoved') {
       additions.delete(`${m.sessionId}/${m.targetId}`);
       router.removeTarget(m.sessionId, m.targetId);
@@ -130,13 +132,17 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
   const controlFile = options.controlFile ?? join(options.userDataDir, CONTROL_FILE_NAME);
   writeControlFile(controlFile, { port: control.port, token });
 
+  let stopped = false;
   return {
     rawCdp,
     browserPid: child.pid as number,
     controlFile,
     request,
     stopSession,
+    exited: exited.then(() => undefined),
     async stop() {
+      if (stopped) return;
+      stopped = true;
       await control.close();
       await Promise.all(sessions.all().map((s) => s.endpoint.close()));
       removeControlFile(controlFile);

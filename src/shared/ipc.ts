@@ -23,6 +23,8 @@ export type BrowserReply =
   // 아래는 요청 없이 오는 알림(rid 없음). 에이전트 탭의 소유권은 이것으로만 정한다(design.md)
   | { type: 'tabAdded'; sessionId: string; targetId: string }
   | { type: 'tabRemoved'; sessionId: string; targetId: string }
-  | { type: 'sessionClosed'; sessionId: string };
+  | { type: 'sessionClosed'; sessionId: string }
+  /** 사람이 지켜보기 패널에서 멈추기를 눌렀다(R11) */
+  | { type: 'stopRequested'; sessionId: string };
 
 export type BrowserToLauncher = BrowserReply & { rid?: number };

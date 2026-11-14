@@ -20,4 +20,12 @@ export type HumanCommand =
   | { cmd: 'reload' }
   | { cmd: 'newTab' }
   | { cmd: 'activate'; id: number }
-  | { cmd: 'close'; id: number };
+  | { cmd: 'close'; id: number }
+  | { cmd: 'stopSession'; sessionId: string };
+
+/** 지켜보기 패널에 보이는 세션 하나(R11) */
+export interface SessionView {
+  sessionId: string;
+  tabs: TabView[];
+  activeId: number | null;
+}

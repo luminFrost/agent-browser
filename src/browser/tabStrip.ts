@@ -20,6 +20,8 @@ export interface TabStripOptions {
   partition: string;
   /** 탭 내용 위에 남길 높이(px). 창 UI(주소창·탭 막대) 자리 */
   topInset: number;
+  /** 탭 내용 오른쪽에 남길 너비(px). 사람 창의 지켜보기 패널 자리 */
+  rightInset?: number;
   onChange(state: TabStripState): void;
   /** 탭이 생겼을 때(내용 webContents) */
   onTabCreated?(contents: Electron.WebContents): void;
@@ -134,7 +136,7 @@ export class TabStrip {
     const { width, height } = this.win.getContentBounds();
     const top = this.options.topInset;
     for (const t of this.tabs) {
-      t.view.setBounds({ x: 0, y: top, width, height: Math.max(0, height - top) });
+      t.view.setBounds({ x: 0, y: top, width: Math.max(0, width - (this.options.rightInset ?? 0)), height: Math.max(0, height - top) });
       t.view.setVisible(t.id === this.activeId);
     }
   }

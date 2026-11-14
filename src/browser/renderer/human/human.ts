@@ -2,10 +2,12 @@
 interface HumanTabView { id: number; title: string; url: string; loading: boolean }
 interface HumanState { tabs: HumanTabView[]; activeId: number | null; canGoBack: boolean; canGoForward: boolean }
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- 전역 Window 확장(preload가 연 humanApi)이라 선언만 있다
+interface HumanSessionView { sessionId: string; tabs: HumanTabView[]; activeId: number | null }
 interface Window {
   humanApi: {
     command(c: { cmd: string; [k: string]: unknown }): void;
     onState(listener: (s: HumanState) => void): void;
+    onSessions(listener: (s: HumanSessionView[]) => void): void;
   };
 }
 
@@ -52,5 +54,36 @@ interface Window {
     loading.hidden = !active?.loading;
     back.disabled = !s.canGoBack;
     forward.disabled = !s.canGoForward;
+  });
+
+  // 지켜보기 패널(R11): 세션마다 탭 URL과 멈추기 버튼
+  const sessionsEl = byId<HTMLUListElement>('sessions');
+  const emptyEl = byId<HTMLParagraphElement>('sessions-empty');
+  api.onSessions((sessions) => {
+    emptyEl.hidden = sessions.length > 0;
+    sessionsEl.replaceChildren(...sessions.map((s) => {
+      const li = document.createElement('li');
+      li.className = 'session';
+      li.dataset.sessionId = s.sessionId;
+      const header = document.createElement('header');
+      const id = document.createElement('span');
+      id.className = 'id';
+      id.textContent = s.sessionId;
+      id.title = s.sessionId;
+      const stop = document.createElement('button');
+      stop.className = 'stop';
+      stop.textContent = '멈추기';
+      stop.addEventListener('click', () => { stop.disabled = true; api.command({ cmd: 'stopSession', sessionId: s.sessionId }); });
+      header.append(id, stop);
+      const urls = document.createElement('ul');
+      urls.append(...s.tabs.map((t) => {
+        const u = document.createElement('li');
+        u.className = 'tab-url' + (t.id === s.activeId ? ' active' : '');
+        u.textContent = t.url || 'about:blank';
+        return u;
+      }));
+      li.append(header, urls);
+      return li;
+    }));
   });
 }

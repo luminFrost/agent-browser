@@ -25,6 +25,14 @@ const listWindows = (): WindowInfo[] => [
   ...[...agents.keys()].map((sessionId) => ({ kind: 'agent' as const, sessionId })),
 ];
 
+/** 사람 창의 지켜보기 패널에 세션과 탭 URL을 보인다(R11) */
+const refreshPanel = () => {
+  human?.showSessions([...agents.values()].map((a) => {
+    const state = a.tabs.state();
+    return { sessionId: a.sessionId, tabs: state.tabs, activeId: state.activeId };
+  }));
+};
+
 const agentOf = (sessionId: string): AgentWindow => {
   const agent = agents.get(sessionId);
   if (!agent) throw new Error(`없는 세션: ${sessionId}`);
@@ -43,6 +51,7 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
     case 'createSession': {
       if (agents.has(m.sessionId)) return { type: 'error', message: `이미 있는 세션: ${m.sessionId}` };
       const agent = createAgentWindow(m.sessionId, showWindows, {
+        stateChanged: () => refreshPanel(),
         tabAdded: (sessionId, targetId) => send({ type: 'tabAdded', sessionId, targetId }),
         tabRemoved: (sessionId, targetId) => send({ type: 'tabRemoved', sessionId, targetId }),
       });
@@ -50,6 +59,7 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
       agent.win.on('closed', () => {
         agents.delete(m.sessionId);
         send({ type: 'sessionClosed', sessionId: m.sessionId }); // 사람이 창을 닫은 경우도 런처가 세션을 끝낸다(R9)
+        refreshPanel();
       });
       const targetId = await agent.ready; // 첫 탭의 tabAdded가 sessionCreated보다 먼저 가게 한다
       return { type: 'sessionCreated', sessionId: m.sessionId, targetId };
@@ -100,7 +110,9 @@ app.whenReady().then(() => {
   shared.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   shared.setPermissionCheckHandler(() => false);
 
-  human = createHumanWindow(showWindows);
+  human = createHumanWindow(showWindows, {
+    stopSession: (sessionId) => send({ type: 'stopRequested', sessionId }),
+  });
   human.win.on('closed', () => {
     human = undefined;
     app.quit();

@@ -1,5 +1,6 @@
-:root { --toolbar-height: 76px; color-scheme: light dark; font: 13px -apple-system, system-ui, sans-serif; }
-body { margin: 0; height: var(--toolbar-height); overflow: hidden; background: Canvas; }
+:root { --toolbar-height: 76px; --panel-width: 280px; color-scheme: light dark; font: 13px -apple-system, system-ui, sans-serif; }
+body { margin: 0; height: 100vh; overflow: hidden; background: Canvas; }
+#tabbar, #nav { margin-right: var(--panel-width); }
 #tabbar { display: flex; align-items: flex-end; gap: 2px; height: 34px; padding: 0 8px; background: color-mix(in srgb, CanvasText 8%, Canvas); }
 #tabs { display: flex; gap: 2px; min-width: 0; }
 .tab { display: flex; align-items: center; gap: 6px; max-width: 200px; padding: 6px 10px; border-radius: 6px 6px 0 0; cursor: default; white-space: nowrap; }
@@ -12,3 +13,15 @@ body { margin: 0; height: var(--toolbar-height); overflow: hidden; background: C
 #nav button:disabled { opacity: .3; }
 #address { flex: 1; padding: 5px 10px; border: 1px solid color-mix(in srgb, CanvasText 20%, Canvas); border-radius: 6px; font: inherit; }
 #loading { color: GrayText; }
+
+#panel { position: fixed; top: 0; right: 0; bottom: 0; width: var(--panel-width); box-sizing: border-box; padding: 10px 12px; overflow-y: auto; border-left: 1px solid color-mix(in srgb, CanvasText 15%, Canvas); background: color-mix(in srgb, CanvasText 4%, Canvas); }
+#panel h2 { margin: 0 0 8px; font-size: 13px; }
+#sessions-empty { color: GrayText; }
+#sessions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.session { padding: 8px; border-radius: 6px; background: Canvas; border: 1px solid color-mix(in srgb, #5b3cc4 40%, Canvas); }
+.session header { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
+.session .id { font-family: ui-monospace, monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+.session .stop { border: 1px solid #c4373c; color: #c4373c; background: none; border-radius: 4px; padding: 2px 8px; font: inherit; }
+.session ul { list-style: none; margin: 0; padding: 0; }
+.tab-url { font-size: 11px; color: GrayText; word-break: break-all; }
+.tab-url.active { color: CanvasText; }
