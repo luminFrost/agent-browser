@@ -21,6 +21,8 @@ export interface StartOptions {
   controlPort?: number;
   /** 브라우저 main 스크립트. 기본값은 빌드 산출물. */
   browserMain?: string;
+  /** 다운로드 폴더. 기본값은 OS의 다운로드 폴더 */
+  downloadsDir?: string;
   /** 창을 화면에 띄우지 않는다(테스트용). */
   hidden?: boolean;
   /** 브라우저 응답을 기다리는 최대 시간(ms). */
@@ -54,7 +56,7 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
   const timeoutMs = options.replyTimeoutMs ?? DEFAULT_REPLY_TIMEOUT_MS;
   const child: ChildProcess = spawn(
     electronBinary,
-    [options.browserMain ?? DEFAULT_BROWSER_MAIN, '--remote-debugging-pipe', `--ab-user-data=${options.userDataDir}`, ...(options.hidden ? ['--ab-hidden'] : [])],
+    [options.browserMain ?? DEFAULT_BROWSER_MAIN, '--remote-debugging-pipe', `--ab-user-data=${options.userDataDir}`, ...(options.hidden ? ['--ab-hidden'] : []), ...(options.downloadsDir ? [`--ab-downloads=${options.downloadsDir}`] : [])],
     // fd 3·4: CDP 파이프, fd 5: 런처 ↔ 브라우저 명령 채널(ipc). TCP는 쓰지 않는다.
     { stdio: ['ignore', 'inherit', 'inherit', 'pipe', 'pipe', 'ipc'] },
   );

@@ -4,10 +4,14 @@ import { createAgentWindow, type AgentWindow } from './agentWindow';
 import { SHARED_PARTITION } from '../shared/constants';
 import { ApprovalQueue } from './gate/approvals';
 import { installFormGate } from './gate/formGate';
+import { installDownloadGate } from './gate/downloadGate';
+import { join } from 'node:path';
 import type { BrowserReply, LauncherToBrowser, WindowInfo } from '../shared/ipc';
 
 const USER_DATA_FLAG = '--ab-user-data=';
 const HIDDEN_FLAG = '--ab-hidden';
+const DOWNLOADS_FLAG = '--ab-downloads=';
+const QUARANTINE_DIR_NAME = 'quarantine';
 
 const userDataArg = process.argv.find((a) => a.startsWith(USER_DATA_FLAG));
 if (!userDataArg || typeof process.send !== 'function') {
@@ -120,6 +124,10 @@ app.whenReady().then(() => {
   shared.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   shared.setPermissionCheckHandler(() => false);
   installFormGate(shared, sessionOfContents, approvals);
+  installDownloadGate(shared, sessionOfContents, approvals, {
+    downloadsDir: process.argv.find((a) => a.startsWith(DOWNLOADS_FLAG))?.slice(DOWNLOADS_FLAG.length) ?? app.getPath('downloads'),
+    quarantineDir: join(app.getPath('userData'), QUARANTINE_DIR_NAME),
+  });
 
   human = createHumanWindow(showWindows, {
     stopSession: (sessionId) => send({ type: 'stopRequested', sessionId }),
