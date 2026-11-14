@@ -13,6 +13,9 @@ export type BrowserReply =
   | { type: 'ready' }
   | { type: 'windows'; windows: WindowInfo[] }
   | { type: 'sessionCreated'; sessionId: string }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  // 아래는 요청 없이 오는 알림(rid 없음). 에이전트 탭의 소유권은 이것으로만 정한다(design.md)
+  | { type: 'tabAdded'; sessionId: string; targetId: string }
+  | { type: 'tabRemoved'; sessionId: string; targetId: string };
 
 export type BrowserToLauncher = BrowserReply & { rid?: number };

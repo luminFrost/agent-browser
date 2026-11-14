@@ -25,7 +25,7 @@ const listWindows = (): WindowInfo[] => [
   ...[...agents.keys()].map((sessionId) => ({ kind: 'agent' as const, sessionId })),
 ];
 
-const handle = (m: LauncherToBrowser): BrowserReply | undefined => {
+const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> => {
   switch (m.type) {
     case 'quit':
       app.quit();
@@ -34,21 +34,23 @@ const handle = (m: LauncherToBrowser): BrowserReply | undefined => {
       return { type: 'windows', windows: listWindows() };
     case 'createSession': {
       if (agents.has(m.sessionId)) return { type: 'error', message: `이미 있는 세션: ${m.sessionId}` };
-      const agent = createAgentWindow(m.sessionId, showWindows);
+      const agent = createAgentWindow(m.sessionId, showWindows, {
+        tabAdded: (sessionId, targetId) => send({ type: 'tabAdded', sessionId, targetId }),
+        tabRemoved: (sessionId, targetId) => send({ type: 'tabRemoved', sessionId, targetId }),
+      });
       agents.set(m.sessionId, agent);
       agent.win.on('closed', () => agents.delete(m.sessionId));
+      await agent.ready; // 첫 탭의 tabAdded가 sessionCreated보다 먼저 가게 한다
       return { type: 'sessionCreated', sessionId: m.sessionId };
     }
   }
 };
 
 process.on('message', (m: LauncherToBrowser) => {
-  try {
-    const reply = handle(m);
-    if (reply) send(reply, m.rid);
-  } catch (e) {
-    send({ type: 'error', message: e instanceof Error ? e.message : String(e) }, m.rid);
-  }
+  handle(m).then(
+    (reply) => { if (reply) send(reply, m.rid); },
+    (e: unknown) => send({ type: 'error', message: e instanceof Error ? e.message : String(e) }, m.rid),
+  );
 });
 // 런처가 죽으면 같이 끝난다. 에이전트가 붙을 길이 없는 브라우저를 남기지 않는다.
 process.on('disconnect', () => app.quit());

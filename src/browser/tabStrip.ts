@@ -21,6 +21,10 @@ export interface TabStripOptions {
   /** 탭 내용 위에 남길 높이(px). 창 UI(주소창·탭 막대) 자리 */
   topInset: number;
   onChange(state: TabStripState): void;
+  /** 탭이 생겼을 때(내용 webContents) */
+  onTabCreated?(contents: Electron.WebContents): void;
+  /** 탭이 닫히기 직전 */
+  onTabClosing?(contents: Electron.WebContents): void;
 }
 
 let nextTabId = 1;
@@ -44,6 +48,7 @@ export class TabStrip {
     this.tabs.push(tab);
     this.win.contentView.addChildView(view);
     this.watch(tab);
+    this.options.onTabCreated?.(view.webContents);
     this.activate(tab.id);
     if (url) this.navigate(url);
     return tab.id;
@@ -59,6 +64,7 @@ export class TabStrip {
   close(id: number): void {
     const tab = this.find(id);
     if (!tab) return;
+    this.options.onTabClosing?.(tab.view.webContents);
     this.tabs.splice(this.tabs.indexOf(tab), 1);
     this.win.contentView.removeChildView(tab.view);
     tab.view.webContents.close();

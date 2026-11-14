@@ -1,9 +1,11 @@
 import { randomBytes } from 'node:crypto';
+import type { SessionEndpoint } from './cdp/endpoint';
 
 const SESSION_ID_BYTES = 12;
 
 export interface Session {
   id: string;
+  endpoint: SessionEndpoint;
 }
 
 /** 런처가 아는 에이전트 세션들 */

@@ -8,6 +8,8 @@ import { newToken } from './control/auth';
 import { removeControlFile, writeControlFile } from './control/controlFile';
 import { startControlServer } from './control/server';
 import { SessionRegistry } from './sessions';
+import { Router } from './cdp/router';
+import { startSessionEndpoint, type BrowserVersion } from './cdp/endpoint';
 import type { BrowserReply, BrowserToLauncher, LauncherCommand } from '../shared/ipc';
 
 export interface StartOptions {
@@ -78,14 +80,25 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
 
   await waitFor<'ready'>((m) => m.type === 'ready', 'ready');
 
+  const router = new Router(rawCdp);
+  await router.start();
+  const version = (await rawCdp.send('Browser.getVersion')) as unknown as BrowserVersion;
+  // 소유권 알림(요청 없이 오는 tabAdded/tabRemoved)
+  child.on('message', (m: BrowserToLauncher) => {
+    if (m.type === 'tabAdded') router.addTarget(m.sessionId, m.targetId).catch(() => undefined);
+    if (m.type === 'tabRemoved') router.removeTarget(m.sessionId, m.targetId);
+  });
+
   const sessions = new SessionRegistry();
   const token = newToken();
   const control = await startControlServer(token, options.controlPort ?? 0, {
     async createSession() {
       const id = sessions.newId();
+      const scope = router.addScope(id); // 첫 탭의 tabAdded를 받을 수 있게 창보다 먼저 만든다
       await request({ type: 'createSession', sessionId: id }, 'sessionCreated');
-      sessions.add({ id });
-      return { id };
+      const endpoint = await startSessionEndpoint(scope, router, version);
+      sessions.add({ id, endpoint });
+      return { id, browserUrl: endpoint.browserUrl };
     },
   });
   const controlFile = options.controlFile ?? join(options.userDataDir, CONTROL_FILE_NAME);
@@ -98,6 +111,7 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
     request,
     async stop() {
       await control.close();
+      await Promise.all(sessions.all().map((s) => s.endpoint.close()));
       removeControlFile(controlFile);
       if (child.exitCode !== null) return;
       child.send({ type: 'quit' });

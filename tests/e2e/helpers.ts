@@ -1,4 +1,5 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import WebSocket from 'ws';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startApp, type RunningApp, type StartOptions } from '../../src/launcher/app';
@@ -45,4 +46,57 @@ export async function humanUi(app: RunningApp): Promise<TargetInfo> {
     const t = (await targets(app)).find((x) => x.url.includes('/renderer/human/index.html'));
     return t && (await evaluate<boolean>(app, t.targetId, `!!document.querySelector('#address') && document.readyState === 'complete'`)) ? t : undefined;
   }, '사람 창 UI');
+}
+
+export interface SessionInfo { id: string; browserUrl: string }
+
+/** 제어 파일의 토큰으로 세션을 만든다 */
+export async function createSession(app: RunningApp): Promise<SessionInfo> {
+  const { port, token } = JSON.parse(readFileSync(app.controlFile, 'utf8')) as { port: number; token: string };
+  const res = await fetch(`http://127.0.0.1:${port}/sessions`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+  if (res.status !== 201) throw new Error(`세션 생성 실패: ${res.status}`);
+  return (await res.json()) as SessionInfo;
+}
+
+/** 아주 작은 CDP WebSocket 클라이언트(테스트용) */
+export class CdpClient {
+  private nextId = 1;
+  private readonly waiters = new Map<number, (m: { result?: Record<string, unknown>; error?: { message: string } }) => void>();
+  readonly events: { method: string; params: Record<string, unknown>; sessionId?: string }[] = [];
+
+  private constructor(readonly ws: WebSocket) {
+    ws.on('message', (data) => {
+      const m = JSON.parse(data.toString());
+      if (m.id !== undefined) this.waiters.get(m.id)?.(m);
+      else this.events.push(m);
+    });
+  }
+
+  static connect(url: string): Promise<CdpClient> {
+    return new Promise((ok, fail) => {
+      const ws = new WebSocket(url);
+      ws.once('open', () => ok(new CdpClient(ws)));
+      ws.once('error', fail);
+      ws.once('unexpected-response', (_req, res) => fail(new Error(`HTTP ${res.statusCode}`)));
+    });
+  }
+
+  /** 응답 전체(result 또는 error)를 돌려준다 */
+  call(method: string, params: Record<string, unknown> = {}, sessionId?: string) {
+    const id = this.nextId++;
+    return new Promise<{ result?: Record<string, unknown>; error?: { message: string } }>((ok, fail) => {
+      const timer = setTimeout(() => fail(new Error(`${method} 응답 없음`)), 10_000);
+      this.waiters.set(id, (m) => { clearTimeout(timer); ok(m); });
+      this.ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
+    });
+  }
+
+  /** 성공을 기대하는 호출 */
+  async send(method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<Record<string, unknown>> {
+    const r = await this.call(method, params, sessionId);
+    if (r.error) throw new Error(`${method}: ${r.error.message}`);
+    return r.result ?? {};
+  }
+
+  close() { this.ws.close(); }
 }
