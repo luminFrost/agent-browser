@@ -141,3 +141,39 @@
 ## 왜 멈추는가
 - 회차마다 허용 목록이나 관문의 분류를 한 겹 더 파고드는 새 경로가 나온다(1회차 setCookie → 2회차 Fetch 응답·닫힌 탭 → 3회차 Tracing·object/embed).
 - 이번 결함은 고칠 방향이 분명하다: Tracing 막기, 관문은 xhr·fetch가 아닌 모든 POST를 묻기, rawResponse·url 바꾸기 검사. 그러나 규칙상 사람의 결정 없이 4회차로 가지 않는다.
+
+---
+
+# 검증 보고 — 4회차
+날짜: 2026-11-14 · 판정 커밋: 23117c7 · 검증자: 새 reviewer, 새 /code-review(high, c510912..23117c7), 확인 명령, 일부러 깨뜨려 보기(새 worktree), 상태별 스크린샷
+(두 검증자는 사용량 한도로 한 번 멈췄다가 같은 대화에서 이어서 끝냄)
+
+## 결론: FAIL. R1~R13 인수 사례는 쓰인 그대로 모두 PASS. 보안 제약과 확인 명령이 FAIL
+
+| 완료 기준 | 판정 | 증거 (23117c7) |
+|---|---|---|
+| R1~R13 | PASS | reviewer 판정표. 확장 호환(`compatExtended.spec.ts`) 포함. reviewer 시도: Set-Cookie 변형 4가지(콜론 앞 공백 포함)는 Chrome이 받지 않거나 쿠키가 생기지 않음. 팝업 POST는 관문에 걸림 |
+| 제약: 사람 창 탭을 CDP로 노출하지 않음 | **FAIL (Critical)** | reviewer p1·p2: 페이지 세션의 `Page.navigate {url:'chrome://accessibility'}` 뒤 본문에 사람 탭 제목·URL(`/me?HUMANSECRET`)이 나옴. `chrome://process-internals`·`indexeddb-internals` 등도 열림. 에이전트 탭의 `chrome:` 이동을 막지 않음(`policy.ts` Page.navigate, `url.ts` normalizeAddress, `tabStrip.ts`) |
+| 제약: 확인 명령 | **FAIL (Major)** | reviewer 실행: `humanWindow.spec.ts:71`에서 `getUserMedia`가 `NotFoundError`(카메라 장치 상태). 같은 기기의 내 실행(23117c7)은 통과 → 기기 상태에 따라 흔들리는 테스트. 거부 자체는 `permissions.query` camera=denied로 확인됨 |
+| 그 밖 제약 | PASS | reviewer 판정표 |
+
+## 확인 명령 (23117c7, 검증용 worktree에서 내 실행)
+- lint 종료 0, test 통과(Vitest 7파일 130개, Playwright 62개), build 종료 0. reviewer 실행에서는 위 권한 테스트 1개가 실패함.
+
+## 테스트 품질 (23117c7)
+- M1~M21: M10 말고 모두 잡힘. M10(setDownloadBehavior 전용 검사 제거)은 허용 목록이 같은 명령을 이미 막으므로 동작이 같은 변형(공백 아님). 새로 고친 곳: M18 Tracing, M19 페이지 WS, M20 createTarget 순서, M21 url 바꾸기 모두 잡힘.
+
+## 상태별 스크린샷 (23117c7에서 새로 찍음)
+- `docs/verify/screenshots/20261114-agent-browser/` 3장 + `R11/` 3장
+
+## code-review 4회차 지적
+| 심각도 | 내용 |
+|---|---|
+| Major(후보) | 바이너리 응답 헤더의 `Set-Cookie :`(콜론 앞 공백) 검사 누락. reviewer 시도로는 Chrome이 쿠키를 만들지 않음 → 검사 보강은 하되 현재 우회는 재현 안 됨 |
+| Major | xhr·ping 밖의 모든 POST를 묻다 보니 브라우저의 CSP 위반 보고(cspReport)도 "폼 제출"로 물음(질문 쏟아짐) |
+| Minor | `Page.printToPDF`는 허용인데 `IO.read`·`IO.close`가 없어 PDF 저장 실패 |
+| Minor | navigateTab 실패 시 createTarget이 실패로 응답하지만 탭은 남음 |
+| Minor | onBlocked가 정책 거부가 아닌 실패도 기록 |
+| Minor | 쓰지 않는 코드(continueResponse 검사, newTab의 url 필드, router의 중복 removeTarget) |
+| 사람 확인 | `DOM.setFileInputFiles` + 묻지 않는 fetch로 로컬 파일을 밖으로 보낼 수 있음(파일 올리기 기능과 맞바꿈) |
+| 사람 확인 | reviewer #3: `Fetch.continueWithAuth`로 넣은 HTTP 인증이 공유 파티션에 남음 |
