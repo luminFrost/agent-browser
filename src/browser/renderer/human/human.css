@@ -1,0 +1,14 @@
+:root { --toolbar-height: 76px; color-scheme: light dark; font: 13px -apple-system, system-ui, sans-serif; }
+body { margin: 0; height: var(--toolbar-height); overflow: hidden; background: Canvas; }
+#tabbar { display: flex; align-items: flex-end; gap: 2px; height: 34px; padding: 0 8px; background: color-mix(in srgb, CanvasText 8%, Canvas); }
+#tabs { display: flex; gap: 2px; min-width: 0; }
+.tab { display: flex; align-items: center; gap: 6px; max-width: 200px; padding: 6px 10px; border-radius: 6px 6px 0 0; cursor: default; white-space: nowrap; }
+.tab.active { background: Canvas; }
+.tab .title { overflow: hidden; text-overflow: ellipsis; }
+.tab .close { border: 0; background: none; padding: 0 2px; color: inherit; opacity: .6; }
+#new-tab { margin-bottom: 4px; border: 0; background: none; font-size: 16px; color: inherit; }
+#nav { display: flex; align-items: center; gap: 6px; height: 42px; padding: 0 8px; border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, Canvas); }
+#nav button { border: 0; background: none; font-size: 15px; color: inherit; }
+#nav button:disabled { opacity: .3; }
+#address { flex: 1; padding: 5px 10px; border: 1px solid color-mix(in srgb, CanvasText 20%, Canvas); border-radius: 6px; font: inherit; }
+#loading { color: GrayText; }

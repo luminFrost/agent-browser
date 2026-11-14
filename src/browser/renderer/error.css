@@ -1,0 +1,3 @@
+:root { color-scheme: light dark; font: 14px -apple-system, system-ui, sans-serif; }
+main { max-width: 560px; margin: 15vh auto; padding: 0 24px; }
+#url { word-break: break-all; color: GrayText; }
