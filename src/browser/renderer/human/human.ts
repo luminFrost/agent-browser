@@ -1,8 +1,8 @@
 // 사람 창 UI (주소창·탭 막대). 모듈이 아닌 스크립트로 읽힌다.
 interface HumanTabView { id: number; title: string; url: string; loading: boolean }
 interface HumanState { tabs: HumanTabView[]; activeId: number | null; canGoBack: boolean; canGoForward: boolean }
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 전역 Window 확장(preload가 연 humanApi)이라 선언만 있다
 interface HumanSessionView { sessionId: string; tabs: HumanTabView[]; activeId: number | null }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 전역 Window 확장(preload가 연 humanApi)이라 선언만 있다
 interface Window {
   humanApi: {
     command(c: { cmd: string; [k: string]: unknown }): void;
