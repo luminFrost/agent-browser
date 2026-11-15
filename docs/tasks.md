@@ -53,4 +53,4 @@ T0 결과에 따라 T4·T12·T13의 방식이 바뀔 수 있다. 완료 기준�
 | H1 | 붙이기 명령이 initialize 응답에 agent-browser 사용 안내를 덧붙임 | `src/attach/attach.ts`(+test), `src/attach/cli.ts`, `tests/e2e/attach.spec.ts`, `tests/e2e/mcpClient.ts` | B5 | `npx vitest run src/attach`, `npm test` | [x] |
 | H2 | 설치 스크립트(빌드·dmg 경로, 사전 확인) | `scripts/install-mac.sh`, `scripts/install-mac.test.ts` | B2, B3, B4 | `npx vitest run scripts` | [x] |
 | H3 | Claude용 설치 문서·CLAUDE.md 한 줄·README·Release 절차 | `docs/setup.md`, `CLAUDE.md`, `README.md` | B1, B6, B7 | 원문 확인 | [x] |
-| H4 | 올리면 안 될 것 | `.gitignore` | B8 | `git check-ignore`, `git grep` | [ ] |
+| H4 | 올리면 안 될 것 | `.gitignore` | B8 | `git check-ignore`, `git grep` | [x] |

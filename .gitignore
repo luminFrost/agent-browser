@@ -13,3 +13,7 @@ node_modules/
 test-results/
 playwright-report/
 /release/
+
+# 회사 PC 설치(spec-company-setup B8): 대화 기록·판정 결과와 macOS 메타 파일은 올리지 않는다
+.aif/tasks/
+.DS_Store
