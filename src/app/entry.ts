@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { app } from 'electron';
 import { LAUNCHER_LOCK_ENV, LAUNCHER_LOCK_NAME, LAUNCHER_LOG_NAME, USER_DATA_FLAG } from '../shared/constants';
 import { parseCliArgs } from '../launcher/cliArgs';
-import { claimLock, isOurLauncher, lockHolder, stoppingLauncher } from './launcherLock';
+import { ackedSince, claimLock, isOurLauncher, lockHolder, stoppingLauncher } from './launcherLock';
 import { rotateLogIfLarge } from './logRotate';
 import { decideStart } from './startDecision';
 
@@ -51,6 +51,7 @@ function start(): void {
         throw e;
       }
     },
+    acked: (pid, since) => ackedSince(lock, pid, since),
     launch: () => startLauncher(profile, lock),
     sleep,
     now: Date.now,

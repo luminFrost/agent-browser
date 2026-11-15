@@ -103,9 +103,26 @@ export function stoppingLauncher(lock: string): number | undefined {
   return lockHolder(stoppingMark(lock));
 }
 
+/** 신호 받음 표시(spec-start-fixes D2) */
+const ackMark = (lock: string) => `${lock}.ack`;
+
+/** 런처가 "창을 앞으로" 신호를 받았음을 적는다. 끄는 중에는 부르지 않는다 */
+export function markAck(lock: string, pid: number): void {
+  writeFileSync(ackMark(lock), String(pid), { mode: 0o600 });
+}
+
+/** 런처 pid가 since(ms) 이후에 받음 표시를 남겼는가 */
+export function ackedSince(lock: string, pid: number, since: number): boolean {
+  try {
+    return lockHolder(ackMark(lock)) === pid && statSync(ackMark(lock)).mtimeMs >= since;
+  } catch {
+    return false;
+  }
+}
+
 /** 런처가 끝날 때 자기 자물쇠와 끄는 중 표시를 지운다. 남의 것은 건드리지 않고, 실패해도 던지지 않는다(다음 실행이 낡은 것으로 치운다) */
 export function releaseLock(lock: string, pid: number): void {
-  for (const path of [stoppingMark(lock), lock]) {
+  for (const path of [stoppingMark(lock), ackMark(lock), lock]) {
     try {
       if (lockHolder(path) === pid) unlinkSync(path);
     } catch { /* 최선 노력 */ }

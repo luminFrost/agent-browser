@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { decideStart, SIGNAL_RECHECK_MS, STOP_WAIT_MS, type StartDeps } from './startDecision';
 
+/** 신호부터 런처가 받음 표시를 남기기까지(브라우저의 focus 응답) */
+const ACK_DELAY_MS = 5;
+
 /**
  * 흉내 낸 자물쇠·프로세스·시계. sleep만 시간을 흐르게 한다.
  * at(t, fn): 시계가 t를 지나면 fn으로 세계를 바꾼다(런처가 끝남 등).
@@ -15,6 +18,9 @@ function world() {
     launched: 0,
     signals: [] as number[],
     slept: 0,
+    /** 신호를 받은 런처가 "받음" 표시를 남기는가(끄는 중이 아닐 때만) */
+    acks: true,
+    ackAt: undefined as { pid: number; t: number } | undefined,
     events: [] as { at: number; fn: () => void }[],
     /** 그 함수가 처음 불리기 직전에 한 번 세계를 바꾼다(호출 사이 경쟁 재현) */
     before: {} as Partial<Record<keyof StartDeps, () => void>>,
@@ -43,8 +49,11 @@ function world() {
       hook('signal');
       if (!s.alive.has(pid)) return false; // 프로세스가 없다(ESRCH)
       s.signals.push(pid);
+      // 런처는 브라우저가 창을 앞으로 가져왔다고 답한 뒤(잠시 뒤) 표시를 남긴다. 그 사이 끄기 시작했으면 남기지 않는다
+      if (s.acks) s.events.push({ at: s.t + ACK_DELAY_MS, fn: () => { if (s.stopping !== pid && s.alive.has(pid)) s.ackAt = { pid, t: s.t }; } });
       return true;
     },
+    acked: (pid, since) => { tick(); return s.ackAt !== undefined && s.ackAt.t <= s.t && s.ackAt.pid === pid && s.ackAt.t >= since; },
     launch: () => { s.launched++; },
     sleep: (ms) => { s.t += ms; s.slept += ms; tick(); },
     now: () => s.t,
@@ -111,11 +120,12 @@ describe('시작 판단(ADR-0008, 지금 동작)', () => {
     expect(w.s.launched).toBe(0);
   });
 
-  it('신호 뒤 다시 보기까지 기다린다', () => {
+  it('받음 표시가 오지 않으면 다시 보기까지(300ms) 기다린 뒤 끝낸다', () => {
     const w = world();
     w.running(100);
-    decideStart(w.deps);
-    expect(w.s.slept).toBe(SIGNAL_RECHECK_MS);
+    w.s.acks = false;
+    expect(decideStart(w.deps)).toBe('focused');
+    expect(w.s.slept).toBeGreaterThanOrEqual(SIGNAL_RECHECK_MS);
   });
 });
 
@@ -140,6 +150,34 @@ describe('꺼지는 순간 다시 열기(spec-start-fixes D1)', () => {
     const w = world();
     w.running(100);
     w.s.before.signal = () => w.exited(100);
+    expect(decideStart(w.deps)).toBe('started');
+    expect(w.s.launched).toBe(1);
+  });
+});
+
+describe('다시 열 때 고정 대기 없앰(spec-start-fixes D2)', () => {
+  it('켜진 런처가 받음 표시를 남기면 시작 프로세스는 50ms 안에 끝난다', () => {
+    const w = world();
+    w.running(100);
+    expect(decideStart(w.deps)).toBe('focused');
+    expect(w.s.slept).toBeLessThan(50);
+  });
+
+  it('이전 신호의 받음 표시는 이번 것으로 치지 않는다', () => {
+    const w = world();
+    w.running(100);
+    w.s.t = 1_000;
+    w.s.acks = false;
+    w.s.ackAt = { pid: 100, t: 10 }; // 지난번 다시 열기 때 남은 표시
+    decideStart(w.deps);
+    expect(w.s.slept).toBeGreaterThanOrEqual(SIGNAL_RECHECK_MS);
+  });
+
+  it('끄는 중이라 받음 표시가 없으면 지금처럼 끄는 중인지 보고 기다렸다가 새로 띄운다', () => {
+    const w = world();
+    w.running(100);
+    w.s.before.signal = () => { w.s.stopping = 100; }; // 신호와 거의 같은 때 끄기 시작
+    w.at(1_000, () => w.exited(100));
     expect(decideStart(w.deps)).toBe('started');
     expect(w.s.launched).toBe(1);
   });

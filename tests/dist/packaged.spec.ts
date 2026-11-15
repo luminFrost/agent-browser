@@ -157,6 +157,8 @@ test.describe('한 번 띄운 앱', () => {
     execFileSync('open', ['-a', 'Finder']); // 다른 앱을 앞에 둔다. 그래야 "앞으로 온다"를 볼 수 있다
     await waitFor(() => frontmostPid() !== browserPid, '다른 앱이 앞에 옴');
     expect(await openApp(profile)).toBe(0);
+    // 런처가 신호를 받아 창을 앞으로 가져온 뒤 받음 표시를 남긴다(spec-start-fixes D2)
+    expect(readFileSync(join(profile, 'launcher.lock.ack'), 'utf8')).toBe(String(launcherPid));
     await waitFor(() => frontmostPid() === browserPid, '기존 앱이 앞으로 옴');
     const { browser, launcher, all } = appProcesses(profile);
     expect(browser?.pid).toBe(browserPid);

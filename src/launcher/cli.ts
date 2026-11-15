@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { startApp, type RunningApp } from './app';
 import { parseCliArgs } from './cliArgs';
-import { claimLock, isOurLauncher, lockHolder, markStopping, recordLauncher, releaseLock } from '../app/launcherLock';
+import { claimLock, isOurLauncher, lockHolder, markAck, markStopping, recordLauncher, releaseLock } from '../app/launcherLock';
 import { LAUNCHER_LOCK_ENV, LAUNCHER_LOCK_NAME } from '../shared/constants';
 
 async function main(): Promise<void> {
@@ -22,7 +22,15 @@ async function main(): Promise<void> {
   // 묶은 앱을 다시 열면 시작 프로세스가 보내는 신호. 사람 창을 앞으로 가져온다(준비 전이면 무시: 창이 곧 뜬다).
   // 처리기를 단 뒤에야 pid를 적는다. 시작 프로세스는 pid가 적힌 런처에만 신호를 보내므로, 기본 동작(종료)으로 꺼지지 않는다
   const started: { app?: RunningApp } = {};
-  process.on('SIGUSR2', () => { started.app?.request({ type: 'focus' }, 'done').catch(() => undefined); });
+  let stopping = false;
+  process.on('SIGUSR2', () => {
+    if (stopping || !started.app) return; // 받음 표시가 없으면 시작 프로세스가 잠시 뒤 끄는 중인지 다시 본다
+    // 창을 앞으로 가져왔다고 브라우저가 답한 뒤에만 받음 표시를 남긴다. 시작 프로세스는 이것을 보는 즉시 끝난다(spec-start-fixes D2).
+    // 사람이 앱을 끄는 중이면(브라우저가 먼저 끝남) 답이 없으므로 표시가 없고, 시작 프로세스는 끄는 중 표시를 보고 새로 띄운다
+    started.app.request({ type: 'focus' }, 'done')
+      .then(() => { if (!stopping) markAck(heldLock, process.pid); })
+      .catch(() => undefined);
+  });
   recordLauncher(heldLock, process.pid);
 
   const app = await startApp({
@@ -34,7 +42,6 @@ async function main(): Promise<void> {
   started.app = app;
   console.log(`agent-browser 실행 중. 제어 파일(포트·토큰): ${app.controlFile}`);
 
-  let stopping = false;
   const running = app;
   const stop = async () => {
     if (stopping) return;

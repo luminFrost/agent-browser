@@ -3,7 +3,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, existsSync, writeFileSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { claimLock, isOurLauncher, lockHolder, recordLauncher, releaseLock, STALE_EMPTY_MS } from './launcherLock';
+import { ackedSince, claimLock, isOurLauncher, lockHolder, markAck, recordLauncher, releaseLock, STALE_EMPTY_MS } from './launcherLock';
 
 const LOCK_MODULE = join(__dirname, 'launcherLock.ts');
 /** 별도 프로세스 n개가 같은 순간에 claimLock을 부른다. 적힌 pid는 이 앱의 런처가 아니라고 본다(낡은 자물쇠) */
@@ -112,5 +112,19 @@ describe('런처 자물쇠(묶은 앱의 한 프로필 한 런처, ADR-0008)', (
     writeFileSync(l, 'x');
     expect(() => releaseLock(l, 1)).not.toThrow();
     expect(lockHolder(l)).toBeUndefined();
+  });
+
+  it('신호 받음 표시: 그 pid가 since 이후에 남긴 것만 인정하고, 런처가 끝나면 지운다(spec-start-fixes D2)', () => {
+    const l = lockIn();
+    claimLock(l, ours);
+    recordLauncher(l, 4242);
+    const before = Date.now();
+    expect(ackedSince(l, 4242, before)).toBe(false); // 표시 없음
+    markAck(l, 4242);
+    expect(ackedSince(l, 4242, before)).toBe(true);
+    expect(ackedSince(l, 1111, before)).toBe(false); // 다른 런처
+    expect(ackedSince(l, 4242, Date.now() + 60_000)).toBe(false); // 이번 신호보다 이전 표시
+    releaseLock(l, 4242);
+    expect(existsSync(`${l}.ack`)).toBe(false);
   });
 });

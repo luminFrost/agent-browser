@@ -5,8 +5,10 @@
 export const STOP_WAIT_MS = 15_000;
 /** 기다리는 동안 자물쇠를 다시 보는 간격 */
 export const STOP_POLL_MS = 100;
-/** 신호를 보낸 뒤 런처가 그 사이 끄기 시작했는지 한 번 더 보기까지의 시간 */
+/** 신호를 보낸 뒤 받음 표시를 기다리는 최대 시간. 안 오면 런처가 그 사이 끄기 시작했는지 한 번 더 본다 */
 export const SIGNAL_RECHECK_MS = 300;
+/** 받음 표시를 보는 간격 */
+export const ACK_POLL_MS = 10;
 /** 잡기 실패와 pid 읽기 사이에 자물쇠가 사라졌을 때 다시 해 보는 횟수 */
 export const CLAIM_RETRIES = 3;
 
@@ -21,6 +23,8 @@ export interface StartDeps {
   lockExists(): boolean;
   /** 런처에 "창을 앞으로" 신호를 보낸다. 그 프로세스가 없으면(ESRCH) false */
   signal(pid: number): boolean;
+  /** 런처 pid가 since(이 프로세스 시계, ms) 이후에 신호를 받았다는 표시를 남겼는가 */
+  acked(pid: number, since: number): boolean;
   /** 새 런처를 띄운다(자물쇠를 잡은 뒤에만 부른다) */
   launch(): void;
   sleep(ms: number): void;
@@ -71,9 +75,15 @@ export function decideStart(deps: StartDeps): StartResult {
   if (deps.stopping() === pid) return waitAndStart(deps, pid);
   // 이미 런처가 있다(P5): 사람 창을 앞으로 가져오게 한다.
   // 그 사이 런처가 끝났으면(ESRCH) 자물쇠가 풀리기를 기다렸다가 새로 띄운다(spec-start-fixes D1)
+  const since = deps.now();
   if (!deps.signal(pid)) return waitAndStart(deps, pid);
-  // 신호를 보내는 사이 런처가 끄기 시작했을 수 있다(이미 끝났을 수도 있다) → 한 번 더 보고, 그랬으면 기다렸다가 새로 띄운다
-  deps.sleep(SIGNAL_RECHECK_MS);
-  if (deps.stopping() === pid || deps.holder() !== pid) return waitAndStart(deps, pid);
-  return 'focused';
+  // 런처는 끄는 중이 아니면 받음 표시를 남긴다 → 보는 즉시 끝난다(spec-start-fixes D2).
+  // 표시 없이 런처가 끄기 시작했거나 끝났으면 기다렸다가 새로 띄운다. 끝내 표시가 없으면 지금처럼 신호가 갔다고 본다
+  const until = since + SIGNAL_RECHECK_MS;
+  for (;;) {
+    if (deps.acked(pid, since)) return 'focused';
+    if (deps.stopping() === pid || deps.holder() !== pid) return waitAndStart(deps, pid);
+    if (deps.now() >= until) return 'focused';
+    deps.sleep(ACK_POLL_MS);
+  }
 }
