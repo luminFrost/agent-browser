@@ -4,14 +4,14 @@
 // 3) 런처가 띄운 브라우저: 인자에 --ab-user-data가 있다 → 브라우저 main을 돈다.
 // 런처가 파이프로 브라우저 CDP를 쥐는 구조(ADR-0002)는 그대로다. 한 프로필 한 런처는 ADR-0008.
 import { spawn } from 'node:child_process';
-import { closeSync, existsSync, mkdirSync, openSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync } from 'node:fs';
 import { join } from 'node:path';
-import { app } from 'electron';
+import { app, dialog } from 'electron';
 import { LAUNCHER_LOCK_ENV, LAUNCHER_LOCK_NAME, LAUNCHER_LOG_NAME, USER_DATA_FLAG } from '../shared/constants';
 import { parseCliArgs } from '../launcher/cliArgs';
 import { ackedSince, claimLock, isOurLauncher, lockHolder, stoppingLauncher } from './launcherLock';
 import { rotateLogIfLarge } from './logRotate';
-import { decideStart } from './startDecision';
+import { runStart } from './startDecision';
 
 /** 런처를 띄운다. 출력은 프로필의 로그 파일에 남겨, 시작이 실패해도 원인을 볼 수 있게 한다 */
 function startLauncher(profile: string, lock: string): void {
@@ -33,11 +33,12 @@ function startLauncher(profile: string, lock: string): void {
 
 const sleep = (ms: number) => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); };
 
-function start(): void {
+/** 시작하고 종료 코드를 돌려준다 */
+function start(): number {
   const { profile } = parseCliArgs([], process.env);
   mkdirSync(profile, { recursive: true, mode: 0o700 });
   const lock = join(profile, LAUNCHER_LOCK_NAME);
-  decideStart({
+  return runStart({
     claim: () => claimLock(lock, isOurLauncher),
     holder: () => lockHolder(lock),
     stopping: () => stoppingLauncher(lock),
@@ -55,6 +56,10 @@ function start(): void {
     launch: () => startLauncher(profile, lock),
     sleep,
     now: Date.now,
+  }, {
+    log: (line) => { try { appendFileSync(join(profile, LAUNCHER_LOG_NAME), `${line}\n`, { mode: 0o600 }); } catch { /* 기록 실패는 알림을 막지 않는다 */ } },
+    // 준비(ready) 전에도 부를 수 있다. 사람이 닫을 때까지 기다린다
+    alert: (message) => dialog.showErrorBox('Agent Browser', message),
   });
 }
 
@@ -64,8 +69,7 @@ if (process.argv.some((a) => a.startsWith(USER_DATA_FLAG))) {
   require('../browser/main');
 } else {
   try {
-    start();
-    app.exit(0);
+    app.exit(start());
   } catch (e) {
     // 잘못된 환경 값(포트·경로) 등. 남지 않고 실패로 끝낸다
     console.error(`agent-browser: ${e instanceof Error ? e.message : String(e)}`);

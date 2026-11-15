@@ -37,4 +37,4 @@ T0 결과에 따라 T4·T12·T13의 방식이 바뀔 수 있다. 완료 기준�
 | F2 | 기록 교체 실패해도 시작 | `src/app/logRotate.ts`(+test) | D4 | `npx vitest run src/app/logRotate.test.ts` | [x] |
 | F3 | 꺼지는 순간 다시 열기(자물쇠 사라짐·ESRCH) | `src/app/startDecision.ts`(+test), `src/app/entry.ts` | D1 | `npx vitest run src/app/startDecision.test.ts` | [x] |
 | F4 | 신호 받음 표시로 고정 대기 없앰 | `src/app/launcherLock.ts`, `src/launcher/cli.ts`, `src/app/startDecision.ts`(+test), `tests/dist/packaged.spec.ts` | D2 | 단위 + `npm run test:dist` | [x] |
-| F5 | 15초 실패 알림(오류 창 + 기록 + 종료 코드 1) | `src/app/startDecision.ts`(+test), `src/app/entry.ts` | D3 | `npx vitest run src/app/startDecision.test.ts` | [ ] |
+| F5 | 15초 실패 알림(오류 창 + 기록 + 종료 코드 1) | `src/app/startDecision.ts`(+test), `src/app/entry.ts` | D3 | `npx vitest run src/app/startDecision.test.ts` | [x] |

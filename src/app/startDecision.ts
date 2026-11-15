@@ -87,3 +87,21 @@ export function decideStart(deps: StartDeps): StartResult {
     deps.sleep(ACK_POLL_MS);
   }
 }
+
+/** 끄는 중인 런처를 기다리다 새로 띄우지 못했을 때 사람에게 보이는 말(spec-start-fixes D3) */
+export const TIMEOUT_MESSAGE = '앱이 아직 끄는 중입니다. 잠시 뒤 다시 열어 주세요.';
+
+export interface StartReporter {
+  /** launcher.log에 한 줄 남긴다 */
+  log(line: string): void;
+  /** 사람에게 오류 창을 띄운다 */
+  alert(message: string): void;
+}
+
+/** 시작 판단을 하고 종료 코드를 돌려준다. 새로 띄우지 못하고 끝나면 알리고 기록한다 */
+export function runStart(deps: StartDeps, out: StartReporter): number {
+  if (decideStart(deps) !== 'timeout') return 0;
+  out.log(`${new Date(deps.now()).toISOString()} 시작 프로세스: ${STOP_WAIT_MS}ms 기다려도 끄는 중인 런처가 끝나지 않아 새로 띄우지 못했다. ${TIMEOUT_MESSAGE}`);
+  out.alert(TIMEOUT_MESSAGE);
+  return 1;
+}

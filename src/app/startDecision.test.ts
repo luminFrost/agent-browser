@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decideStart, SIGNAL_RECHECK_MS, STOP_WAIT_MS, type StartDeps } from './startDecision';
+import { decideStart, runStart, SIGNAL_RECHECK_MS, STOP_WAIT_MS, TIMEOUT_MESSAGE, type StartDeps } from './startDecision';
 
 /** 신호부터 런처가 받음 표시를 남기기까지(브라우저의 focus 응답) */
 const ACK_DELAY_MS = 5;
@@ -180,5 +180,35 @@ describe('다시 열 때 고정 대기 없앰(spec-start-fixes D2)', () => {
     w.at(1_000, () => w.exited(100));
     expect(decideStart(w.deps)).toBe('started');
     expect(w.s.launched).toBe(1);
+  });
+});
+
+describe('15초 실패 알림(spec-start-fixes D3)', () => {
+  const reporter = () => {
+    const r = { logs: [] as string[], alerts: [] as string[] };
+    return { r, out: { log: (l: string) => r.logs.push(l), alert: (m: string) => r.alerts.push(m) } };
+  };
+
+  it('끄는 중인 런처를 15초 기다려도 못 띄우면 오류 창을 띄우고 기록을 남기고 종료 코드 1', () => {
+    const w = world();
+    w.running(100);
+    w.s.stopping = 100; // 끝나지 않는다
+    const { r, out } = reporter();
+    expect(runStart(w.deps, out)).toBe(1);
+    expect(w.s.t).toBeGreaterThanOrEqual(STOP_WAIT_MS);
+    expect(r.alerts).toEqual([TIMEOUT_MESSAGE]);
+    expect(r.logs).toHaveLength(1);
+    expect(r.logs[0]).toContain(TIMEOUT_MESSAGE);
+    expect(TIMEOUT_MESSAGE).toContain('끄는 중');
+  });
+
+  it('정상으로 끝나면 알리지 않고 종료 코드 0', () => {
+    for (const setup of [(w: ReturnType<typeof world>) => w, (w: ReturnType<typeof world>) => { w.running(100); return w; }]) {
+      const w = setup(world());
+      const { r, out } = reporter();
+      expect(runStart(w.deps, out)).toBe(0);
+      expect(r.alerts).toEqual([]);
+      expect(r.logs).toEqual([]);
+    }
   });
 });
