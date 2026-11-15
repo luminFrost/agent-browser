@@ -45,4 +45,4 @@ T0 결과에 따라 T4·T12·T13의 방식이 바뀔 수 있다. 완료 기준�
 | G1 | 세션 닫기 API(`DELETE /sessions/<id>`)와 붙잡기(`POST /sessions?hold=1`: 연결이 끊기면 세션을 닫음) | `src/launcher/control/server.ts`(+test), `src/launcher/app.ts` | A4, A3(다) | `npx vitest run src/launcher/control`, `npm test` | [x] |
 | G2 | 붙이기 명령: 앱 찾기·켜기(15초), 붙잡은 세션, 함께 넣은 chrome-devtools-mcp 띄우기, 끝날 때 닫기 | `src/attach/attach.ts`(+test), `src/attach/cli.ts` | A1, A3, A5, A7 | `npx vitest run src/attach` | [x] |
 | G3 | 앱에 묶기(chrome-devtools-mcp를 dependencies로, `Contents/Resources/agent-browser-mcp`) + 묶은 앱 E2E | `package.json`, `resources/agent-browser-mcp`, `tests/dist/packaged.spec.ts` | A1, A2, A3, A5, A6 | `npm run test:dist` | [x] |
-| G4 | 사용 안내 | `README.md` | A8 | 원문 확인 | [ ] |
+| G4 | 사용 안내 | `README.md` | A8 | 원문 확인 | [x] |
