@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Code에서 바로 붙기 — 검사 결과</title>
+<style>
+body{font-family:-apple-system,"Apple SD Gothic Neo",sans-serif;max-width:760px;margin:40px auto;padding:0 20px;line-height:1.7;color:#1f2328;background:#fff}
+h1{font-size:1.5rem;margin-bottom:.2rem}h2{font-size:1.1rem;margin-top:2rem;border-bottom:1px solid #d8dee4;padding-bottom:.3rem}
+.sub{color:#59636e;margin-top:0}.box{background:#f0f7ff;border:1px solid #b6d4fe;border-radius:10px;padding:16px 20px}
+.todo{background:#fff8e6;border:1px solid #f2d48a;border-radius:10px;padding:16px 20px}
+table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #eaeef2;padding:6px 8px;text-align:left;vertical-align:top}
+th{color:#59636e;font-weight:500}.ok{color:#1a7f37;font-weight:600}code{background:#eef1f4;padding:1px 5px;border-radius:4px}
+@media (prefers-color-scheme:dark){body{background:#0d1117;color:#e6edf3}.sub,th{color:#9198a1}.box{background:#0c2d6b33;border-color:#1f6feb}.todo{background:#3b2e0a55;border-color:#9e6a03}h2,td,th{border-color:#30363d}.ok{color:#3fb950}code{background:#21262d}}
+</style></head><body>
+<h1>Claude Code에서 바로 붙기 — 검사 결과</h1>
+<p class="sub">2026-11-15 · 작업 20261115-claude-attach · 첫 검사에서 통과 · 실작업 약 26분</p>
+<div class="box"><strong>결론:</strong> <b>이제 회사 PC에서 명령 한 줄만 실행하면 Claude Code가 이 브라우저를 씁니다.</b> Claude Code 세션마다 자기 창이 하나씩 자동으로 생기고, 세션이 끝나면 그 창이 닫힙니다. 앱이 꺼져 있으면 켜서 붙습니다. 검사자가 <b>실제 Claude Code</b>로 붙여서 페이지 제목을 읽어 오는 것까지 확인했습니다.</div>
+<h2>지금 하실 일</h2>
+<div class="todo"><ol>
+<li>아래 "남은 작은 것"의 첫 번째(사람이 창을 닫았을 때)를 지금 고칠지 정해 주세요. 그대로 두셔도 쓰는 데 문제는 없습니다.</li>
+<li><code>/aif-deliver</code>를 입력하세요. 요약을 보여 드리고 승인을 받은 뒤 작업을 닫습니다. 그다음 <code>! git checkout main &amp;&amp; git merge --ff-only feat/claude-attach</code>로 main에 합치시면 됩니다.</li>
+<li>회사 PC에서 할 일:
+  <ul>
+    <li><code>release/Agent Browser-0.1.0-arm64.dmg</code>를 설치하고, 처음 한 번은 우클릭 → 열기로 엽니다.</li>
+    <li>터미널에서 아래 한 줄을 실행합니다.<br><code>claude mcp add --scope user agent-browser -- "/Applications/Agent Browser.app/Contents/Resources/agent-browser-mcp"</code></li>
+  </ul>
+  자세한 안내는 저장소의 <code>README.md</code>에 있습니다.</li>
+</ol></div>
+<h2>된 것</h2>
+<table><tr><th>바라던 것</th><th>결과</th></tr>
+<tr><td>Claude Code에 한 줄로 등록</td><td class="ok">통과 — 앱 안에 붙이기 명령이 들어 있음</td></tr>
+<tr><td>세션마다 따로 창</td><td class="ok">통과 — 동시에 3개를 붙여도 각자 자기 탭만 봄(사람 창도 안 보임)</td></tr>
+<tr><td>세션이 끝나면 창 닫기</td><td class="ok">통과 — 정상 종료, 종료 신호, 강제 종료(kill -9) 모두 5초 안에 닫힘</td></tr>
+<tr><td>앱이 꺼져 있으면 켜기</td><td class="ok">통과 — 3개가 동시에 켜도 앱은 하나만 뜸</td></tr>
+<tr><td>회사 PC에 Node·인터넷 없어도 됨</td><td class="ok">통과 — Node가 없는 환경에서 확인. dmg는 약 3.5MB 커졌음(119.5MB → 123.1MB)</td></tr>
+<tr><td>Google로 보내는 것 끔</td><td class="ok">통과 — 함께 넣은 도구의 사용 통계와 방문 URL 조회를 끔</td></tr>
+<tr><td>보안</td><td class="ok">통과 — 새로 여는 포트 없음, 토큰은 실행 인자나 기록에 안 나옴, 토큰 없으면 거부</td></tr>
+<tr><td>기존 기능</td><td class="ok">통과 — 테스트 263개, 묶은 앱 테스트 16개</td></tr></table>
+<p>검사자는 일부러 8군데를 망가뜨려 보았고, 테스트가 8군데 모두 잡아냈습니다.</p>
+<h2>남은 작은 것 (급하지 않음)</h2>
+<ul>
+<li><b>사람이 에이전트 창을 닫았을 때:</b> 그 Claude 세션의 브라우저 도구는 오류를 냅니다. Claude Code에서 <code>/mcp</code>로 다시 연결하면 새 창이 생깁니다(README에 적혀 있음). 고치면, 창이 닫히는 즉시 붙이기 명령도 끝나도록 바꿀 수 있습니다.</li>
+<li>나머지 4건은 거의 일어나지 않는 오류 메시지 모양, 응답 없는 앱 기다리기, 테스트 보강입니다.</li>
+</ul>
+</body></html>
