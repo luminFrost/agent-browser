@@ -9,6 +9,9 @@ export class McpClient {
   private buffer = '';
   private readonly waiters = new Map<number, (m: { result?: { content?: { text?: string }[]; isError?: boolean }; error?: { message: string } }) => void>();
 
+  /** initialize 응답의 결과(서버 안내 instructions 등) */
+  initResult: { instructions?: string } = {};
+
   private constructor(readonly proc: ChildProcess) {
     proc.stdout!.on('data', (d: Buffer) => {
       this.buffer += d.toString();
@@ -29,7 +32,7 @@ export class McpClient {
   /** stdio MCP 서버 프로세스(붙이기 명령 등)에 붙어 initialize까지 한다 */
   static async over(proc: ChildProcess): Promise<McpClient> {
     const client = new McpClient(proc);
-    await client.rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'agent-browser-e2e', version: '0' } });
+    client.initResult = ((await client.rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'agent-browser-e2e', version: '0' } })).result ?? {}) as { instructions?: string };
     proc.stdin!.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
     return client;
   }

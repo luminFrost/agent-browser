@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
-import { launch, waitFor } from './helpers';
+import { createSession, launch, waitFor } from './helpers';
 import { McpClient } from './mcpClient';
+import { AGENT_BROWSER_GUIDE } from '../../src/attach/attach';
 import { startTestServer, type TestServer } from '../fixtures/server';
 import type { RunningApp } from '../../src/launcher/app';
 
@@ -80,4 +81,16 @@ test('A5(개발 실행): 앱이 꺼져 있으면 이유를 stderr에 쓰고 0이
   const code = await new Promise<number | null>((ok) => proc.on('exit', (c) => ok(c)));
   expect(code).not.toBe(0);
   expect(err).toMatch(/꺼져 있다/);
+});
+
+test('B5(spec-company-setup): initialize 응답 안내에 agent-browser 사용 안내가 앞에 붙고 원래 안내는 남는다', async () => {
+  const direct = await McpClient.start((await createSession(app)).browserUrl);
+  const original = direct.initResult.instructions;
+  direct.stop();
+  const mcp = await attach();
+  const instructions = mcp.initResult.instructions ?? '';
+  expect(instructions.startsWith(AGENT_BROWSER_GUIDE)).toBe(true);
+  if (original) expect(instructions).toContain(original);
+  // 안내를 붙여도 도구는 그대로 쓴다
+  expect(await mcp.tool('list_pages')).toContain('about:blank');
 });

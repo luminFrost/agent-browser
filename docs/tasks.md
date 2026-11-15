@@ -46,3 +46,11 @@ T0 결과에 따라 T4·T12·T13의 방식이 바뀔 수 있다. 완료 기준�
 | G2 | 붙이기 명령: 앱 찾기·켜기(15초), 붙잡은 세션, 함께 넣은 chrome-devtools-mcp 띄우기, 끝날 때 닫기 | `src/attach/attach.ts`(+test), `src/attach/cli.ts` | A1, A3, A5, A7 | `npx vitest run src/attach` | [x] |
 | G3 | 앱에 묶기(chrome-devtools-mcp를 dependencies로, `Contents/Resources/agent-browser-mcp`) + 묶은 앱 E2E | `package.json`, `resources/agent-browser-mcp`, `tests/dist/packaged.spec.ts` | A1, A2, A3, A5, A6 | `npm run test:dist` | [x] |
 | G4 | 사용 안내 | `README.md` | A8 | 원문 확인 | [x] |
+
+## 20261115-company-setup (정본 `docs/spec-company-setup.md`)
+| # | 작업 | 바꿀 파일 | 인수 사례 | 확인 명령 | 완료 |
+|---|---|---|---|---|---|
+| H1 | 붙이기 명령이 initialize 응답에 agent-browser 사용 안내를 덧붙임 | `src/attach/attach.ts`(+test), `src/attach/cli.ts`, `tests/e2e/attach.spec.ts`, `tests/e2e/mcpClient.ts` | B5 | `npx vitest run src/attach`, `npm test` | [x] |
+| H2 | 설치 스크립트(빌드·dmg 경로, 사전 확인) | `scripts/install-mac.sh`, `scripts/install-mac.test.ts` | B2, B3, B4 | `npx vitest run scripts` | [ ] |
+| H3 | Claude용 설치 문서·CLAUDE.md 한 줄·README·Release 절차 | `docs/setup.md`, `CLAUDE.md`, `README.md` | B1, B6, B7 | 원문 확인 | [ ] |
+| H4 | 올리면 안 될 것 | `.gitignore` | B8 | `git check-ignore`, `git grep` | [ ] |

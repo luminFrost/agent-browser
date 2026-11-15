@@ -9,7 +9,7 @@ import { request } from 'node:http';
 import { join } from 'node:path';
 import { CONTROL_FILE_NAME } from '../shared/constants';
 import { parseCliArgs } from '../launcher/cliArgs';
-import { connect, mcpArgs, type ControlInfo, type HeldSession } from './attach';
+import { connect, initializeId, mcpArgs, withGuide, type ControlInfo, type HeldSession } from './attach';
 
 /** stdin이 닫힌 뒤 chrome-devtools-mcp가 스스로 끝나기를 기다리는 시간 */
 const CHILD_EXIT_GRACE_MS = 2_000;
@@ -73,6 +73,25 @@ function startApp(): void {
   spawn(process.execPath, [], { env, detached: true, stdio: 'ignore' }).unref();
 }
 
+/** 스트림을 줄 단위로 나눠 넘긴다. 끝에 남은 조각도 한 줄로 넘긴다 */
+function lines(stream: NodeJS.ReadableStream, onLine: (line: string) => void, onEnd: () => void): void {
+  let buf = '';
+  stream.setEncoding('utf8');
+  stream.on('data', (chunk: string) => {
+    buf += chunk;
+    let i: number;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      onLine(buf.slice(0, i));
+      buf = buf.slice(i + 1);
+    }
+  });
+  stream.on('end', () => {
+    if (buf) onLine(buf);
+    buf = '';
+    onEnd();
+  });
+}
+
 async function main(): Promise<void> {
   const { profile } = parseCliArgs([], process.env);
   const controlFile = join(profile, CONTROL_FILE_NAME);
@@ -86,10 +105,18 @@ async function main(): Promise<void> {
 
   const child = spawn(process.execPath, [mcpBin(), ...mcpArgs(held.browserUrl)], {
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-    stdio: ['pipe', 'inherit', 'inherit'],
+    stdio: ['pipe', 'pipe', 'inherit'],
   });
   child.stdin.on('error', () => undefined); // 자식이 먼저 끝나면 쓰기가 실패할 수 있다
-  process.stdin.pipe(child.stdin);
+  // MCP stdio는 줄마다 JSON 하나다. 들어가는 initialize 요청의 id를 기억했다가
+  // 나오는 그 응답에 쓸 때 알 것을 덧붙인다(spec-company-setup B5). 나머지는 그대로 넘긴다
+  const initIds = new Set<number | string>();
+  lines(process.stdin, (line) => {
+    const id = initializeId(line);
+    if (id !== undefined) initIds.add(id);
+    child.stdin.write(`${line}\n`);
+  }, () => child.stdin.end());
+  lines(child.stdout, (line) => { process.stdout.write(`${withGuide(line, initIds)}\n`); }, () => undefined);
   // Claude Code가 stdin을 닫으면(가) 자식에게도 닫고, 스스로 끝나지 않으면 끝낸다
   process.stdin.on('end', () => setTimeout(() => child.kill('SIGTERM'), CHILD_EXIT_GRACE_MS).unref());
   for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) {

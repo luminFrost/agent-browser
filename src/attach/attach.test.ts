@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { APP_READY_WAIT_MS, connect, mcpArgs, type AttachDeps, type HeldSession } from './attach';
+import { AGENT_BROWSER_GUIDE, APP_READY_WAIT_MS, connect, initializeId, mcpArgs, withGuide, type AttachDeps, type HeldSession } from './attach';
 
 const CONTROL = { port: 1234, token: 't' };
 const held = (id = 's1'): HeldSession => ({ id, browserUrl: `http://127.0.0.1:9/${id}/`, close: () => undefined, closed: new Promise(() => undefined) });
@@ -55,5 +55,38 @@ describe('함께 넣은 chrome-devtools-mcp 인자 (spec-claude-attach A7)', () 
     const args = mcpArgs('http://127.0.0.1:5/x/');
     expect(args).toEqual(expect.arrayContaining(['--no-usage-statistics', '--no-performance-crux']));
     expect(args[args.indexOf('--browserUrl') + 1]).toBe('http://127.0.0.1:5/x/');
+  });
+});
+
+describe('쓸 때 알 것을 initialize 응답에 덧붙임 (spec-company-setup B5)', () => {
+  const init = (instructions?: string) => JSON.stringify({ jsonrpc: '2.0', id: 0, result: { protocolVersion: '2025-06-18', capabilities: {}, serverInfo: { name: 'x', version: '1' }, ...(instructions ? { instructions } : {}) } });
+
+  it('initialize 응답에 안내를 앞에 붙이고 원래 안내는 남긴다', () => {
+    const out = JSON.parse(withGuide(init('원래 안내'), new Set([0]))) as { result: { instructions: string } };
+    expect(out.result.instructions.startsWith(AGENT_BROWSER_GUIDE)).toBe(true);
+    expect(out.result.instructions).toContain('원래 안내');
+  });
+
+  it('원래 안내가 없어도 안내가 들어간다', () => {
+    const out = JSON.parse(withGuide(init(), new Set([0]))) as { result: { instructions: string } };
+    expect(out.result.instructions).toBe(AGENT_BROWSER_GUIDE);
+  });
+
+  it('initialize가 아닌 응답·알림·JSON이 아닌 줄은 그대로 둔다', () => {
+    const other = JSON.stringify({ jsonrpc: '2.0', id: 5, result: { content: [] } });
+    expect(withGuide(other, new Set([0]))).toBe(other);
+    expect(withGuide('not json', new Set([0]))).toBe('not json');
+    const note = JSON.stringify({ jsonrpc: '2.0', method: 'notifications/x' });
+    expect(withGuide(note, new Set([0]))).toBe(note);
+  });
+
+  it('클라이언트가 보낸 initialize 요청의 id를 알아낸다', () => {
+    expect(initializeId(JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'initialize', params: {} }))).toBe(7);
+    expect(initializeId(JSON.stringify({ jsonrpc: '2.0', id: 8, method: 'tools/list' }))).toBeUndefined();
+    expect(initializeId('garbage')).toBeUndefined();
+  });
+
+  it('안내에 이 브라우저를 쓸 때 알아야 할 것이 있다', () => {
+    for (const must of ['agent-browser', '이 세션 전용 창', '사람', '허용', 'emulate', '/mcp']) expect(AGENT_BROWSER_GUIDE).toContain(must);
   });
 });

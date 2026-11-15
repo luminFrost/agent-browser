@@ -55,3 +55,36 @@ export async function connect(deps: AttachDeps): Promise<HeldSession> {
  */
 export const mcpArgs = (browserUrl: string): string[] =>
   ['--browserUrl', browserUrl, '--no-usage-statistics', '--no-performance-crux'];
+
+/**
+ * 이 브라우저를 쓰는 Claude가 알아야 할 것(spec-company-setup B5).
+ * 붙이기 명령이 MCP initialize 응답의 instructions 앞에 붙인다. 사실만 적는다(앱 동작은 docs/spec.md·ADR-0005)
+ */
+export const AGENT_BROWSER_GUIDE = [
+  'agent-browser: 이 MCP 서버는 사람이 쓰는 Agent Browser 앱 안의, 이 세션 전용 창 하나에 붙어 있다.',
+  '- 보이는 탭은 이 세션 전용 창의 탭뿐이다. 사람 창이나 다른 Claude 세션의 탭은 보이지 않고 다룰 수 없다.',
+  '- 이 창은 사람의 회사 계정 로그인(쿠키)을 함께 쓴다. 사람이 화면에서 지켜볼 수 있고, 여기서 한 행동은 실제 계정에서 일어난다.',
+  '- 폼 제출(POST)과 다운로드는 사람이 사람 창에서 허용해야 진행된다. 그동안 도구가 기다리거나 시간이 걸릴 수 있다. 거부되면 다시 시도하지 말고 사람에게 알린다.',
+  '- 브라우저 전체에 닿는 도구는 막혀 있다: resize_page, 성능 트레이스, lighthouse, 힙 스냅샷, 화면 녹화. 화면 크기는 emulate로 바꾼다.',
+  '- 도구가 연결 끊김 오류를 내면 사람이 이 창을 닫았거나 앱이 꺼진 것이다. 사람에게 Claude Code에서 /mcp로 agent-browser를 다시 연결해 달라고 부탁한다.',
+].join('\n');
+
+/** 클라이언트가 보낸 줄이 initialize 요청이면 그 id */
+export function initializeId(line: string): number | string | undefined {
+  try {
+    const m = JSON.parse(line) as { id?: number | string; method?: string };
+    return m.method === 'initialize' ? m.id : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** 서버가 보낸 줄이 initialize 응답이면 instructions 앞에 안내를 붙인다. 그 밖의 줄은 그대로 */
+export function withGuide(line: string, initIds: ReadonlySet<number | string>): string {
+  let m: { id?: number | string; result?: { instructions?: string } };
+  try { m = JSON.parse(line) as typeof m; } catch { return line; }
+  if (m.id === undefined || !initIds.has(m.id) || !m.result) return line;
+  const original = m.result.instructions;
+  m.result.instructions = original ? `${AGENT_BROWSER_GUIDE}\n\n${original}` : AGENT_BROWSER_GUIDE;
+  return JSON.stringify(m);
+}
