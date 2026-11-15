@@ -80,16 +80,21 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
   child.on('error', () => undefined);
   const exited = once(child, 'exit');
 
+  // 브라우저가 끝나면 기다리던 응답을 모두 실패로 끝내고 타이머를 지운다. 남은 타이머가 프로세스를 붙잡지 않게 한다(spec-cleanup-five C4)
+  const pending = new Set<(e: Error) => void>();
+  void exited.then(() => { for (const cancel of [...pending]) cancel(new Error('브라우저가 끝났다')); });
   const waitFor = <T extends BrowserReply['type']>(match: (m: BrowserToLauncher) => boolean, what: string) =>
     new Promise<Reply<T>>((ok, fail) => {
-      const timer = setTimeout(() => { child.off('message', onMessage); fail(new Error(`브라우저가 ${what}에 ${timeoutMs}ms 안에 답하지 않았다`)); }, timeoutMs);
+      const finish = () => { clearTimeout(timer); child.off('message', onMessage); pending.delete(cancel); };
+      const cancel = (e: Error) => { finish(); fail(e); };
+      const timer = setTimeout(() => cancel(new Error(`브라우저가 ${what}에 ${timeoutMs}ms 안에 답하지 않았다`)), timeoutMs);
       const onMessage = (m: BrowserToLauncher) => {
         if (!match(m)) return;
-        clearTimeout(timer);
-        child.off('message', onMessage);
+        finish();
         if (m.type === 'error') fail(new Error(`브라우저 오류(${what}): ${m.message}`));
         else ok(m as Reply<T>);
       };
+      pending.add(cancel);
       child.on('message', onMessage);
     });
 
@@ -103,10 +108,9 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
   };
 
   // 브라우저가 준비 전에 끝나면(같은 프로필을 이미 다른 브라우저가 씀 등) 기다리지 않고 실패한다
-  await Promise.race([
-    waitFor<'ready'>((m) => m.type === 'ready', 'ready'),
-    exited.then(() => { throw new Error('브라우저가 준비되기 전에 끝났다'); }),
-  ]);
+  await waitFor<'ready'>((m) => m.type === 'ready', 'ready').catch((e: unknown) => {
+    throw child.exitCode !== null || child.signalCode !== null ? new Error('브라우저가 준비되기 전에 끝났다') : e;
+  });
 
   const router = new Router(rawCdp);
   await router.start();
