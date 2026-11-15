@@ -3,30 +3,28 @@
 여러 Claude Code 세션이 브라우저를 나눠 쓰게 하는 macOS 앱이다. 사람이 쓰는 창 하나와, Claude Code 세션마다 따로 생기는 에이전트 창이 로그인(쿠키)을 함께 쓴다. 에이전트는 자기 창의 탭만 보고 다룰 수 있다. 사람 창의 탭이나 다른 세션의 탭은 보이지 않는다. 에이전트 창에서 일어나는 폼 제출(POST)과 다운로드는 사람이 허용해야 진행된다.
 
 - 대상: Apple Silicon Mac
-- 정본 문서: `docs/spec.md`(앱 동작), `docs/spec-mac-app.md`(묶은 앱), `docs/spec-claude-attach.md`(Claude Code 붙이기)
+- 정본 문서: `docs/spec.md`(앱 동작), `docs/spec-mac-app.md`(묶은 앱), `docs/spec-claude-attach.md`(Claude Code 붙이기), `docs/spec-company-setup.md`(다른 PC 설치)
+- 설치 절차(Claude가 따라 함): `docs/setup.md`
 
-## 설치
+## 다른 PC(회사 PC)에 설치 — 이것부터
 
-1. `Agent Browser-<버전>-arm64.dmg`를 열고 `Agent Browser`를 `응용 프로그램`으로 끌어 놓는다.
-2. 처음 한 번은 Finder에서 앱을 **우클릭 → 열기**로 연다. 서명하지 않은 앱이라 더블클릭하면 macOS가 막는다.
-   - 회사 PC 관리 정책이 서명 없는 앱을 막으면 열리지 않는다. 그때는 IT 담당과 상의한다.
-3. 사람 창이 뜨면 평소처럼 회사 계정에 로그인해 둔다. 에이전트 창도 이 로그인을 함께 쓴다.
+1. 이 저장소를 GitHub에서 받는다.
+   ```sh
+   git clone <이 저장소 주소> agent-browser && cd agent-browser
+   ```
+2. 그 폴더에서 Claude Code를 열고 이렇게 말한다.
+   > docs/setup.md대로 agent-browser를 설치해 줘
+   - Claude가 사전 확인 → 빌드(안 되면 Release dmg) → 앱 설치 → `claude mcp add` → 확인까지 한다. 절차는 `docs/setup.md`, 스크립트는 `scripts/install-mac.sh`에 있다.
+   - Claude 없이 직접 하려면 `scripts/install-mac.sh`를 실행한다. Node 22 이상이 없으면 Release dmg로 `scripts/install-mac.sh --from-dmg <파일>`을 실행한다.
+3. Claude가 끝났다고 하면 사람이 할 일은 두 가지다.
+   - 앱을 한 번 연다. 막히면 Finder에서 **우클릭 → 열기**를 하거나, 시스템 설정 → 개인정보 보호 및 보안 → **그래도 열기**를 누른다. 서명하지 않은 앱이라 그렇다. 회사 관리 정책이 서명 없는 앱을 막으면 IT 담당과 상의한다.
+   - 사람 창에서 회사 계정에 로그인해 둔다. 에이전트 창도 이 로그인을 함께 쓴다.
 
-## Claude Code에 붙이기 (처음 한 번)
-
-터미널에서 한 줄만 실행한다.
-
-```sh
-claude mcp add --scope user agent-browser -- "/Applications/Agent Browser.app/Contents/Resources/agent-browser-mcp"
-```
-
-- `--scope user`는 모든 프로젝트에서 쓰게 한다. 한 프로젝트에서만 쓰려면 빼고 그 폴더에서 실행한다.
-- Node·npm·인터넷 내려받기는 필요 없다. 브라우저를 다루는 도구(chrome-devtools-mcp)는 앱 안에 들어 있다.
-- 지우려면 `claude mcp remove --scope user agent-browser`를 실행한다.
+등록은 사용자 범위(`--scope user`)라 모든 프로젝트에서 쓸 수 있다. Node·인터넷 내려받기 없이 도는 도구(chrome-devtools-mcp)가 앱 안에 들어 있다. 지우는 방법은 `docs/setup.md` "지우기"에 있다.
 
 ## 쓰는 법
 
-- Claude Code 세션을 열고 "agent-browser로 ○○ 페이지 열어 줘"처럼 시키면 된다.
+- Claude Code 세션을 열고 "agent-browser로 ○○ 페이지 열어 줘"처럼 시키면 된다. Claude는 붙을 때 쓸 때 알 것(자기 창만 보임, 사람 승인, 막힌 도구)을 MCP 안내로 받는다.
 - Claude Code 세션이 시작되면(MCP 서버가 뜰 때) 그 세션 전용 에이전트 창이 하나 생긴다. 세션 3개를 열면 창도 3개다.
 - 앱이 꺼져 있으면 붙이기 명령이 앱을 켠다. 15초 안에 못 켜면 Claude Code에 MCP 연결 실패로 보인다.
 - Claude Code 세션이 끝나면 그 세션의 에이전트 창은 5초 안에 닫힌다. 강제 종료돼도 닫힌다.

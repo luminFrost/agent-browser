@@ -14,6 +14,9 @@
 - 구분: 남길 것
 - 정본: docs/spec.md (작업 목록 docs/tasks.md, 결정 docs/adr/)
 
+# 다른 PC에 설치
+- 사람이 이 앱을 이 PC에 설치·등록해 달라고 하면 `docs/setup.md`의 절차를 그대로 따른다(설치 스크립트 `scripts/install-mac.sh`).
+
 # 확인 명령
 - 설치: `npm install`
 - 테스트 전체: `npm test` (build → Vitest 단위 → Playwright E2E)
