@@ -4,7 +4,7 @@
 // 3) 런처가 띄운 브라우저: 인자에 --ab-user-data가 있다 → 브라우저 main을 돈다.
 // 런처가 파이프로 브라우저 CDP를 쥐는 구조(ADR-0002)는 그대로다. 한 프로필 한 런처는 ADR-0008.
 import { spawn } from 'node:child_process';
-import { closeSync, mkdirSync, openSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync } from 'node:fs';
 import { join } from 'node:path';
 import { app } from 'electron';
 import { LAUNCHER_LOCK_ENV, LAUNCHER_LOCK_NAME, LAUNCHER_LOG_NAME, USER_DATA_FLAG } from '../shared/constants';
@@ -41,7 +41,16 @@ function start(): void {
     claim: () => claimLock(lock, isOurLauncher),
     holder: () => lockHolder(lock),
     stopping: () => stoppingLauncher(lock),
-    signal: (pid) => { process.kill(pid, 'SIGUSR2'); },
+    lockExists: () => existsSync(lock),
+    signal: (pid) => {
+      try {
+        process.kill(pid, 'SIGUSR2');
+        return true;
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === 'ESRCH') return false;
+        throw e;
+      }
+    },
     launch: () => startLauncher(profile, lock),
     sleep,
     now: Date.now,

@@ -16,7 +16,10 @@ function world() {
     signals: [] as number[],
     slept: 0,
     events: [] as { at: number; fn: () => void }[],
+    /** 그 함수가 처음 불리기 직전에 한 번 세계를 바꾼다(호출 사이 경쟁 재현) */
+    before: {} as Partial<Record<keyof StartDeps, () => void>>,
   };
+  const hook = (name: keyof StartDeps) => { const fn = s.before[name]; if (fn) { delete s.before[name]; fn(); } };
   const tick = () => {
     for (const e of s.events.filter((x) => x.at <= s.t)) e.fn();
     s.events = s.events.filter((x) => x.at > s.t);
@@ -32,12 +35,15 @@ function world() {
       if (s.lock && !(s.holder !== undefined && !s.alive.has(s.holder))) return false;
       s.lock = true; s.holder = undefined; return true;
     },
-    holder: () => { tick(); return s.holder; },
+    holder: () => { tick(); hook('holder'); return s.holder; },
     stopping: () => { tick(); return s.stopping; },
+    lockExists: () => { tick(); return s.lock; },
     signal: (pid) => {
       tick();
-      if (!s.alive.has(pid)) throw Object.assign(new Error('kill ESRCH'), { code: 'ESRCH' });
+      hook('signal');
+      if (!s.alive.has(pid)) return false; // 프로세스가 없다(ESRCH)
       s.signals.push(pid);
+      return true;
     },
     launch: () => { s.launched++; },
     sleep: (ms) => { s.t += ms; s.slept += ms; tick(); },
@@ -110,5 +116,31 @@ describe('시작 판단(ADR-0008, 지금 동작)', () => {
     w.running(100);
     decideStart(w.deps);
     expect(w.s.slept).toBe(SIGNAL_RECHECK_MS);
+  });
+});
+
+describe('꺼지는 순간 다시 열기(spec-start-fixes D1)', () => {
+  it('(가) 잡기가 실패한 뒤 pid를 읽기 전에 자물쇠가 사라지면 다시 잡고 새 런처를 띄운다', () => {
+    const w = world();
+    w.running(100);
+    w.s.before.holder = () => w.exited(100);
+    expect(decideStart(w.deps)).toBe('started');
+    expect(w.s.launched).toBe(1);
+  });
+
+  it('(나) 신호를 보낼 때 런처가 이미 없으면(ESRCH) 오류 없이 기다렸다가 새 런처를 띄운다', () => {
+    const w = world();
+    w.running(100);
+    w.s.before.signal = () => { w.s.alive.delete(100); }; // 자물쇠는 아직 남았다(지우기 직전 또는 강제 종료)
+    expect(() => decideStart(w.deps)).not.toThrow();
+    expect(w.s.launched).toBe(1);
+  });
+
+  it('(나) 신호 직전 런처가 끝나며 자물쇠까지 지웠어도 새 런처를 띄운다', () => {
+    const w = world();
+    w.running(100);
+    w.s.before.signal = () => w.exited(100);
+    expect(decideStart(w.deps)).toBe('started');
+    expect(w.s.launched).toBe(1);
   });
 });
