@@ -1,15 +1,13 @@
 import { app, session } from 'electron';
 import { createHumanWindow, type HumanWindow } from './humanWindow';
 import { createAgentWindow, type AgentWindow } from './agentWindow';
-import { SHARED_PARTITION, USER_DATA_FLAG } from '../shared/constants';
+import { DOWNLOADS_FLAG, HIDDEN_FLAG, SHARED_PARTITION, USER_DATA_FLAG } from '../shared/constants';
 import { ApprovalQueue } from './gate/approvals';
 import { installFormGate } from './gate/formGate';
 import { installDownloadGate } from './gate/downloadGate';
 import { join } from 'node:path';
 import type { BrowserReply, LauncherToBrowser, WindowInfo } from '../shared/ipc';
 
-const HIDDEN_FLAG = '--ab-hidden';
-const DOWNLOADS_FLAG = '--ab-downloads=';
 const QUARANTINE_DIR_NAME = 'quarantine';
 
 const userDataArg = process.argv.find((a) => a.startsWith(USER_DATA_FLAG));

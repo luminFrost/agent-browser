@@ -21,3 +21,11 @@ spec: docs/spec.md · 작업 하나 = 리뷰 가능한 크기, 커밋 하나 · 
 | T13 | 다운로드 관문: 에이전트 창의 다운로드 허용/거부, 사람 창 다운로드는 묻지 않음 | `src/browser/gate/**` | R13 | `npm test` | [x] |
 
 T0 결과에 따라 T4·T12·T13의 방식이 바뀔 수 있다. 완료 기준을 지킬 수 없다고 나오면 진행하지 않고 spec 수정·ADR·재승인을 거친다.
+
+## 20261115-cleanup-five (정본 `docs/spec-cleanup-five.md`)
+| # | 작업 | 바꿀 파일 | 인수 사례 | 확인 명령 | 완료 |
+|---|---|---|---|---|---|
+| K1 | 브라우저 인자 이름 공유 상수로(구조 커밋) | `src/shared/constants.ts`, `src/launcher/app.ts`, `src/browser/main.ts` | C3 | `npm run lint`, grep | [x] |
+| K2 | launcher.log 1MB 넘으면 .1로 교체 | `src/app/logRotate.ts`(+test), `src/app/entry.ts` | C2 | `npx vitest run src/app/logRotate.test.ts` | [ ] |
+| K3 | 준비 전 실패 때 대기 타이머 정리 | `src/launcher/app.ts`, `tests/e2e/*` | C4 | `npm test` | [ ] |
+| K4 | 끄는 중 다시 열기 + 잘못된 설정 테스트 보강 | `src/app/entry.ts`, `src/launcher/cli.ts`, `tests/dist/packaged.spec.ts` | C1, C5 | `npm run test:dist` | [ ] |

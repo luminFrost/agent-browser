@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import { join, resolve } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
 import { CdpPipe } from './cdpPipe';
-import { USER_DATA_FLAG } from '../shared/constants';
+import { DOWNLOADS_FLAG, HIDDEN_FLAG, USER_DATA_FLAG } from '../shared/constants';
 import { newToken } from './control/auth';
 import { removeControlFile, writeControlFile } from './control/controlFile';
 import { startControlServer } from './control/server';
@@ -71,7 +71,7 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
   const timeoutMs = options.replyTimeoutMs ?? DEFAULT_REPLY_TIMEOUT_MS;
   const child: ChildProcess = spawn(
     electronBinary(),
-    [options.browserMain ?? DEFAULT_BROWSER_MAIN, '--remote-debugging-pipe', `${USER_DATA_FLAG}${options.userDataDir}`, ...(options.hidden ? ['--ab-hidden'] : []), ...(options.downloadsDir ? [`--ab-downloads=${options.downloadsDir}`] : [])],
+    [options.browserMain ?? DEFAULT_BROWSER_MAIN, '--remote-debugging-pipe', `${USER_DATA_FLAG}${options.userDataDir}`, ...(options.hidden ? [HIDDEN_FLAG] : []), ...(options.downloadsDir ? [`${DOWNLOADS_FLAG}${options.downloadsDir}`] : [])],
     // fd 3·4: CDP 파이프, fd 5: 런처 ↔ 브라우저 명령 채널(ipc). TCP는 쓰지 않는다.
     { stdio: ['ignore', 'inherit', 'inherit', 'pipe', 'pipe', 'ipc'], env: browserEnv() },
   );
