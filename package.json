@@ -14,6 +14,7 @@
     "test:dist": "npm run dist && playwright test -c playwright.dist.config.ts"
   },
   "dependencies": {
+    "chrome-devtools-mcp": "^1.13.0",
     "ws": "^8.23.0"
   },
   "devDependencies": {
@@ -21,7 +22,6 @@
     "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
     "@types/ws": "^8.18.2",
-    "chrome-devtools-mcp": "^1.13.0",
     "electron": "^45.3.2",
     "electron-builder": "^26.18.0",
     "eslint": "^10.15.0",
@@ -60,6 +60,12 @@
     },
     "dmg": {
       "artifactName": "${productName}-${version}-${arch}.${ext}"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "resources/agent-browser-mcp",
+        "to": "agent-browser-mcp"
+      }
+    ]
   }
 }

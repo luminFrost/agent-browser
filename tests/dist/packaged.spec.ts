@@ -1,5 +1,7 @@
 import { test, expect, chromium } from '@playwright/test';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { McpClient } from '../e2e/mcpClient';
+import { startTestServer } from '../fixtures/server';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -312,5 +314,65 @@ test(`C1 끄는 중 다시 열기(${REOPEN_GAPS_MS.join('·')}ms 뒤, 간격마�
     const p = appProcesses(profile);
     if (p.browser) process.kill(p.browser.pid, 'SIGTERM');
     await waitFor(() => envProcessesOf(profile).length === 0, '정리').catch(() => undefined);
+  }
+});
+
+// ── 붙이기 명령(spec-claude-attach A1·A2·A3·A5·A6) ──
+/** Claude Code에 등록하는 붙이기 명령(README) */
+const ATTACH = join(APP, 'Contents', 'Resources', 'agent-browser-mcp');
+/** A3: 붙이기 명령이 끝나면 그 창이 이 시간 안에 닫힌다 */
+const ATTACH_CLOSE_WITHIN_MS = 5_000;
+/** A5: 앱이 꺼져 있을 때 붙이기 명령이 15초 안에 붙는다(MCP initialize 응답까지) */
+const ATTACH_START_WITHIN_MS = 15_000 + 5_000;
+const ATTACH_COUNT = 3;
+
+test('A5·A6·A1·A2·A3 붙이기 명령: 앱이 꺼져 있어도 Node 없이 동시에 3개를 띄우면 앱이 1번 켜지고 각자 자기 창에 붙으며, 끝나면 그 창이 닫힌다', async () => {
+  const profile = mkdtempSync(join(tmpdir(), 'ab-attach-'));
+  const server = await startTestServer();
+  const procs: ChildProcess[] = [];
+  try {
+    expect(existsSync(ATTACH)).toBe(true);
+    expect(statSync(ATTACH).mode & 0o111).not.toBe(0); // 실행할 수 있다
+    expect(existsSync(controlFileOf(profile))).toBe(false); // 앱이 꺼져 있다
+
+    // A5·A6: node가 없는 PATH, 앱 꺼짐, 거의 동시에 3개
+    const started = Date.now();
+    const clients = await Promise.all(Array.from({ length: ATTACH_COUNT }, () => {
+      const proc = spawn(ATTACH, [], { env: { HOME: process.env.HOME, PATH: NO_NODE_PATH, AGENT_BROWSER_PROFILE: profile }, stdio: ['pipe', 'pipe', 'ignore'] });
+      procs.push(proc);
+      return McpClient.over(proc);
+    }));
+    expect(Date.now() - started).toBeLessThan(ATTACH_START_WITHIN_MS);
+    expect(launchersOf(profile)).toHaveLength(1); // ADR-0008: 런처는 1개
+
+    // A1·A2: 각자 자기 창에서 다른 페이지를 열고, 서로의 탭이 보이지 않는다
+    const paths = ['/a?n=1', '/b?n=2', '/a?n=3']; // 서로의 부분 문자열이 아니다
+    for (const [i, mcp] of clients.entries()) {
+      const pageId = Number(/(\d+):/.exec(await mcp.tool('list_pages'))?.[1]);
+      await mcp.tool('navigate_page', { pageId, type: 'url', url: `${server.base}${paths[i]}` });
+    }
+    expect(await clients[0].tool('take_snapshot', { pageId: Number(/(\d+):/.exec(await clients[0].tool('list_pages'))?.[1]) })).toMatch(/heading "A"/);
+    for (const [i, mcp] of clients.entries()) {
+      const pages = await mcp.tool('list_pages');
+      expect(pages).toContain(`${server.base}${paths[i]}`);
+      for (const [j, other] of paths.entries()) if (j !== i) expect(pages).not.toContain(`${server.base}${other}`);
+      expect(pages).not.toContain('/renderer/');
+    }
+
+    // A3: 창 수(사람 1 + 에이전트 3)가 붙이기 명령이 끝날 때마다 하나씩 준다. (다) 강제 종료 → (나) SIGTERM → (가) stdin 닫힘
+    const { browser } = await waitFor(() => { const p = appProcesses(profile); return p.browser ? p : undefined; }, '브라우저');
+    const windows = () => onScreenWindowOwners().filter((pid) => pid === browser!.pid).length;
+    await waitFor(() => windows() === 1 + ATTACH_COUNT, '사람 창 + 에이전트 창 3개');
+    const ends: ((p: ChildProcess) => void)[] = [(p) => p.kill('SIGKILL'), (p) => p.kill('SIGTERM'), (p) => p.stdin!.end()];
+    for (const [i, end] of ends.entries()) {
+      end(procs[i]);
+      await waitFor(() => windows() === ATTACH_COUNT - i, `붙이기 명령 ${i + 1}이 끝나 그 창이 닫힘`, ATTACH_CLOSE_WITHIN_MS);
+    }
+  } finally {
+    for (const p of procs) p.kill('SIGKILL');
+    const { browser } = appProcesses(profile);
+    if (browser) process.kill(browser.pid, 'SIGTERM');
+    await waitFor(() => leftovers(profile).length === 0, '정리').catch(() => undefined);
+    await server.close();
   }
 });
