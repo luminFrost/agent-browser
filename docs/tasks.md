@@ -26,6 +26,6 @@ T0 결과에 따라 T4·T12·T13의 방식이 바뀔 수 있다. 완료 기준�
 | # | 작업 | 바꿀 파일 | 인수 사례 | 확인 명령 | 완료 |
 |---|---|---|---|---|---|
 | K1 | 브라우저 인자 이름 공유 상수로(구조 커밋) | `src/shared/constants.ts`, `src/launcher/app.ts`, `src/browser/main.ts` | C3 | `npm run lint`, grep | [x] |
-| K2 | launcher.log 1MB 넘으면 .1로 교체 | `src/app/logRotate.ts`(+test), `src/app/entry.ts` | C2 | `npx vitest run src/app/logRotate.test.ts` | [ ] |
+| K2 | launcher.log 1MB 넘으면 .1로 교체 | `src/app/logRotate.ts`(+test), `src/app/entry.ts` | C2 | `npx vitest run src/app/logRotate.test.ts` | [x] |
 | K3 | 준비 전 실패 때 대기 타이머 정리 | `src/launcher/app.ts`, `tests/e2e/*` | C4 | `npm test` | [ ] |
 | K4 | 끄는 중 다시 열기 + 잘못된 설정 테스트 보강 | `src/app/entry.ts`, `src/launcher/cli.ts`, `tests/dist/packaged.spec.ts` | C1, C5 | `npm run test:dist` | [ ] |

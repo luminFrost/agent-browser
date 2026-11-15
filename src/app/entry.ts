@@ -10,10 +10,13 @@ import { app } from 'electron';
 import { LAUNCHER_LOCK_ENV, LAUNCHER_LOCK_NAME, LAUNCHER_LOG_NAME, USER_DATA_FLAG } from '../shared/constants';
 import { parseCliArgs } from '../launcher/cliArgs';
 import { claimLock, isOurLauncher, lockHolder } from './launcherLock';
+import { rotateLogIfLarge } from './logRotate';
 
 /** 런처를 띄운다. 출력은 프로필의 로그 파일에 남겨, 시작이 실패해도 원인을 볼 수 있게 한다 */
 function startLauncher(profile: string, lock: string): void {
-  const log = openSync(join(profile, LAUNCHER_LOG_NAME), 'a', 0o600);
+  const logPath = join(profile, LAUNCHER_LOG_NAME);
+  rotateLogIfLarge(logPath);
+  const log = openSync(logPath, 'a', 0o600);
   const env: NodeJS.ProcessEnv = { ...process.env, ELECTRON_RUN_AS_NODE: '1', [LAUNCHER_LOCK_ENV]: lock };
   // 원본 CDP를 쥐는 런처에 인스펙터 등 Node 옵션이 흘러들지 않게 한다
   delete env.NODE_OPTIONS;
