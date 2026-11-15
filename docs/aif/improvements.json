@@ -69,6 +69,26 @@
       "text": "D-NO-TEST-DELETE: 사람 승인(ADR)으로 모듈을 통째로 없애며 그 테스트를 함께 지운 경우, 커밋이나 ADR에 '대체 테스트: <파일>'이 있으면 위반 대신 '확인 필요'로 표시한다. 대체 테스트가 없으면 지금처럼 위반",
       "status": "approved",
       "decided": "2026-11-15T09:33:51.197+09:00"
+    },
+    {
+      "id": "I-008",
+      "created": "2026-11-15T10:00:20.261+09:00",
+      "task": "20261115-launcher-lock-race",
+      "scope": "framework",
+      "cause": "process",
+      "text": "S 카드에서 '기존 동작 유지(확인 명령 통과)'는 확인 방법으로 쓰고 완료 기준 개수에 넣지 않는다. 기준이 4개 이상이면 기획 때 M으로 제안한다",
+      "status": "approved",
+      "decided": "2026-11-15T10:01:07.006+09:00"
+    },
+    {
+      "id": "I-009",
+      "created": "2026-11-15T10:00:20.302+09:00",
+      "task": "20261115-launcher-lock-race",
+      "scope": "framework",
+      "cause": "setting",
+      "text": "C-LIGHT-SCOPE 검사: 체크된 완료 기준(- [x])도 세고, verify·deliver 기록 커밋(docs(verify)·docs(deliver))은 커밋 수에서 뺀다",
+      "status": "approved",
+      "decided": "2026-11-15T10:01:07.057+09:00"
     }
   ]
 }
