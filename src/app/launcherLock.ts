@@ -90,11 +90,26 @@ export function recordLauncher(lock: string, pid: number): void {
   writeFileSync(lock, String(pid));
 }
 
-/** 런처가 끝날 때 자기 자물쇠를 지운다. 남의 자물쇠는 건드리지 않고, 실패해도 던지지 않는다(다음 실행이 낡은 것으로 치운다) */
+/** 끄는 중 표시. 런처가 끄기 시작할 때 자기 pid를 적는다(spec-cleanup-five C1) */
+const stoppingMark = (lock: string) => `${lock}.stopping`;
+
+/** 런처가 끄기 시작했음을 적는다. 이때 다시 연 시작 프로세스는 창을 앞으로 가져오라는 신호 대신 런처가 끝나기를 기다렸다가 새로 띄운다 */
+export function markStopping(lock: string, pid: number): void {
+  writeFileSync(stoppingMark(lock), String(pid), { mode: 0o600 });
+}
+
+/** 끄는 중인 런처 pid. 표시가 없으면 undefined */
+export function stoppingLauncher(lock: string): number | undefined {
+  return lockHolder(stoppingMark(lock));
+}
+
+/** 런처가 끝날 때 자기 자물쇠와 끄는 중 표시를 지운다. 남의 것은 건드리지 않고, 실패해도 던지지 않는다(다음 실행이 낡은 것으로 치운다) */
 export function releaseLock(lock: string, pid: number): void {
-  try {
-    if (lockHolder(lock) === pid) unlinkSync(lock);
-  } catch { /* 최선 노력 */ }
+  for (const path of [stoppingMark(lock), lock]) {
+    try {
+      if (lockHolder(path) === pid) unlinkSync(path);
+    } catch { /* 최선 노력 */ }
+  }
 }
 
 /**

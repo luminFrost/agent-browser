@@ -69,6 +69,12 @@ const launchersOf = (profile: string): number[] =>
     .filter((l) => l.includes(BINARY) && l.includes('dist/launcher/cli.js') && new RegExp(`AGENT_BROWSER_PROFILE=${profile}(\\s|$)`).test(l))
     .map((l) => Number(l.trim().split(/\s+/)[0]));
 
+/** 이 프로필 환경으로 도는 앱 실행 파일의 모든 프로세스(시작 프로세스 포함). 시작 프로세스는 명령줄에 프로필이 없어 환경 변수로 찾는다 */
+const envProcessesOf = (profile: string): number[] =>
+  execFileSync('ps', ['-axwwE', '-o', 'pid=,command='], { encoding: 'utf8' }).split('\n')
+    .filter((l) => l.includes(BINARY) && new RegExp(`AGENT_BROWSER_PROFILE=${profile}(\\s|$)`).test(l))
+    .map((l) => Number(l.trim().split(/\s+/)[0]));
+
 const controlFileOf = (profile: string) => join(profile, 'control.json');
 const readControl = (profile: string) => JSON.parse(readFileSync(controlFileOf(profile), 'utf8')) as { port: number; token: string };
 
@@ -256,13 +262,53 @@ test('남은 자물쇠의 pid가 다른 프로세스에 재사용됐어도(재�
   }
 });
 
-test('잘못된 환경 값이면 시작 프로세스가 남지 않고 실패로 끝난다', async () => {
+test('C5 잘못된 환경 값이면 시작 프로세스를 포함해 아무것도 남지 않고 실패로 끝난다', async () => {
   const profile = mkdtempSync(join(tmpdir(), 'ab-dist-'));
-  const code = await Promise.race([
-    openApp(profile, { AGENT_BROWSER_CONTROL_PORT: 'abc' }),
-    new Promise<'hang'>((ok) => setTimeout(() => ok('hang'), 10_000)),
-  ]);
-  expect(code).not.toBe('hang');
-  expect(code).not.toBe(0);
-  expect(leftovers(profile)).toEqual([]);
+  try {
+    const code = await Promise.race([
+      openApp(profile, { AGENT_BROWSER_CONTROL_PORT: 'abc' }),
+      new Promise<'hang'>((ok) => setTimeout(() => ok('hang'), 10_000)),
+    ]);
+    expect(envProcessesOf(profile), '이 프로필로 남은 앱 프로세스(시작 프로세스 포함)').toEqual([]);
+    expect(code).not.toBe('hang');
+    expect(code).not.toBe(0);
+    expect(leftovers(profile)).toEqual([]);
+  } finally {
+    for (const pid of envProcessesOf(profile)) process.kill(pid, 'SIGKILL');
+  }
+});
+
+/** spec-cleanup-five C1: 끄기 시작한 직후 다시 열어도 앱이 다시 켜진다 */
+const REOPEN_GAPS_MS = [0, 20, 50, 100, 300];
+const REOPEN_REPEAT = 2;
+
+test(`C1 끄는 중 다시 열기(${REOPEN_GAPS_MS.join('·')}ms 뒤, 간격마다 ${REOPEN_REPEAT}번): 매번 앱이 다시 켜진다`, async () => {
+  test.setTimeout(600_000);
+  const profile = mkdtempSync(join(tmpdir(), 'ab-dist-'));
+  const running = async () => waitFor(() => {
+    const p = appProcesses(profile);
+    return p.browser && p.launcher && launchersOf(profile).length === 1
+      && processes().filter((q) => isBrowser(q, profile)).length === 1 ? p : undefined;
+  }, '런처·브라우저 하나씩', 30_000);
+  expect(await openApp(profile)).toBe(0);
+  let { browser, launcher } = await running();
+  try {
+    for (const gap of REOPEN_GAPS_MS) {
+      for (let n = 0; n < REOPEN_REPEAT; n++) {
+        const oldLauncher = launcher!.pid;
+        process.kill(oldLauncher, 'SIGTERM'); // 끄기 시작
+        await new Promise((r) => setTimeout(r, gap));
+        expect(await openApp(profile)).toBe(0);
+        ({ browser, launcher } = await waitFor(async () => {
+          const p = await running().catch(() => undefined);
+          return p && p.launcher!.pid !== oldLauncher ? p : undefined;
+        }, `${gap}ms 뒤 다시 열어 새 런처가 뜸(${n + 1}번째)`, 30_000));
+        await waitFor(() => onScreenWindowOwners().includes(browser!.pid), `${gap}ms: 사람 창이 화면에 뜸`);
+      }
+    }
+  } finally {
+    const p = appProcesses(profile);
+    if (p.browser) process.kill(p.browser.pid, 'SIGTERM');
+    await waitFor(() => envProcessesOf(profile).length === 0, '정리').catch(() => undefined);
+  }
 });

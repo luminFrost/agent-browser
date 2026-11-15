@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { startApp, type RunningApp } from './app';
 import { parseCliArgs } from './cliArgs';
-import { claimLock, isOurLauncher, lockHolder, recordLauncher, releaseLock } from '../app/launcherLock';
+import { claimLock, isOurLauncher, lockHolder, markStopping, recordLauncher, releaseLock } from '../app/launcherLock';
 import { LAUNCHER_LOCK_ENV, LAUNCHER_LOCK_NAME } from '../shared/constants';
 
 async function main(): Promise<void> {
@@ -39,6 +39,8 @@ async function main(): Promise<void> {
   const stop = async () => {
     if (stopping) return;
     stopping = true;
+    // 끄는 중에 앱을 다시 열면 시작 프로세스가 이 표시를 보고 끝나기를 기다렸다가 새로 띄운다(spec-cleanup-five C1)
+    try { markStopping(heldLock, process.pid); } catch { /* 표시 실패는 끄기를 막지 않는다 */ }
     await running.stop();
     process.exit(0);
   };
