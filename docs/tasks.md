@@ -29,3 +29,12 @@ T0 결과에 따라 T4·T12·T13의 방식이 바뀔 수 있다. 완료 기준�
 | K2 | launcher.log 1MB 넘으면 .1로 교체 | `src/app/logRotate.ts`(+test), `src/app/entry.ts` | C2 | `npx vitest run src/app/logRotate.test.ts` | [x] |
 | K3 | 준비 전 실패 때 대기 타이머 정리 | `src/launcher/app.ts`, `tests/e2e/*` | C4 | `npm test` | [x] |
 | K4 | 끄는 중 다시 열기 + 잘못된 설정 테스트 보강 | `src/app/entry.ts`, `src/launcher/cli.ts`, `tests/dist/packaged.spec.ts` | C1, C5 | `npm run test:dist` | [x] |
+
+## 20261115-start-fixes (정본 `docs/spec-start-fixes.md`)
+| # | 작업 | 바꿀 파일 | 인수 사례 | 확인 명령 | 완료 |
+|---|---|---|---|---|---|
+| F1 | 시작 판단을 Electron 없는 모듈로 떼어 냄(구조 커밋, 동작 그대로) | `src/app/startDecision.ts`(+test), `src/app/entry.ts` | (기반) | `npx vitest run src/app/startDecision.test.ts`, `npm run lint` | [ ] |
+| F2 | 기록 교체 실패해도 시작 | `src/app/logRotate.ts`(+test) | D4 | `npx vitest run src/app/logRotate.test.ts` | [ ] |
+| F3 | 꺼지는 순간 다시 열기(자물쇠 사라짐·ESRCH) | `src/app/startDecision.ts`(+test), `src/app/entry.ts` | D1 | `npx vitest run src/app/startDecision.test.ts` | [ ] |
+| F4 | 신호 받음 표시로 고정 대기 없앰 | `src/app/launcherLock.ts`, `src/launcher/cli.ts`, `src/app/startDecision.ts`(+test), `tests/dist/packaged.spec.ts` | D2 | 단위 + `npm run test:dist` | [ ] |
+| F5 | 15초 실패 알림(오류 창 + 기록 + 종료 코드 1) | `src/app/startDecision.ts`(+test), `src/app/entry.ts` | D3 | `npx vitest run src/app/startDecision.test.ts` | [ ] |
