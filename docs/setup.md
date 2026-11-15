@@ -41,10 +41,13 @@ scripts/install-mac.sh
 Release는 사람이 개발 Mac에서 올려 둔다(아래 "Release 올리기"). 회사 PC에서는 내려받아 설치한다.
 
 ```sh
-mkdir -p /tmp/agent-browser-release
-gh release download --pattern '*.dmg' --dir /tmp/agent-browser-release --clobber
-scripts/install-mac.sh --from-dmg /tmp/agent-browser-release/Agent\ Browser-*-arm64.dmg
+rm -rf /tmp/agent-browser-release && mkdir -p /tmp/agent-browser-release
+gh release download --pattern 'Agent-Browser-*-arm64.dmg' --dir /tmp/agent-browser-release
+ls /tmp/agent-browser-release      # dmg가 정확히 하나여야 한다
+scripts/install-mac.sh --from-dmg /tmp/agent-browser-release/Agent-Browser-*-arm64.dmg
 ```
+
+- 가장 최근 Release를 받는다. dmg 이름은 `Agent-Browser-<버전>-arm64.dmg`다(공백 없음).
 
 - `gh`가 없거나 로그인되어 있지 않으면, GitHub 저장소의 Releases 페이지에서 dmg를 내려받아 달라고 사람에게 부탁한다. 받은 파일 경로로 `--from-dmg`를 실행한다.
 - Release가 하나도 없으면 사람에게 "개발 Mac에서 Release를 올려 주세요"라고 알리고 멈춘다.
@@ -63,7 +66,7 @@ claude mcp list
 
 설치가 끝나면 아래를 사람에게 그대로 전한다.
 
-1. 앱을 한 번 여세요. `open "/Applications/Agent Browser.app"`. 막히면 Finder에서 우클릭 → 열기를 하거나, 시스템 설정 → 개인정보 보호 및 보안 → "그래도 열기"를 누르세요. 그래도 안 되면 회사 정책이 서명 없는 앱을 막는 것이니 IT 담당과 상의해야 합니다.
+1. 앱을 한 번 여세요. `open "<설치 완료에 나온 앱 경로>"`(보통 `/Applications/Agent Browser.app`, 쓸 수 없었으면 `~/Applications/Agent Browser.app`). 막히면 Finder에서 우클릭 → 열기를 하거나, 시스템 설정 → 개인정보 보호 및 보안 → "그래도 열기"를 누르세요. 그래도 안 되면 회사 정책이 서명 없는 앱을 막는 것이니 IT 담당과 상의해야 합니다.
 2. 사람 창에서 회사 계정에 로그인해 두세요. Claude의 창도 이 로그인을 함께 씁니다.
 3. 새 Claude Code 세션부터 agent-browser 도구를 쓸 수 있습니다. 지금 이 세션에서 쓰려면 `/mcp`로 다시 연결하세요.
 
@@ -82,11 +85,12 @@ rm -rf "/Applications/Agent Browser.app"     # 또는 ~/Applications
 
 ```sh
 npm run dist
-gh release create "v$(node -p 'require("./package.json").version')" release/Agent\ Browser-*-arm64.dmg \
-  --title "Agent Browser $(node -p 'require("./package.json").version')" --notes "Apple Silicon dmg. 설치: docs/setup.md"
+VERSION="$(node -p 'require("./package.json").version')"
+gh release create "v$VERSION" "release/Agent-Browser-$VERSION-arm64.dmg" \
+  --title "Agent Browser $VERSION" --notes "Apple Silicon dmg. 설치: docs/setup.md"
 ```
 
-같은 버전으로 다시 올릴 때는 `gh release upload v<버전> <dmg> --clobber`를 쓴다.
+같은 버전으로 다시 올릴 때는 `gh release upload "v$VERSION" "release/Agent-Browser-$VERSION-arm64.dmg" --clobber`를 쓴다. `release/`에는 옛 버전 dmg가 남아 있을 수 있으니 파일 이름을 버전까지 정확히 쓴다.
 
 ## 쓸 때 (설치 뒤, 다른 프로젝트에서)
 

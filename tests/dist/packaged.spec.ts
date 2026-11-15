@@ -93,7 +93,7 @@ test.describe.configure({ mode: 'serial', timeout: 120_000 });
 test('P1 묶기: arm64 dmg와 app이 있고 이름에 버전이 있다', () => {
   expect(existsSync(BINARY)).toBe(true);
   const dmgs = readdirSync(RELEASE).filter((f) => f.endsWith('.dmg'));
-  expect(dmgs).toContain(`Agent Browser-${VERSION}-arm64.dmg`);
+  expect(dmgs).toContain(`Agent-Browser-${VERSION}-arm64.dmg`); // GitHub Release 자산 이름에 공백을 쓸 수 없다(spec-company-setup B6)
   const arch = execFileSync('lipo', ['-archs', BINARY], { encoding: 'utf8' }).trim();
   expect(arch).toBe('arm64');
 });

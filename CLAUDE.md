@@ -22,7 +22,7 @@
 - 테스트 전체: `npm test` (build → Vitest 단위 → Playwright E2E)
 - 테스트 하나: `npx vitest run <파일>` / `npm run build && npx playwright test <파일> -g <이름>`
 - 타입/린트: `npm run lint`
-- Mac 앱 묶기: `npm run dist` → `release/Agent Browser-<버전>-arm64.dmg` / 묶은 앱 확인: `npm run test:dist` (실제 창을 띄운다)
+- Mac 앱 묶기: `npm run dist` → `release/Agent-Browser-<버전>-arm64.dmg` / 묶은 앱 확인: `npm run test:dist` (실제 창을 띄운다)
 
 # 규칙 (코드에 없는 결정)
 - 브라우저의 원본 CDP는 런처만 쥔다(`--remote-debugging-pipe`). TCP 디버그 포트를 열지 않는다. Playwright `_electron.launch`도 쓰지 않는다(ADR-0002).

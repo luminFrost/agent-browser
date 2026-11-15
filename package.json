@@ -59,7 +59,7 @@
       "hardenedRuntime": false
     },
     "dmg": {
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
+      "artifactName": "Agent-Browser-${version}-${arch}.${ext}"
     },
     "extraResources": [
       {

@@ -44,7 +44,7 @@
 npm install
 npm test            # build → Vitest → Playwright E2E
 npm run lint
-npm run dist        # release/Agent Browser-<버전>-arm64.dmg
+npm run dist        # release/Agent-Browser-<버전>-arm64.dmg
 npm run test:dist   # 묶은 앱 확인(실제 창이 뜬다)
 ```
 
