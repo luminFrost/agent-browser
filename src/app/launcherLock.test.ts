@@ -1,8 +1,24 @@
 import { describe, expect, it } from 'vitest';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, existsSync, writeFileSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { claimLock, lockHolder, recordLauncher, releaseLock, STALE_EMPTY_MS } from './launcherLock';
+import { claimLock, isOurLauncher, lockHolder, recordLauncher, releaseLock, STALE_EMPTY_MS } from './launcherLock';
+
+const LOCK_MODULE = join(__dirname, 'launcherLock.ts');
+/** 별도 프로세스 n개가 같은 순간에 claimLock을 부른다. 적힌 pid는 이 앱의 런처가 아니라고 본다(낡은 자물쇠) */
+const raceClaims = (lock: string, n: number): Promise<boolean[]> => {
+  const at = Date.now() + 400;
+  const code = `import { claimLock } from ${JSON.stringify(LOCK_MODULE)};
+    while (Date.now() < ${at}) {}
+    process.stdout.write(String(claimLock(${JSON.stringify(lock)}, () => false)));`;
+  return Promise.all(Array.from({ length: n }, () => new Promise<boolean>((resolve, reject) => {
+    const child = spawn(process.execPath, ['--no-warnings', '--input-type=module', '-e', code], { stdio: ['ignore', 'pipe', 'inherit'] });
+    let out = '';
+    child.stdout.on('data', (d: Buffer) => { out += d.toString(); });
+    child.on('exit', (c) => (c === 0 ? resolve(out === 'true') : reject(new Error(`exit ${c}`))));
+  })));
+};
 
 const lockIn = () => join(mkdtempSync(join(tmpdir(), 'ab-lock-')), 'launcher.lock');
 const ours = () => true;
@@ -48,6 +64,45 @@ describe('런처 자물쇠(묶은 앱의 한 프로필 한 런처, ADR-0008)', (
     expect(readFileSync(l, 'utf8')).toBe('4242');
     releaseLock(l, 4242);
     expect(existsSync(l)).toBe(false);
+  });
+
+  it('낡은 자물쇠를 16개 프로세스가 동시에 치워도 주인은 하나다(40번 반복)', async () => {
+    for (let round = 0; round < 40; round++) {
+      const l = lockIn();
+      writeFileSync(l, '999999'); // 죽은 런처가 남긴 자물쇠
+      const results = await raceClaims(l, 16);
+      expect(results.filter(Boolean).length, `회차 ${round}`).toBe(1);
+    }
+  }, 120_000);
+
+  it('적힌 pid가 살아 있는 런처라도 이 자물쇠를 쓴 뒤에 시작한 프로세스면(다른 프로필이 pid 재사용) 낡은 것이다', async () => {
+    // 명령줄에 launcher/cli.js가 있는 살아 있는 프로세스
+    const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60_000)', 'launcher/cli.js'], { stdio: 'ignore' });
+    try {
+      await new Promise((r) => setTimeout(r, 1500));
+      const pid = child.pid!;
+      const same = lockIn();
+      recordLauncher(same, pid); // 런처가 시작한 뒤 적음 → 이 프로필의 런처
+      expect(isOurLauncher(pid, same)).toBe(true);
+      expect(claimLock(same, isOurLauncher)).toBe(false);
+
+      const other = lockIn();
+      recordLauncher(other, pid);
+      const before = (Date.now() - 60_000) / 1000;
+      utimesSync(other, before, before); // 그 프로세스가 시작하기 전에 적힌 자물쇠 → 다른 런처가 pid를 재사용
+      expect(isOurLauncher(pid, other)).toBe(false);
+      expect(claimLock(other, isOurLauncher)).toBe(true);
+    } finally {
+      child.kill();
+    }
+  });
+
+  it('없는 pid를 확인해도 stderr에 아무것도 나오지 않는다', () => {
+    const code = `import { isOurLauncher } from ${JSON.stringify(LOCK_MODULE)};
+      process.stdout.write(String(isOurLauncher(2147483646, '/nonexistent/launcher.lock')) + String(isOurLauncher(99999999999, '/nonexistent/launcher.lock')));`;
+    const r = spawnSync(process.execPath, ['--no-warnings', '--input-type=module', '-e', code], { encoding: 'utf8' });
+    expect(r.stdout).toBe('falsefalse');
+    expect(r.stderr).toBe('');
   });
 
   it('없는 자물쇠를 지우거나 읽어도 오류가 나지 않는다', () => {
