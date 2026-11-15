@@ -27,7 +27,7 @@ claude mcp add --scope user agent-browser -- "/Applications/Agent Browser.app/Co
 ## 쓰는 법
 
 - Claude Code 세션을 열고 "agent-browser로 ○○ 페이지 열어 줘"처럼 시키면 된다.
-- 세션이 처음 브라우저 도구를 부를 때 그 세션 전용 에이전트 창이 하나 생긴다. 세션 3개를 열면 창도 3개다.
+- Claude Code 세션이 시작되면(MCP 서버가 뜰 때) 그 세션 전용 에이전트 창이 하나 생긴다. 세션 3개를 열면 창도 3개다.
 - 앱이 꺼져 있으면 붙이기 명령이 앱을 켠다. 15초 안에 못 켜면 Claude Code에 MCP 연결 실패로 보인다.
 - Claude Code 세션이 끝나면 그 세션의 에이전트 창은 5초 안에 닫힌다. 강제 종료돼도 닫힌다.
 - 사람이 에이전트 창을 닫거나 그 창의 멈추기 버튼을 누르면 그 세션은 더 이상 브라우저를 쓰지 못한다. 다시 쓰려면 Claude Code에서 `/mcp`로 다시 연결한다.
