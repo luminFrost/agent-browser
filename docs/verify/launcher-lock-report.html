@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>런처 자물쇠 고치기 — 검사 결과</title>
+<style>
+body{font-family:-apple-system,"Apple SD Gothic Neo",sans-serif;max-width:760px;margin:40px auto;padding:0 20px;line-height:1.7;color:#1f2328;background:#fff}
+h1{font-size:1.5rem;margin-bottom:.2rem}h2{font-size:1.1rem;margin-top:2rem;border-bottom:1px solid #d8dee4;padding-bottom:.3rem}
+.sub{color:#59636e;margin-top:0}.box{background:#f0f7ff;border:1px solid #b6d4fe;border-radius:10px;padding:16px 20px}
+.todo{background:#fff8e6;border:1px solid #f2d48a;border-radius:10px;padding:16px 20px}
+table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #eaeef2;padding:6px 8px;text-align:left;vertical-align:top}
+th{color:#59636e;font-weight:500}.ok{color:#1a7f37;font-weight:600}code{background:#eef1f4;padding:1px 5px;border-radius:4px}
+@media (prefers-color-scheme:dark){body{background:#0d1117;color:#e6edf3}.sub,th{color:#9198a1}.box{background:#0c2d6b33;border-color:#1f6feb}.todo{background:#3b2e0a55;border-color:#9e6a03}h2,td,th{border-color:#30363d}.ok{color:#3fb950}code{background:#21262d}}
+</style></head><body>
+<h1>런처 자물쇠 고치기 — 검사 결과</h1>
+<p class="sub">2026-11-15 · 작업 20261115-launcher-lock-race · 첫 검사에서 통과 · 약 9분</p>
+<div class="box"><strong>결론:</strong> <b>3건 모두 고쳤습니다.</b> 앱이 강제로 꺼진 뒤 16개를 동시에 열어도, 40번 반복한 40번 모두 하나만 켜집니다. <code>release/</code>의 dmg도 고친 코드로 다시 만들어졌습니다.</div>
+<h2>지금 하실 일</h2>
+<div class="todo"><ol>
+<li><code>/aif-deliver</code>를 입력하세요. 요약을 보여 드리고 승인을 받은 뒤 작업을 닫습니다.</li>
+<li>그다음 <code>! git checkout main &amp;&amp; git merge --ff-only feat/launcher-lock</code>로 main에 합치시면 됩니다.</li>
+</ol></div>
+<h2>고친 것</h2>
+<table><tr><th>문제</th><th>고친 방법</th><th>결과</th></tr>
+<tr><td>강제 종료 뒤 여러 번 동시에 열면 브라우저가 둘 뜰 수 있음</td><td>남은 "켜져 있음" 표시는 한 번에 한 프로세스만 치우게 함</td><td class="ok">통과 (고치기 전에는 첫 몇 번 안에 둘이 됨)</td></tr>
+<tr><td>다른 프로필의 런처를 이 프로필 것으로 착각할 수 있음</td><td>그 프로그램이 표시보다 먼저 시작했는지 확인</td><td class="ok">통과</td></tr>
+<tr><td>확인 중 시스템 오류 문구가 화면에 샘</td><td>오류 문구를 버림</td><td class="ok">통과</td></tr>
+<tr><td>기존 기능</td><td>—</td><td class="ok">통과 (테스트 234개, 묶은 앱 테스트 14개)</td></tr></table>
+</body></html>
