@@ -89,6 +89,16 @@
       "text": "C-LIGHT-SCOPE 검사: 체크된 완료 기준(- [x])도 세고, verify·deliver 기록 커밋(docs(verify)·docs(deliver))은 커밋 수에서 뺀다",
       "status": "approved",
       "decided": "2026-11-15T10:01:07.057+09:00"
+    },
+    {
+      "id": "I-010",
+      "created": "2026-11-15T11:28:50.034+09:00",
+      "task": "20261115-cleanup-five",
+      "scope": "framework",
+      "cause": "setting",
+      "text": "기록 스크립트: 검증 강도와 완료 기준 개수도 그 작업의 목표 문서(plan 게이트 근거, 예: docs/spec-cleanup-five.md)에서 읽는다. 지금은 docs/spec.md에서 읽어 '보통'인 작업이 '엄격', 기준 6개가 13개로 나온다. 사람 메시지 수가 0으로 나오는 것(/aif-plan 입력을 세지 않음)도 확인한다",
+      "status": "approved",
+      "decided": "2026-11-15T11:30:55.495+09:00"
     }
   ]
 }
