@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { existsSync, mkdtempSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { LOG_ROTATE_BYTES, rotateLogIfLarge } from './logRotate';
@@ -27,6 +27,16 @@ describe('launcher.log 크기 제한(spec-cleanup-five C2)', () => {
     rotateLogIfLarge(log);
     expect(statSync(log).size).toBe(LOG_ROTATE_BYTES);
     expect(existsSync(`${log}.1`)).toBe(false);
+  });
+
+  it('교체(이름 바꾸기)가 실패해도 오류 없이 지나가고 기존 파일은 그대로다(spec-start-fixes D4)', () => {
+    const log = logIn();
+    mkdirSync(`${log}.1`);
+    writeFileSync(join(`${log}.1`, 'x'), 'x'); // .1 자리에 비지 않은 폴더 → rename 실패
+    const big = 'x'.repeat(LOG_ROTATE_BYTES + 1);
+    writeFileSync(log, big);
+    expect(() => rotateLogIfLarge(log)).not.toThrow();
+    expect(statSync(log).size).toBe(big.length);
   });
 
   it('파일이 없어도 오류가 나지 않는다', () => {
