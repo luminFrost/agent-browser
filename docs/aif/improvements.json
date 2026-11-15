@@ -149,6 +149,26 @@
       "text": "규칙 추가(.claude/rules/aif/dev.md): 단위 테스트로 부품을 확인한 뒤 런처·앱 연결 코드(src/launcher/app.ts 등)를 바꿀 때도, 그 연결을 보는 E2E를 먼저 쓰고 실패를 본 뒤 고친다",
       "status": "done",
       "decided": "2026-11-15T18:57:58.454+09:00"
+    },
+    {
+      "id": "I-016",
+      "created": "2026-11-15T19:43:17.180+09:00",
+      "task": "20261115-company-setup",
+      "scope": "project",
+      "cause": "impl",
+      "text": "규칙 추가(.claude/rules/aif/dev.md): 문서·스크립트에 외부 서비스로 주고받는 명령(gh release 등)을 쓸 때는 그 서비스의 이름 규칙과 플래그를 --help와 실제 산출물 이름으로 확인하고, 문서의 파일 이름이 실제 산출물과 맞는지 시험으로 묶는다",
+      "status": "done",
+      "decided": "2026-11-15T19:44:01.827+09:00"
+    },
+    {
+      "id": "I-017",
+      "created": "2026-11-15T19:43:17.225+09:00",
+      "task": "20261115-company-setup",
+      "scope": "framework",
+      "cause": "setting",
+      "text": "aif task gate --evidence에 파일 경로가 아닌 글이 오면 경고한다. FAIL 게이트도 검증 보고 파일을 먼저 쓰고 그 경로를 넘기게 단계 스킬에 적는다(판정자가 증거 파일을 열 수 없었다)",
+      "status": "approved",
+      "decided": "2026-11-15T19:44:01.873+09:00"
     }
   ]
 }
