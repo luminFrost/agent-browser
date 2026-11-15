@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>회사 PC에서 Claude가 설치하고 쓰기 — 검사 결과</title>
+<style>
+body{font-family:-apple-system,"Apple SD Gothic Neo",sans-serif;max-width:760px;margin:40px auto;padding:0 20px;line-height:1.7;color:#1f2328;background:#fff}
+h1{font-size:1.5rem;margin-bottom:.2rem}h2{font-size:1.1rem;margin-top:2rem;border-bottom:1px solid #d8dee4;padding-bottom:.3rem}
+.sub{color:#59636e;margin-top:0}.box{background:#f0f7ff;border:1px solid #b6d4fe;border-radius:10px;padding:16px 20px}
+.todo{background:#fff8e6;border:1px solid #f2d48a;border-radius:10px;padding:16px 20px}
+table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #eaeef2;padding:6px 8px;text-align:left;vertical-align:top}
+th{color:#59636e;font-weight:500}.ok{color:#1a7f37;font-weight:600}code{background:#eef1f4;padding:1px 5px;border-radius:4px}
+@media (prefers-color-scheme:dark){body{background:#0d1117;color:#e6edf3}.sub,th{color:#9198a1}.box{background:#0c2d6b33;border-color:#1f6feb}.todo{background:#3b2e0a55;border-color:#9e6a03}h2,td,th{border-color:#30363d}.ok{color:#3fb950}code{background:#21262d}}
+pre{background:#eef1f4;padding:10px 12px;border-radius:8px;white-space:pre-wrap;word-break:break-all}@media (prefers-color-scheme:dark){pre{background:#21262d}}</style></head><body>
+<h1>회사 PC에서 Claude가 설치하고 쓰기 — 검사 결과</h1>
+<p class="sub">2026-11-15 · 작업 20261115-company-setup · 2회차 검사에서 통과 · 실작업 약 36분</p>
+<div class="box"><strong>결론:</strong> <b>회사 PC에서 GitHub으로 받은 저장소를 열고 Claude에게 "docs/setup.md대로 설치해 줘"라고 하면, Claude가 빌드·설치·등록·확인을 끝까지 합니다.</b> 빌드가 막히면 GitHub Release의 dmg로 설치합니다. 다른 프로젝트에서 이 브라우저를 쓰는 Claude는 붙는 순간 "쓸 때 알 것"을 안내로 받습니다.</div>
+
+<h2>지금 하실 일</h2>
+<div class="todo"><ol>
+<li><code>/aif-deliver</code>를 입력하세요. 승인을 받은 뒤 작업을 닫습니다. 그다음 <code>! git checkout main &amp;&amp; git merge --ff-only feat/company-setup</code>으로 합치시면 됩니다.</li>
+<li>GitHub에 <b>비공개</b> 저장소를 만들고 <b>main만</b> push하세요.
+<pre>git remote add origin &lt;저장소 주소&gt;
+git push -u origin main</pre>
+앞서 만든 <code>docs/install-guide</code> 브랜치는 이 Mac의 개인 경로가 들어 있고 이번 작업으로 대체되었으니 올리지 마세요. 지우려면 <code>git branch -D docs/install-guide</code>를 실행하시면 됩니다.</li>
+<li>회사 PC에서:
+<pre>git clone &lt;저장소 주소&gt; agent-browser &amp;&amp; cd agent-browser
+claude</pre>
+그리고 Claude에게 <b>"docs/setup.md대로 agent-browser를 설치해 줘"</b>라고 말하세요. Claude가 끝나면 앱을 한 번 열고(막히면 우클릭 → 열기), 회사 계정에 로그인하면 됩니다.</li>
+<li>Claude가 "빌드가 막혀 Release가 필요하다"고 하면, 이 Mac에서 <code>docs/setup.md</code>의 "Release 올리기" 명령을 실행해 주세요.</li>
+</ol></div>
+
+<h2>된 것</h2>
+<table><tr><th>바라던 것</th><th>결과</th></tr>
+<tr><td>회사 PC의 Claude가 읽고 따라 할 설치 절차</td><td class="ok">통과 — <code>docs/setup.md</code>. 단계마다 성공 판단과 실패 때 할 일이 있고, <code>CLAUDE.md</code>가 이 문서를 가리킴</td></tr>
+<tr><td>설치를 한 번에 해 주는 스크립트</td><td class="ok">통과 — 깨끗한 저장소에서 실제로 빌드부터 등록까지 성공(검사에서는 가짜 claude와 임시 폴더를 써서 선생님 설정은 안 건드림)</td></tr>
+<tr><td>빌드가 안 되면 Release dmg로</td><td class="ok">통과 — Node가 없는 환경에서 dmg로 설치 성공</td></tr>
+<tr><td>조건이 안 맞으면 아무것도 바꾸지 않고 이유를 알림</td><td class="ok">통과 — Apple Silicon 아님, claude 없음, Node 없음·낮음</td></tr>
+<tr><td>다른 프로젝트에서 쓸 때 Claude가 알 것</td><td class="ok">통과 — 붙는 순간 안내를 받음: 자기 창만 보임, 회사 계정을 함께 씀, 폼 제출·다운로드는 사람 허용 대기, 허용 창은 보조일 뿐이라 위험은 스스로 판단, 막힌 도구, 끊기면 /mcp</td></tr>
+<tr><td>GitHub에 올리면 안 될 것</td><td class="ok">통과 — 대화 기록(.aif/tasks)과 .DS_Store 제외, 추적 파일에 개인 경로·이메일·토큰 없음</td></tr>
+<tr><td>기존 기능</td><td class="ok">통과 — 테스트 281개, 묶은 앱 테스트 16개</td></tr></table>
+
+<h2>1회차에서 걸린 것</h2>
+<p>설치 문서의 Release 받기 명령이 dmg 이름 <code>Agent Browser-…</code>(공백 포함)를 기대했습니다. 하지만 GitHub은 올린 파일 이름의 공백을 바꿉니다. 그래서 회사 PC에서 "파일 없음"으로 실패했을 겁니다. dmg 이름을 <b><code>Agent-Browser-0.1.0-arm64.dmg</code></b>로 바꾸고, 이 어긋남을 잡는 테스트를 넣었습니다.</p>
+
+<h2>알아 두실 것</h2>
+<ul>
+<li>dmg 파일 이름이 바뀌었습니다: <code>release/Agent-Browser-0.1.0-arm64.dmg</code>.</li>
+<li>git 커밋에는 작성자 이메일이 남습니다. GitHub에 올리면 저장소를 볼 수 있는 사람에게 보입니다. 비공개 저장소면 문제없습니다.</li>
+<li>남은 작은 것 7건(문서 표현, 드문 경우의 오류 문구, 테스트 보강)은 검사 보고서 "후속"에 있습니다. 급하지 않습니다.</li>
+</ul>
+</body></html>
