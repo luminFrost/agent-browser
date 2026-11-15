@@ -1,6 +1,7 @@
 import { test, expect, chromium } from '@playwright/test';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { McpClient } from '../e2e/mcpClient';
+import { AGENT_BROWSER_GUIDE } from '../../src/attach/attach';
 import { startTestServer } from '../fixtures/server';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -344,6 +345,8 @@ test('A5·A6·A1·A2·A3 붙이기 명령: 앱이 꺼져 있어도 Node 없이 �
     }));
     expect(Date.now() - started).toBeLessThan(ATTACH_START_WITHIN_MS);
     expect(launchersOf(profile)).toHaveLength(1); // ADR-0008: 런처는 1개
+    // B5(spec-company-setup): 쓸 때 알 것이 MCP 안내로 온다
+    for (const mcp of clients) expect(mcp.initResult.instructions?.startsWith(AGENT_BROWSER_GUIDE)).toBe(true);
 
     // A1·A2: 각자 자기 창에서 다른 페이지를 열고, 서로의 탭이 보이지 않는다
     const paths = ['/a?n=1', '/b?n=2', '/a?n=3']; // 서로의 부분 문자열이 아니다
