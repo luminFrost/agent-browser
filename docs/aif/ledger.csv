@@ -1,2 +1,3 @@
 id,title,purpose,variant,size,strength,start,end,status,active_min,wall_min,budget_min,budget_ratio,tokens_total,tokens_in,tokens_out,cache_write,cache_read,bg_tokens,human_prompts,corrections,decisions_after_approval,verify_rounds,verify_fails,criteria,commits,verdict_rules,verdict_eff,verdict_quality,fw
 20261114-agent-browser,agent-browser (Electron + CDP 에이전트 공간 브라우저),develop,app,L,엄격,2026-11-14T09:07:44.420+09:00,2026-11-14T19:03:32.297+09:00,완료,170,596,,,2031065,556,413158,1617351,70719419,44604,12,3,1,5,4,13,33,주의,문제,문제,0.5.0
+20261114-mac-app-package,agent-browser (Electron + CDP 에이전트 공간 브라우저),develop,app,M,엄격,2026-11-14T19:20:55.218+09:00,2026-11-15T09:28:48.796+09:00,완료,112.2,848,120,0.94,0,0,0,0,0,43616,0,0,0,3,2,13,9,문제,문제,주의,0.5.0
