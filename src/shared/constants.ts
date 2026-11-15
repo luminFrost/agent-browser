@@ -12,3 +12,5 @@ export const LAUNCHER_LOCK_NAME = 'launcher.lock';
 export const LAUNCHER_LOCK_ENV = 'AGENT_BROWSER_LAUNCHER_LOCK';
 /** 묶은 앱에서 런처 출력을 남기는 파일(프로필 안) */
 export const LAUNCHER_LOG_NAME = 'launcher.log';
+/** 제어 정보(포트·토큰) 파일(프로필 안). 붙이기 명령도 읽는다(spec-claude-attach) */
+export const CONTROL_FILE_NAME = 'control.json';

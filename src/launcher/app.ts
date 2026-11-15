@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import { join, resolve } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
 import { CdpPipe } from './cdpPipe';
-import { DOWNLOADS_FLAG, HIDDEN_FLAG, USER_DATA_FLAG } from '../shared/constants';
+import { CONTROL_FILE_NAME, DOWNLOADS_FLAG, HIDDEN_FLAG, USER_DATA_FLAG } from '../shared/constants';
 import { newToken } from './control/auth';
 import { removeControlFile, writeControlFile } from './control/controlFile';
 import { startControlServer } from './control/server';
@@ -49,7 +49,6 @@ export interface RunningApp {
 
 const DEFAULT_BROWSER_MAIN = resolve(__dirname, '..', '..', 'dist', 'browser', 'main.js');
 const DEFAULT_REPLY_TIMEOUT_MS = 30_000;
-const CONTROL_FILE_NAME = 'control.json';
 
 /**
  * 브라우저로 띄울 Electron 실행 파일.
