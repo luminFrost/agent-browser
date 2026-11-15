@@ -38,3 +38,11 @@ T0 결과에 따라 T4·T12·T13의 방식이 바뀔 수 있다. 완료 기준�
 | F3 | 꺼지는 순간 다시 열기(자물쇠 사라짐·ESRCH) | `src/app/startDecision.ts`(+test), `src/app/entry.ts` | D1 | `npx vitest run src/app/startDecision.test.ts` | [x] |
 | F4 | 신호 받음 표시로 고정 대기 없앰 | `src/app/launcherLock.ts`, `src/launcher/cli.ts`, `src/app/startDecision.ts`(+test), `tests/dist/packaged.spec.ts` | D2 | 단위 + `npm run test:dist` | [x] |
 | F5 | 15초 실패 알림(오류 창 + 기록 + 종료 코드 1) | `src/app/startDecision.ts`(+test), `src/app/entry.ts` | D3 | `npx vitest run src/app/startDecision.test.ts` | [x] |
+
+## 20261115-claude-attach (정본 `docs/spec-claude-attach.md`)
+| # | 작업 | 바꿀 파일 | 인수 사례 | 확인 명령 | 완료 |
+|---|---|---|---|---|---|
+| G1 | 세션 닫기 API(`DELETE /sessions/<id>`)와 붙잡기(`POST /sessions?hold=1`: 연결이 끊기면 세션을 닫음) | `src/launcher/control/server.ts`(+test), `src/launcher/app.ts` | A4, A3(다) | `npx vitest run src/launcher/control`, `npm test` | [x] |
+| G2 | 붙이기 명령: 앱 찾기·켜기(15초), 붙잡은 세션, 함께 넣은 chrome-devtools-mcp 띄우기, 끝날 때 닫기 | `src/attach/attach.ts`(+test), `src/attach/cli.ts` | A1, A3, A5, A7 | `npx vitest run src/attach` | [ ] |
+| G3 | 앱에 묶기(chrome-devtools-mcp를 dependencies로, `Contents/Resources/agent-browser-mcp`) + 묶은 앱 E2E | `package.json`, `resources/agent-browser-mcp`, `tests/dist/packaged.spec.ts` | A1, A2, A3, A5, A6 | `npm run test:dist` | [ ] |
+| G4 | 사용 안내 | `README.md` | A8 | 원문 확인 | [ ] |

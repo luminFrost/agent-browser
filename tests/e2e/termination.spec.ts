@@ -1,4 +1,6 @@
 import { test, expect, chromium, type Browser } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { request as httpRequest } from 'node:http';
 import { launch, createSession, CdpClient, evaluate, targets, waitFor, type SessionInfo } from './helpers';
 import { startTestServer, type TestServer } from '../fixtures/server';
 import type { RunningApp } from '../../src/launcher/app';
@@ -54,6 +56,41 @@ test('R9: 사람이 A의 창을 닫아도 같다', async () => {
     await expectEnded(a, browserA, wsA);
     await expectAlive(b, browserB);
   } finally { await browserB.close().catch(() => undefined); }
+});
+
+const control = () => JSON.parse(readFileSync(app.controlFile, 'utf8')) as { port: number; token: string };
+
+test('A4(spec-claude-attach): DELETE /sessions/<id>로 A를 닫으면 R9와 같이 끝나고 B는 계속 동작한다', async () => {
+  const [a, b] = [await createSession(app), await createSession(app)];
+  const wsA = ((await (await fetch(a.browserUrl + 'json/version')).json()) as { webSocketDebuggerUrl: string }).webSocketDebuggerUrl;
+  const [browserA, browserB] = await Promise.all([chromium.connectOverCDP(a.browserUrl), chromium.connectOverCDP(b.browserUrl)]);
+  try {
+    const { port, token } = control();
+    const res = await fetch(`http://127.0.0.1:${port}/sessions/${a.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(204);
+    await expectEnded(a, browserA, wsA);
+    await expectAlive(b, browserB);
+    expect((await fetch(`http://127.0.0.1:${port}/sessions/${a.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } })).status).toBe(404);
+  } finally { await browserB.close().catch(() => undefined); }
+});
+
+test('A3 다(spec-claude-attach): 붙잡은 세션의 연결이 끊기면 그 창이 닫힌다', async () => {
+  const { port, token } = control();
+  const held = await new Promise<{ info: SessionInfo; drop: () => void }>((ok, fail) => {
+    const req = httpRequest({ host: '127.0.0.1', port, path: '/sessions?hold=1', method: 'POST', headers: { authorization: `Bearer ${token}` } }, (res) => {
+      let buf = '';
+      res.on('data', (d: Buffer) => { buf += d.toString(); const i = buf.indexOf('\n'); if (i >= 0) ok({ info: JSON.parse(buf.slice(0, i)) as SessionInfo, drop: () => req.destroy() }); });
+      res.on('error', () => undefined);
+    });
+    req.on('error', fail);
+    req.end();
+  });
+  const b = await createSession(app);
+  expect(await agentWindows()).toContain(held.info.id);
+  held.drop();
+  await waitFor(async () => !(await agentWindows()).includes(held.info.id), '끊긴 세션의 창이 닫힘', 5_000);
+  await waitFor(async () => !(await responds(held.info)), '끊긴 세션의 browserUrl이 응답하지 않음', 5_000);
+  expect(await responds(b)).toBe(true);
 });
 
 test('없는 세션을 멈추라고 하면 아무 일도 없다', async () => {

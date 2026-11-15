@@ -174,6 +174,12 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
       sessions.add({ id, endpoint });
       return { id, browserUrl: endpoint.browserUrl };
     },
+    // 붙이기 명령이 끝났거나 붙잡은 연결이 끊겼다(spec-claude-attach A3·A4)
+    async closeSession(id) {
+      if (!sessions.get(id)) return false;
+      await stopSession(id);
+      return true;
+    },
   });
   const controlFile = options.controlFile ?? join(options.userDataDir, CONTROL_FILE_NAME);
   writeControlFile(controlFile, { port: control.port, token });
