@@ -9,7 +9,7 @@ export class McpClient {
   private buffer = '';
   private readonly waiters = new Map<number, (m: { result?: { content?: { text?: string }[]; isError?: boolean }; error?: { message: string } }) => void>();
 
-  private constructor(private readonly proc: ChildProcess) {
+  private constructor(readonly proc: ChildProcess) {
     proc.stdout!.on('data', (d: Buffer) => {
       this.buffer += d.toString();
       let i: number;
@@ -23,14 +23,18 @@ export class McpClient {
 
   static async start(browserUrl: string): Promise<McpClient> {
     // 외부 전송(사용 통계, CrUX)을 끈다
-    const proc = spawn(BIN, ['--browserUrl', browserUrl, '--no-usage-statistics', '--no-performance-crux'], { stdio: ['pipe', 'pipe', 'ignore'] });
+    return McpClient.over(spawn(BIN, ['--browserUrl', browserUrl, '--no-usage-statistics', '--no-performance-crux'], { stdio: ['pipe', 'pipe', 'ignore'] }));
+  }
+
+  /** stdio MCP 서버 프로세스(붙이기 명령 등)에 붙어 initialize까지 한다 */
+  static async over(proc: ChildProcess): Promise<McpClient> {
     const client = new McpClient(proc);
     await client.rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'agent-browser-e2e', version: '0' } });
     proc.stdin!.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
     return client;
   }
 
-  private rpc(method: string, params: Record<string, unknown>) {
+  rpc(method: string, params: Record<string, unknown>) {
     const id = this.nextId++;
     return new Promise<{ result?: { content?: { text?: string }[]; isError?: boolean }; error?: { message: string } }>((ok, fail) => {
       const timer = setTimeout(() => fail(new Error(`MCP ${method} 응답 없음`)), 30_000);
