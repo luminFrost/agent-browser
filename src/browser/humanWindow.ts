@@ -22,6 +22,8 @@ export type Shown = ({ view: 'human'; contentsId?: number } | { view: 'session';
   content: { width: number; height: number };
   /** 마지막으로 키보드 포커스를 받은 webContents id(E3 진단용) */
   focusedContentsId?: number;
+  /** 키보드 포커스가 창 UI(주소창·패널)에 있다(E3 진단용) */
+  focusedUi: boolean;
 };
 
 export interface HumanWindow {
@@ -99,6 +101,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents): Hum
     }
     const shownView = currentShownView();
     if (shownView) win.contentView.addChildView(shownView);
+    checkFocusAfterLayout();
   };
   /**
    * 키보드 포커스: 보이지 않는 세션 탭이 포커스를 받으면(탭이 생길 때, 에이전트의 Page.bringToFront 등) 사람의 키 입력이
@@ -106,13 +109,17 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents): Hum
    * 그래서 화면에 보이는 탭(없으면 창 UI)으로 포커스를 바로 돌려준다. 에이전트의 CDP 입력은 포커스 없이도 들어간다.
    */
   let focusedContentsId: number | undefined;
+  /** 사람이 마지막으로 쓴 자리: 창 UI(주소창·패널) 또는 그때 화면에 보이던 탭. 포커스를 되돌릴 곳이다 */
+  let humanFocus: Electron.WebContents | undefined;
   const currentShownView = () => (viewing === null ? tabs.shownView() : sessions.get(viewing)?.shownView());
-  const tabFocused = (view: WebContentsView) => {
-    if (win.isDestroyed()) return;
-    const shownView = currentShownView();
-    focusedContentsId = view.webContents.id;
-    if (view === shownView) return;
-    const target = shownView?.webContents ?? win.webContents;
+  /** 되돌릴 곳: 사람이 쓰던 자리가 창 UI거나 지금 보이는 탭이면 그곳, 아니면 창 UI(페이지 입력칸에 엉뚱하게 들어가지 않게) */
+  const restoreTarget = () => {
+    const shown = currentShownView()?.webContents;
+    if (humanFocus && !humanFocus.isDestroyed() && (humanFocus === win.webContents || humanFocus === shown)) return humanFocus;
+    return win.webContents;
+  };
+  const restoreFocus = () => {
+    const target = restoreTarget();
     // focus 이벤트 처리 중에 되돌리면 Chromium이 그 뒤에 에이전트 탭 활성화를 마저 해서 되돌림이 사라진다. 한 틱 뒤에 한다
     setImmediate(() => {
       if (win.isDestroyed() || target.isDestroyed()) return;
@@ -120,7 +127,23 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents): Hum
       focusedContentsId = target.id; // OS 포커스가 없으면(테스트 화면) focus 이벤트가 오지 않아 여기서 적는다
     });
   };
-  win.webContents.on('focus', () => { focusedContentsId = win.webContents.id; });
+  /** 탭(사람 탭이든 세션 탭이든)이 포커스를 받았다. 화면에 보이는 탭이 아니면 사람이 쓰던 자리로 돌려준다 */
+  const tabFocused = (view: WebContentsView) => {
+    if (win.isDestroyed()) return;
+    focusedContentsId = view.webContents.id;
+    if (view === currentShownView()) { humanFocus = view.webContents; return; }
+    restoreFocus();
+  };
+  /** 보이는 탭이 바뀌었는데 포커스가 이제 화면에 없는 탭에 남아 있으면 돌려준다(에이전트의 activateTarget 등) */
+  const checkFocusAfterLayout = () => {
+    if (focusedContentsId === undefined || focusedContentsId === win.webContents.id) return;
+    if (focusedContentsId === currentShownView()?.webContents.id) return;
+    restoreFocus();
+  };
+  win.webContents.on('focus', () => {
+    focusedContentsId = win.webContents.id;
+    humanFocus = win.webContents;
+  });
 
   // 세션 탭 묶음은 창 크기를 스스로 따르지 않는다(세션마다 리스너가 쌓이지 않게). 사람 창이 한 번 받아 모두 다시 놓는다
   const onResize = () => { for (const strip of sessions.values()) strip.relayout(); };
@@ -135,7 +158,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents): Hum
     ...CONTENT_AREA,
     onChange: () => { if (viewing === null) sendToolbar(); },
     onLayout: restack,
-    onTabFocus: (view) => { focusedContentsId = view.webContents.id; },
+    onTabFocus: tabFocused, // 세션을 보는 동안 숨은 사람 탭(window.open 등)도 같다
   });
 
   let lastSessions: SessionView[] = [];
@@ -216,8 +239,9 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents): Hum
     shown: () => {
       const { width, height } = win.getContentBounds();
       const content = { width, height };
-      if (viewing === null) return { view: 'human', contentsId: tabs.shownContentsId(), exposed, content, focusedContentsId };
-      return { view: 'session', sessionId: viewing, contentsId: sessions.get(viewing)?.shownContentsId(), exposed, content, focusedContentsId };
+      const focusedUi = focusedContentsId === win.webContents.id;
+      if (viewing === null) return { view: 'human', contentsId: tabs.shownContentsId(), exposed, content, focusedContentsId, focusedUi };
+      return { view: 'session', sessionId: viewing, contentsId: sessions.get(viewing)?.shownContentsId(), exposed, content, focusedContentsId, focusedUi };
     },
     restack,
     tabFocused,
