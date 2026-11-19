@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow, ipcMain, type WebContentsView } from 'electron';
 import { join } from 'node:path';
 import { TabStrip } from './tabStrip';
 import { SHARED_PARTITION } from '../shared/constants';
@@ -20,6 +20,8 @@ export type Shown = ({ view: 'human'; contentsId?: number } | { view: 'session';
   exposed: Rect[];
   /** 창 내용 크기 */
   content: { width: number; height: number };
+  /** 마지막으로 키보드 포커스를 받은 webContents id(E3 진단용) */
+  focusedContentsId?: number;
 };
 
 export interface HumanWindow {
@@ -38,6 +40,8 @@ export interface HumanWindow {
   shown(): Shown;
   /** 탭의 위아래 순서와 비켜 둔 세션 탭의 자리를 다시 정한다(탭 배치가 바뀐 뒤 부른다) */
   restack(): void;
+  /** 세션 탭이 키보드 포커스를 받았다. 화면에 보이는 탭이 아니면 포커스를 사람이 보는 쪽으로 돌려준다 */
+  tabFocused(view: WebContentsView): void;
 }
 
 export interface HumanWindowEvents {
@@ -93,9 +97,31 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents): Hum
       // 오른쪽 열들은 위에 놓인(k가 작은) 탭이 덮으므로, 드러난 것은 자기 왼쪽 위 한 점이다
       exposed.unshift({ x, y: height - 1, width: Math.min(w, 1), height: Math.min(h, 1) });
     }
-    const shownView = viewing === null ? tabs.shownView() : sessions.get(viewing)?.shownView();
+    const shownView = currentShownView();
     if (shownView) win.contentView.addChildView(shownView);
   };
+  /**
+   * 키보드 포커스: 보이지 않는 세션 탭이 포커스를 받으면(탭이 생길 때, 에이전트의 Page.bringToFront 등) 사람의 키 입력이
+   * 화면에 없는 에이전트 페이지로 조용히 들어간다(비밀번호 등). 예전에는 에이전트 창이 앞으로 나와 알아챘다.
+   * 그래서 화면에 보이는 탭(없으면 창 UI)으로 포커스를 바로 돌려준다. 에이전트의 CDP 입력은 포커스 없이도 들어간다.
+   */
+  let focusedContentsId: number | undefined;
+  const currentShownView = () => (viewing === null ? tabs.shownView() : sessions.get(viewing)?.shownView());
+  const tabFocused = (view: WebContentsView) => {
+    if (win.isDestroyed()) return;
+    const shownView = currentShownView();
+    focusedContentsId = view.webContents.id;
+    if (view === shownView) return;
+    const target = shownView?.webContents ?? win.webContents;
+    // focus 이벤트 처리 중에 되돌리면 Chromium이 그 뒤에 에이전트 탭 활성화를 마저 해서 되돌림이 사라진다. 한 틱 뒤에 한다
+    setImmediate(() => {
+      if (win.isDestroyed() || target.isDestroyed()) return;
+      target.focus();
+      focusedContentsId = target.id; // OS 포커스가 없으면(테스트 화면) focus 이벤트가 오지 않아 여기서 적는다
+    });
+  };
+  win.webContents.on('focus', () => { focusedContentsId = win.webContents.id; });
+
   // 세션 탭 묶음은 창 크기를 스스로 따르지 않는다(세션마다 리스너가 쌓이지 않게). 사람 창이 한 번 받아 모두 다시 놓는다
   const onResize = () => { for (const strip of sessions.values()) strip.relayout(); };
   const relayoutAll = () => {
@@ -109,6 +135,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents): Hum
     ...CONTENT_AREA,
     onChange: () => { if (viewing === null) sendToolbar(); },
     onLayout: restack,
+    onTabFocus: (view) => { focusedContentsId = view.webContents.id; },
   });
 
   let lastSessions: SessionView[] = [];
@@ -189,9 +216,10 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents): Hum
     shown: () => {
       const { width, height } = win.getContentBounds();
       const content = { width, height };
-      if (viewing === null) return { view: 'human', contentsId: tabs.shownContentsId(), exposed, content };
-      return { view: 'session', sessionId: viewing, contentsId: sessions.get(viewing)?.shownContentsId(), exposed, content };
+      if (viewing === null) return { view: 'human', contentsId: tabs.shownContentsId(), exposed, content, focusedContentsId };
+      return { view: 'session', sessionId: viewing, contentsId: sessions.get(viewing)?.shownContentsId(), exposed, content, focusedContentsId };
     },
     restack,
+    tabFocused,
   };
 }

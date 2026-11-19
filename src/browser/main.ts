@@ -37,9 +37,11 @@ const listWindows = (): WindowInfo[] => BrowserWindow.getAllWindows().filter((w)
 const shownTab = (): BrowserReply => {
   if (!human) return { type: 'error', message: '사람 창이 없다' };
   const s = human.shown();
-  if (s.view === 'human') return { type: 'shownTab', view: 'human', exposed: s.exposed, content: s.content };
+  const focused = s.focusedContentsId;
+  const focusedSession = focused === undefined ? null : [...agents.values()].find((a) => a.contentsIds.has(focused))?.sessionId ?? null;
+  if (s.view === 'human') return { type: 'shownTab', view: 'human', exposed: s.exposed, content: s.content, focusedSession };
   const targetId = s.contentsId === undefined ? undefined : agents.get(s.sessionId)?.targetIds.get(s.contentsId);
-  return { type: 'shownTab', view: 'session', sessionId: s.sessionId, ...(targetId ? { targetId } : {}), exposed: s.exposed, content: s.content };
+  return { type: 'shownTab', view: 'session', sessionId: s.sessionId, ...(targetId ? { targetId } : {}), exposed: s.exposed, content: s.content, focusedSession };
 };
 
 /** 사람 창의 지켜보기 패널에 세션과 탭 URL을 보인다(R11) */
@@ -89,6 +91,7 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
           refreshPanel();
         },
         layoutChanged: () => host.restack(),
+        tabFocused: (view) => host.tabFocused(view),
       });
       agents.set(m.sessionId, agent);
       host.addSession(m.sessionId, agent.tabs);

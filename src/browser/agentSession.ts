@@ -1,4 +1,4 @@
-import type { BrowserWindow, WebContents } from 'electron';
+import type { BrowserWindow, WebContents, WebContentsView } from 'electron';
 import { TabStrip } from './tabStrip';
 import { targetIdOf } from './targetId';
 import { SHARED_PARTITION } from '../shared/constants';
@@ -33,6 +33,8 @@ export interface AgentSessionEvents {
   closed(sessionId: string): void;
   /** 탭 배치가 바뀌었다(사람 창이 보는 탭을 다시 맨 위로 올린다) */
   layoutChanged(): void;
+  /** 탭이 키보드 포커스를 받았다 */
+  tabFocused(view: WebContentsView): void;
 }
 
 /** 세션 탭이 들어갈 사람 창의 자리(주소창 아래, 지켜보기 패널 왼쪽) */
@@ -72,6 +74,7 @@ export function createAgentSession(sessionId: string, host: BrowserWindow, area:
     onTabCreated: announce,
     onLayout: () => events.layoutChanged(),
     followResize: false, // 사람 창이 크기 변화를 한 번 받아 모든 세션을 다시 놓는다
+    onTabFocus: (view) => events.tabFocused(view),
     allowNavigation: isAgentNavigable,
     onTabClosing: (contentsId) => {
       contentsIds.delete(contentsId);

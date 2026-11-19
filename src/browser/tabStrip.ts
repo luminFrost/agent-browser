@@ -43,6 +43,8 @@ export interface TabStripOptions {
   onLayout?(): void;
   /** 창 크기가 바뀌면 스스로 다시 놓는다(기본 true). false면 창 주인이 relayout을 부른다 */
   followResize?: boolean;
+  /** 탭이 키보드 포커스를 받았다(창 주인이 보이지 않는 탭에서 포커스를 되찾는다) */
+  onTabFocus?(view: WebContentsView): void;
 }
 
 /** 오류 페이지 문구. 앱이 막은 경우(관문 거부) 다른 문구를 쓴다 */
@@ -77,9 +79,10 @@ export class TabStrip {
     this.layout();
   }
 
-  /** 이 묶음을 왼쪽 영역에 보일지 정한다 */
+  /** 이 묶음을 왼쪽 영역에 보일지 정한다. 다시 보일 때는 활성 탭부터 보인다(E2) */
   setShown(shown: boolean): void {
     this.shown = shown;
+    if (!shown) this.displayId = null;
     this.layout();
   }
 
@@ -258,6 +261,7 @@ export class TabStrip {
         return view.webContents;
       },
     }));
+    wc.on('focus', () => this.options.onTabFocus?.(tab.view));
     const update = () => this.emit();
     wc.on('did-start-loading', update);
     wc.on('did-stop-loading', update);
