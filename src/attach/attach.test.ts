@@ -87,6 +87,6 @@ describe('쓸 때 알 것을 initialize 응답에 덧붙임 (spec-company-setup 
   });
 
   it('안내에 이 브라우저를 쓸 때 알아야 할 것이 있다', () => {
-    for (const must of ['agent-browser', '이 세션 전용 탭', '사람 창 안', '사람', '허용', 'emulate', '/mcp', 'fetch', '스스로 판단']) expect(AGENT_BROWSER_GUIDE).toContain(must);
+    for (const must of ['agent-browser', '이 세션 전용 탭', '사람 창 안', '패널에서 이 세션을 멈췄거나', '사람', '허용', 'emulate', '/mcp', 'fetch', '스스로 판단']) expect(AGENT_BROWSER_GUIDE).toContain(must);
   });
 });
