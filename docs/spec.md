@@ -25,7 +25,7 @@
 ## 요구사항과 인수 사례 (= 완료 기준, 끝난 뒤 자동 판정)
 | # | 요구사항 | 인수 사례 (입력 → 기대 결과) | 확인 방법 |
 |---|---|---|---|
-| R1 | 창 분리 | 앱 실행 → 사람 창 1개만 있다. 세션을 만들면 → 에이전트 창이 새로 1개 생긴다 | E2E (테스트가 `startApp`을 직접 띄움, ADR-0002) |
+| R1 | 창 분리 | 앱 실행 → 사람 창 1개만 있다. 세션을 만들면 → 에이전트 창이 새로 1개 생긴다 → **바뀜: 세션은 창을 띄우지 않고 사람 창 안의 탭 묶음이 된다(spec-embedded-sessions E1, ADR-0009)** | E2E (테스트가 `startApp`을 직접 띄움, ADR-0002) |
 | R2 | 로그인 공유 | 사람 창에서 로컬 테스트 서버에 로그인 → 세션 A의 탭에서 같은 주소를 열면 로그인 상태다. 앱을 다시 켜도 유지된다 | E2E + 로컬 테스트 서버 |
 | R3 | 세션 생성 | 토큰 파일(권한 0600)의 토큰을 붙여 `POST http://127.0.0.1:<제어포트>/sessions` → `{id, browserUrl}`을 받는다(세션마다 별도 포트, 경로에 세션 비밀값). browserUrl의 `/json/version`과 `/json/list`가 CDP 형식으로 응답한다 | 단위(Vitest) + E2E |
 | R4 | 기존 도구 호환 | chrome-devtools-mcp를 `--browserUrl`로 붙여 navigate와 snapshot이 성공한다. Playwright의 `connectOverCDP`로 페이지를 열고 클릭할 수 있다 | E2E (chrome-devtools-mcp, Playwright) |
@@ -33,9 +33,9 @@
 | R6 | 격리 우회 차단 | A가 B의 탭 targetId나 사람 창의 탭 targetId로 `attachToTarget` → 오류를 받는다. A의 `Target.createTarget`과 A의 탭에서 연 팝업(`window.open`) → A의 창에 생긴다 | 단위 + E2E |
 | R7 | 공유 상태 보호 | A가 CDP 명령으로 브라우저 전체나 다른 출처의 상태를 지우거나 바꾸려 한다(`Browser.close`, `Network.clearBrowserCookies`, `Storage.clearDataForOrigin`, 쿠키 설정, `ServiceWorker.unregister`, Fetch 응답의 Set-Cookie 등) → 오류를 받고 사람의 로그인은 그대로다. 페이지 세션 명령은 허용 목록으로 거른다(ADR-0004) | 단위 + E2E |
 | R8 | 동시 세션 | A와 B가 동시에 다른 주소로 navigate → 서로 영향이 없다 | E2E |
-| R9 | 종료 | 사람이 세션 A를 멈추거나 A의 창을 닫는다 → A의 CDP 연결이 끊기고 A의 browserUrl은 더 이상 응답하지 않는다. B는 계속 동작한다 | E2E |
+| R9 | 종료 | 사람이 세션 A를 멈추거나 A의 창을 닫는다(바뀜: 창이 없으므로 패널의 멈추기, spec-embedded-sessions E6) → A의 CDP 연결이 끊기고 A의 browserUrl은 더 이상 응답하지 않는다. B는 계속 동작한다 | E2E |
 | R10 | 잘못된 접속 | 없는 세션이나 이미 끝난 세션의 엔드포인트에 접속 → 거부된다. 외부 인터페이스 IP로 접속 → 연결되지 않는다 (127.0.0.1에만 바인딩). 토큰 없이 또는 틀린 토큰으로 `POST /sessions` → 401. 세션 포트에 비밀 경로 없이 `/json/version` → 거부 | 단위 + E2E |
-| R11 | 지켜보기 | 사람 창에 세션 목록과 각 세션의 탭 URL이 보이고, "멈추기" 버튼이 R9처럼 동작한다 | E2E (화면) + 상태별 스크린샷 |
+| R11 | 지켜보기 | 사람 창에 세션 목록과 각 세션의 탭 URL이 보이고, "멈추기" 버튼이 R9처럼 동작한다. 더해서 "보기"로 그 세션의 탭을 왼쪽 화면에 띄운다(spec-embedded-sessions E2) | E2E (화면) + 상태별 스크린샷 |
 | R12 | 폼 제출 관문 | 세션 A의 탭에서 로컬 테스트 서버의 폼을 제출(POST로 페이지 이동, iframe 안으로 보내는 POST 포함 — ADR-0004) → 요청이 서버에 닿기 전에 멈추고 사람 창에 "세션 A · 호스트 · 폼 제출 — 허용/거부"가 뜬다. 허용하면 서버가 요청을 받고, 거부하면 서버가 받지 않으며 A의 탭에는 차단 오류 페이지가 뜬다. GET 이동은 묻지 않는다 | E2E + 테스트 서버 요청 기록 |
 | R13 | 다운로드 관문 | 세션 A의 탭에서 다운로드가 시작된다 → 사람 창에서 허용해야 저장된다. 거부하면 파일이 생기지 않는다. 사람 창의 다운로드는 묻지 않는다 | E2E |
 

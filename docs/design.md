@@ -4,7 +4,7 @@ spec: docs/spec.md · 코드로 알 수 없는 결정만 적는다 · 관련 ADR
 ## 구조 결정
 - **브라우저 수준 명령은 넘기지 않고 흉내 낸다.** 원본 파이프 하나를 모든 세션과 연결이 함께 쓴다. 그래서 브라우저 수준 상태(`Target.setAutoAttach`, `setDiscoverTargets`, `Browser.setDownloadBehavior`)를 넘기면 다른 세션과 사람 창에까지 영향을 준다. 예를 들어 Playwright의 `setAutoAttach {waitForDebuggerOnStart: true}`를 넘기면 사람 창의 새 탭이 디버거를 기다리며 멈춘다. 런처는 브라우저 수준에서 `setDiscoverTargets`만 한 번 켠다. 나머지는 연결(WebSocket)마다 상태를 들고 흉내 낸다.
   - 버린 대안: 세션마다 브라우저 프로세스를 따로 띄우기. 로그인 공유(R2)가 깨진다.
-- **소유권은 브라우저 main이 정한다.** 에이전트 창에 탭이 생기면(세션 생성, `createTarget` 흉내, 팝업) 브라우저 main이 그 탭의 targetId를 알아내 런처에 `tabAdded {sessionId, targetId}`로 알린다. targetId는 `webContents.debugger`로 `Target.getTargetInfo`를 불러 얻는다. 탭이 닫히면 `tabRemoved`를 보낸다. 런처의 세션 범위(scope)는 이 알림으로만 커진다. 전역 `targetCreated` 이벤트로는 소유권을 정하지 않는다.
+- **소유권은 브라우저 main이 정한다.** 에이전트 세션의 탭 묶음(사람 창 안)에 탭이 생기면(세션 생성, `createTarget` 흉내, 팝업) 브라우저 main이 그 탭의 targetId를 알아내 런처에 `tabAdded {sessionId, targetId}`로 알린다. targetId는 `webContents.debugger`로 `Target.getTargetInfo`를 불러 얻는다. 탭이 닫히면 `tabRemoved`를 보낸다. 런처의 세션 범위(scope)는 이 알림으로만 커진다. 전역 `targetCreated` 이벤트로는 소유권을 정하지 않는다.
 - **page와 짝 tab 대상을 함께 범위에 넣는다.** Chrome(Electron 포함)에는 page마다 `tab` 종류의 대상이 따로 있다. 최신 puppeteer(chrome-devtools-mcp)는 page를 빼고 tab에 붙은 뒤, tab 세션 안의 autoAttach로 page를 받는다(T7에서 확인). 그래서 런처는 소유권 알림(page)을 받으면 짝 tab을 찾아 함께 넣는다. 짝은 tab 대상에 잠깐 붙어 `setAutoAttach`로 자식 page를 확인해 찾고, tab마다 한 번만 확인해 기억한다. `Target.getTargets`는 CDP 기본 filter(browser·tab 제외)를 따르므로 Playwright에는 tab이 보이지 않는다.
 - **허용 목록 방식(ADR-0004, 0005).** 브라우저 수준(sessionId 없음) 명령은 아래 표에 있는 것만 처리하고 나머지는 오류로 돌려준다. 페이지 세션 명령은 **메서드 단위** 허용 목록이다. 목록은 확장 호환 테스트(`tests/e2e/compatExtended.spec.ts`)에서 chrome-devtools-mcp·Playwright가 실제로 보낸 명령과, 같은 탭 범위의 흔한 기능에 필요한 명령으로 짠다. 도메인을 통째로 열지 않는다. 3회차에 Tracing을 통째로 열었다가 다른 탭 URL이 샜기 때문이다. 표는 `src/launcher/cdp/policy.ts`에 있다. 도구가 새 명령을 쓰다 막히면 `--log-blocked`(`onBlocked`)로 찾아 이유와 함께 더한다.
 
@@ -18,7 +18,7 @@ spec: docs/spec.md · 코드로 알 수 없는 결정만 적는다 · 관련 ADR
 | `Target.setAutoAttach` | 연결 상태로 기록. 자기 page 탭에 대신 붙고 `attachedToTarget`을 보낸다(`waitingForDebugger: false`). `filter`가 page를 빼면 붙지 않는다 |
 | `Target.attachToTarget` (flatten) | 자기 탭만 넘긴다. flatten이 아니면 오류 |
 | `Target.detachFromTarget`, `Target.getDevToolsTarget`, `Target.activateTarget` | 자기 세션·탭만 |
-| `Target.createTarget` | 앱이 세션 창에 about:blank 탭을 만들고, 붙인 뒤 url로 이동한다 |
+| `Target.createTarget` | 앱이 세션(사람 창 안의 세션 탭 묶음)에 about:blank 탭을 만들고, 붙인 뒤 url로 이동한다 |
 | `Target.closeTarget` | 자기 탭만. 앱이 탭을 닫는다 |
 | `Browser.setDownloadBehavior` | 넘기지 않고 `{}`. 다운로드는 관문(R13)이 다룬다 |
 | 그 밖의 모든 것 (`Browser.close`, `Target.attachToBrowserTarget`, `Target.createBrowserContext` …) | 오류 |
