@@ -39,9 +39,9 @@ const shownTab = (): BrowserReply => {
   const s = human.shown();
   const focused = s.focusedContentsId;
   const focusedSession = focused === undefined ? null : [...agents.values()].find((a) => a.contentsIds.has(focused))?.sessionId ?? null;
-  if (s.view === 'human') return { type: 'shownTab', view: 'human', exposed: s.exposed, content: s.content, focusedSession, focusedUi: s.focusedUi };
+  if (s.view === 'human') return { type: 'shownTab', view: 'human', exposed: s.exposed, content: s.content, focusedSession, focusedUi: s.focusedUi, windowFocused: s.windowFocused, offscreenFocusCount: s.offscreenFocusCount };
   const targetId = s.contentsId === undefined ? undefined : agents.get(s.sessionId)?.targetIds.get(s.contentsId);
-  return { type: 'shownTab', view: 'session', sessionId: s.sessionId, ...(targetId ? { targetId } : {}), exposed: s.exposed, content: s.content, focusedSession, focusedUi: s.focusedUi };
+  return { type: 'shownTab', view: 'session', sessionId: s.sessionId, ...(targetId ? { targetId } : {}), exposed: s.exposed, content: s.content, focusedSession, focusedUi: s.focusedUi, windowFocused: s.windowFocused, offscreenFocusCount: s.offscreenFocusCount };
 };
 
 /** 사람 창의 지켜보기 패널에 세션과 탭 URL을 보인다(R11) */

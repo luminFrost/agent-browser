@@ -24,6 +24,10 @@ export type Shown = ({ view: 'human'; contentsId?: number } | { view: 'session';
   focusedContentsId?: number;
   /** 키보드 포커스가 창 UI(주소창·패널)에 있다(E3 진단용) */
   focusedUi: boolean;
+  /** 사람 창이 OS에서 앞(포커스)에 있다(E3 진단용) */
+  windowFocused: boolean;
+  /** 화면에 없는 탭이 포커스를 받은 횟수(E3 진단용) */
+  offscreenFocusCount: number;
 };
 
 export interface HumanWindow {
@@ -118,11 +122,26 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents): Hum
     if (humanFocus && !humanFocus.isDestroyed() && (humanFocus === win.webContents || humanFocus === shown)) return humanFocus;
     return win.webContents;
   };
+  /** 창이 앞에 없을 때 미뤄 둔 되돌림. 사람이 이 창으로 돌아오면 한다 */
+  let restorePending = false;
+  let restoreScheduled = false;
+  /** 화면에 없는 탭이 포커스를 받은 횟수(E3 진단용: 시험이 그 상황이 실제로 일어났는지 본다) */
+  let offscreenFocusCount = 0;
+  /** 포커스가 창 UI도, 화면에 보이는 탭도 아닌 곳에 있다 */
+  const needsRestore = () =>
+    focusedContentsId !== undefined && focusedContentsId !== win.webContents.id && focusedContentsId !== currentShownView()?.webContents.id;
   const restoreFocus = () => {
-    const target = restoreTarget();
-    // focus 이벤트 처리 중에 되돌리면 Chromium이 그 뒤에 에이전트 탭 활성화를 마저 해서 되돌림이 사라진다. 한 틱 뒤에 한다
+    // webContents.focus()는 macOS·Linux에서 창까지 앞으로 끌어온다. 사람이 다른 앱을 쓰는 중이면 그 입력을 빼앗으므로 미룬다
+    if (!win.isFocused()) { restorePending = true; return; }
+    restorePending = false;
+    if (restoreScheduled) return; // 같은 틱에 여러 번 불려도 한 번만
+    restoreScheduled = true;
+    // focus 이벤트 처리 중에 되돌리면 Chromium이 그 뒤에 에이전트 탭 활성화를 마저 해서 되돌림이 사라진다. 한 틱 뒤에 한다.
+    // 되돌릴지와 어디로 돌릴지는 그때 다시 정한다(그 사이 사람이 보이는 탭을 눌렀으면 건드리지 않는다)
     setImmediate(() => {
-      if (win.isDestroyed() || target.isDestroyed()) return;
+      restoreScheduled = false;
+      if (win.isDestroyed() || !needsRestore()) return;
+      const target = restoreTarget();
       target.focus();
       focusedContentsId = target.id; // OS 포커스가 없으면(테스트 화면) focus 이벤트가 오지 않아 여기서 적는다
     });
@@ -132,14 +151,12 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents): Hum
     if (win.isDestroyed()) return;
     focusedContentsId = view.webContents.id;
     if (view === currentShownView()) { humanFocus = view.webContents; return; }
+    offscreenFocusCount++;
     restoreFocus();
   };
   /** 보이는 탭이 바뀌었는데 포커스가 이제 화면에 없는 탭에 남아 있으면 돌려준다(에이전트의 activateTarget 등) */
-  const checkFocusAfterLayout = () => {
-    if (focusedContentsId === undefined || focusedContentsId === win.webContents.id) return;
-    if (focusedContentsId === currentShownView()?.webContents.id) return;
-    restoreFocus();
-  };
+  const checkFocusAfterLayout = () => { if (needsRestore()) restoreFocus(); };
+  win.on('focus', () => { if (restorePending) restoreFocus(); });
   win.webContents.on('focus', () => {
     focusedContentsId = win.webContents.id;
     humanFocus = win.webContents;
@@ -239,9 +256,11 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents): Hum
     shown: () => {
       const { width, height } = win.getContentBounds();
       const content = { width, height };
-      const focusedUi = focusedContentsId === win.webContents.id;
-      if (viewing === null) return { view: 'human', contentsId: tabs.shownContentsId(), exposed, content, focusedContentsId, focusedUi };
-      return { view: 'session', sessionId: viewing, contentsId: sessions.get(viewing)?.shownContentsId(), exposed, content, focusedContentsId, focusedUi };
+      // 되돌림을 미뤄 둔 동안은 사람이 돌아왔을 때 키 입력이 갈 곳을 보인다
+      const effective = restorePending && needsRestore() ? restoreTarget().id : focusedContentsId;
+      const focusedUi = effective === win.webContents.id;
+      if (viewing === null) return { view: 'human', contentsId: tabs.shownContentsId(), exposed, content, focusedContentsId: effective, focusedUi, windowFocused: win.isFocused(), offscreenFocusCount };
+      return { view: 'session', sessionId: viewing, contentsId: sessions.get(viewing)?.shownContentsId(), exposed, content, focusedContentsId: effective, focusedUi, windowFocused: win.isFocused(), offscreenFocusCount };
     },
     restack,
     tabFocused,
