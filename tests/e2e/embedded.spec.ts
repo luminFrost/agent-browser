@@ -61,6 +61,23 @@ test('E2: 패널에서 세션 A를 누르면 왼쪽에 A의 탭이 보이고, A�
   expect(t.readOnly).toBe(false);
 });
 
+test('E2: 세션에서 다른 탭을 골라 보다가 내 탭으로 돌아온 뒤 다시 보면, 그 세션의 활성 탭이 보인다', async () => {
+  const a = await createSession(app);
+  const context = (await connect(a)).contexts()[0];
+  await context.pages()[0].goto(`${server.base}/b`);
+  const active = await context.newPage();
+  await active.goto(`${server.base}/a`);
+  await view(a);
+  await waitFor(async () => (await toolbar()).address === `${server.base}/a`, '활성 탭(Page A)');
+  await click(`#tabs .tab[data-title="Page B"]`);
+  await waitFor(async () => (await toolbar()).address === `${server.base}/b`, 'Page B를 고름');
+  await click('#viewing .back-to-own');
+  await waitFor(async () => (await shown(app)).view === 'human', '내 탭으로');
+  await view(a);
+  await waitFor(async () => (await shown(app)).sessionId === a.id, '다시 A');
+  expect((await toolbar()).address).toBe(`${server.base}/a`);
+});
+
 test('E3: A를 보는 중에는 주소창·이동 버튼이 잠기고, 입력해도 A의 탭은 움직이지 않으며, 내 탭은 그대로다', async () => {
   // 내 탭을 A → B로 옮겨 둔다(뒤로 갈 기록이 생긴다)
   for (const path of ['/a', '/b']) {
@@ -133,6 +150,28 @@ test('E6: 주소창에 포커스를 둔 채 보던 세션이 끝나도, 주소�
   await waitFor(async () => { const t = await toolbar(); return !t.readOnly && t.address === `${server.base}/b` && t.viewing === null; }, '주소창이 내 탭(B) 주소');
 });
 
+test('E3: 보이지 않는 세션이 생기거나 이동하거나 bringToFront를 불러도 키보드 포커스는 사람이 보는 쪽에 남는다', async () => {
+  // 예전에는 에이전트 창이 앞으로 나와 사람이 알아챘다. 지금은 보이지 않는 탭이 조용히 키 입력(비밀번호 등)을 가져갈 수 있다
+  const a = await createSession(app);
+  const page = (await connect(a)).contexts()[0].pages()[0];
+  await page.goto(`${server.base}/widgets`);
+  await page.bringToFront();
+  await new Promise((r) => setTimeout(r, 300));
+  expect((await shown(app)).focusedSession).toBeNull();
+  // 에이전트의 키 입력(CDP)은 포커스 없이도 그 페이지에 들어간다
+  await page.fill('#name', 'agent');
+  expect(await page.inputValue('#name')).toBe('agent');
+  // 세션을 보다가 내 탭으로 돌아온 뒤에도 같다
+  await view(a);
+  await waitFor(async () => (await shown(app)).sessionId === a.id, 'A를 보는 중');
+  await click('#viewing .back-to-own');
+  await waitFor(async () => (await shown(app)).view === 'human', '내 탭으로');
+  await page.goto(`${server.base}/a`);
+  await page.bringToFront();
+  await new Promise((r) => setTimeout(r, 300));
+  expect((await shown(app)).focusedSession).toBeNull();
+});
+
 test('E4: 사람이 내 탭이나 B를 보는 동안에도 A의 CDP 조작(이동·클릭·스크린샷)이 된다', async () => {
   const [a, b] = [await createSession(app), await createSession(app)];
   const pageA = (await connect(a)).contexts()[0].pages()[0];
@@ -153,10 +192,14 @@ test('E4: 사람이 내 탭이나 B를 보는 동안에도 A의 CDP 조작(이�
   };
   expect((await shown(app)).view).toBe('human');
   // 보이지 않는 세션은 창 안에 1px만 드러난다(창 오른쪽 아래 끝, 탭의 왼쪽 위 점). 띠로 드러나면 패널 클릭이 에이전트 탭에 들어간다
-  const { exposed, content } = await shown(app);
+  // 창이 막 떴을 때는 내용 크기가 바뀌고(Linux 메뉴 막대) 다시 놓이기까지 잠깐 걸린다. 자리가 잡힌 뒤 본다
+  const { exposed, content } = await waitFor(async () => {
+    const s = await shown(app);
+    return s.exposed.length === 2 && s.exposed.every((r) => r.y === s.content.height - 1) ? s : undefined;
+  }, '비켜 둔 탭 자리가 잡힘');
   expect(exposed).toHaveLength(2);
   for (const r of exposed) expect([r.width, r.height, r.y]).toEqual([1, 1, content.height - 1]);
-  expect(exposed.map((r) => r.x).sort()).toEqual([content.width - 2, content.width - 1]);
+  expect(exposed.map((r) => r.x).sort((p, q) => p - q)).toEqual([content.width - 2, content.width - 1]);
   await check(); // 내 탭을 보는 동안
   // 에이전트가 화면 크기를 줄여도(emulate·setViewportSize) 그려진다. 드러난 점이 페이지 왼쪽 위라 줄인 화면 안에 있다
   await pageA.setViewportSize({ width: 600, height: 400 });
