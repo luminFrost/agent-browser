@@ -38,10 +38,16 @@ interface Window {
   forward.addEventListener('click', () => api.command({ cmd: 'forward' }));
   reload.addEventListener('click', () => api.command({ cmd: 'reload' }));
   newTab.addEventListener('click', () => api.command({ cmd: 'newTab' }));
+  // 이 화면 크기 = 창 내용 크기. resize 이벤트 없이 바뀌는 때(Linux 메뉴 막대)가 있어 여기서 알린다(ADR-0009)
+  window.addEventListener('resize', () => api.command({ cmd: 'relayout' }));
+  api.command({ cmd: 'relayout' });
   viewingEl.querySelector('.back-to-own')?.addEventListener('click', () => api.command({ cmd: 'view', sessionId: null }));
 
   api.onState((s) => {
+    // 보기 대상이 바뀌면(세션 ↔ 내 탭) 주소창에 남은 값·포커스를 버린다. 끝난 세션 주소로 내 탭이 이동하지 않게
+    const switched = viewing !== s.viewing;
     viewing = s.viewing;
+    if (switched) address.blur();
     document.body.classList.toggle('viewing', viewing !== null);
     viewingEl.hidden = viewing === null;
     (viewingEl.querySelector('.label') as HTMLSpanElement).textContent = viewing === null ? '' : `세션 ${viewing} 보는 중`;
@@ -68,7 +74,7 @@ interface Window {
       return el;
     }));
     const active = s.tabs.find((t) => t.id === s.activeId);
-    if (viewing !== null || document.activeElement !== address) address.value = active?.url ?? '';
+    if (switched || viewing !== null || document.activeElement !== address) address.value = active?.url ?? '';
     loading.hidden = !active?.loading;
     back.disabled = !s.canGoBack;
     forward.disabled = !s.canGoForward;

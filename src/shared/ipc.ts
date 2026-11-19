@@ -18,7 +18,10 @@ export type LauncherCommand =
 export type LauncherToBrowser = LauncherCommand & { rid?: number };
 
 /** OS 창. 에이전트 세션은 사람 창 안에 있으므로 창은 사람 창 하나뿐이다(spec-embedded-sessions E1) */
-export type WindowInfo = { kind: 'human' };
+/** OS 창. 사람 창 말고는 없어야 한다(spec-embedded-sessions E1). other는 그 밖의 창이 생겼을 때 드러내려는 것 */
+export type WindowInfo = { kind: 'human' | 'other' };
+/** 창 내용 좌표의 사각형 */
+export interface Rect { x: number; y: number; width: number; height: number }
 
 /** 브라우저 main → 런처 알림·응답 */
 export type BrowserReply =
@@ -26,7 +29,7 @@ export type BrowserReply =
   | { type: 'windows'; windows: WindowInfo[] }
   | { type: 'sessions'; sessionIds: string[] }
   /** view: 사람 탭을 보는 중이면 human, 세션을 보는 중이면 session(그 세션에 탭이 없으면 targetId 없음) */
-  | { type: 'shownTab'; view: 'human' | 'session'; sessionId?: string; targetId?: string }
+  | { type: 'shownTab'; view: 'human' | 'session'; sessionId?: string; targetId?: string; exposed: Rect[]; content: { width: number; height: number } }
   | { type: 'sessionCreated'; sessionId: string; targetId: string }
   | { type: 'tabCreated'; targetId: string }
   | { type: 'done' }

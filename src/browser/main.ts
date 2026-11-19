@@ -1,4 +1,4 @@
-import { app, session } from 'electron';
+import { app, BrowserWindow, session } from 'electron';
 import { CONTENT_AREA, createHumanWindow, type HumanWindow } from './humanWindow';
 import { createAgentSession, type AgentSession } from './agentSession';
 import { DOWNLOADS_FLAG, HIDDEN_FLAG, SHARED_PARTITION, USER_DATA_FLAG } from '../shared/constants';
@@ -31,15 +31,15 @@ const sessionOfContents = (contentsId: number): string | undefined => {
 };
 
 /** OS 창은 사람 창 하나뿐이다. 세션은 사람 창 안에 있다(spec-embedded-sessions E1) */
-const listWindows = (): WindowInfo[] => (human && !human.win.isDestroyed() ? [{ kind: 'human' as const }] : []);
+const listWindows = (): WindowInfo[] => BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed()).map((w) => ({ kind: w === human?.win ? 'human' : 'other' }));
 
 /** 왼쪽 영역에 보이는 탭을 targetId로 알린다(테스트·진단용) */
 const shownTab = (): BrowserReply => {
   if (!human) return { type: 'error', message: '사람 창이 없다' };
   const s = human.shown();
-  if (s.view === 'human') return { type: 'shownTab', view: 'human' };
+  if (s.view === 'human') return { type: 'shownTab', view: 'human', exposed: s.exposed, content: s.content };
   const targetId = s.contentsId === undefined ? undefined : agents.get(s.sessionId)?.targetIds.get(s.contentsId);
-  return { type: 'shownTab', view: 'session', sessionId: s.sessionId, ...(targetId ? { targetId } : {}) };
+  return { type: 'shownTab', view: 'session', sessionId: s.sessionId, ...(targetId ? { targetId } : {}), exposed: s.exposed, content: s.content };
 };
 
 /** 사람 창의 지켜보기 패널에 세션과 탭 URL을 보인다(R11) */

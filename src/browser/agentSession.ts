@@ -71,6 +71,7 @@ export function createAgentSession(sessionId: string, host: BrowserWindow, area:
     onChange: (state) => events.stateChanged(sessionId, state),
     onTabCreated: announce,
     onLayout: () => events.layoutChanged(),
+    followResize: false, // 사람 창이 크기 변화를 한 번 받아 모든 세션을 다시 놓는다
     allowNavigation: isAgentNavigable,
     onTabClosing: (contentsId) => {
       contentsIds.delete(contentsId);

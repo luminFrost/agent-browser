@@ -29,7 +29,7 @@ export interface TabStripOptions {
   onTabCreated?(contents: Electron.WebContents): void;
   /** 탭이 닫히기 직전(내용 webContents id) */
   onTabClosing?(contentsId: number): void;
-  /** 이 주소로 이동·팝업을 허용하는가(에이전트 창: 웹 주소만, ADR-0006). 없으면 모두 허용 */
+  /** 이 주소로 이동·팝업을 허용하는가(에이전트 세션 탭: 웹 주소만, ADR-0006). 없으면 모두 허용 */
   allowNavigation?(url: string): boolean;
   /** 처음에 화면에 보이는가(기본 true). 사람 창 안의 세션 탭 묶음은 false로 시작한다 */
   shown?: boolean;
@@ -41,6 +41,8 @@ export interface TabStripOptions {
   keepPainting?: boolean;
   /** 탭 배치가 바뀐 뒤(사람 창이 탭의 위아래 순서와 비켜 둔 탭의 자리를 다시 정한다) */
   onLayout?(): void;
+  /** 창 크기가 바뀌면 스스로 다시 놓는다(기본 true). false면 창 주인이 relayout을 부른다 */
+  followResize?: boolean;
 }
 
 /** 오류 페이지 문구. 앱이 막은 경우(관문 거부) 다른 문구를 쓴다 */
@@ -67,7 +69,12 @@ export class TabStrip {
 
   constructor(private readonly win: BrowserWindow, private readonly options: TabStripOptions) {
     this.shown = options.shown ?? true;
-    win.on('resize', this.onResize);
+    if (options.followResize !== false) win.on('resize', this.onResize);
+  }
+
+  /** 창 크기가 바뀌었을 때 창 주인이 부른다(followResize: false) */
+  relayout(): void {
+    this.layout();
   }
 
   /** 이 묶음을 왼쪽 영역에 보일지 정한다 */
