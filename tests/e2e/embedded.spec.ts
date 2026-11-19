@@ -1,7 +1,7 @@
 // spec-embedded-sessions: 에이전트 세션의 탭을 사람 창 안에서 본다(E2·E3·E4·E7). E1은 control.spec, E6은 termination.spec.
 import { test, expect, chromium, type Browser } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { launch, createSession, humanUi, evaluate, shown, waitFor, CdpClient, type SessionInfo } from './helpers';
+import { launch, createSession, humanUi, evaluate, shown, targets, waitFor, CdpClient, type SessionInfo } from './helpers';
 import { startTestServer, type TestServer } from '../fixtures/server';
 import type { RunningApp } from '../../src/launcher/app';
 
@@ -170,6 +170,41 @@ test('E3: 보이지 않는 세션이 생기거나 이동하거나 bringToFront�
   await page.bringToFront();
   await new Promise((r) => setTimeout(r, 300));
   expect((await shown(app)).focusedSession).toBeNull();
+});
+
+test('E3: 사람이 주소창에 입력하던 중 보이지 않는 세션이 포커스를 가져가면, 포커스는 페이지가 아니라 주소창(창 UI)으로 돌아온다', async () => {
+  const a = await createSession(app);
+  const page = (await connect(a)).contexts()[0].pages()[0];
+  await page.goto(`${server.base}/widgets`);
+  // 사람이 주소창을 누른다(창 UI가 키보드 포커스를 받는다)
+  const box = await ui<{ x: number; y: number }>(`(() => { const r = document.querySelector('#address').getBoundingClientRect(); return { x: r.x + 10, y: r.y + 5 }; })()`);
+  const { sessionId } = await app.rawCdp.send('Target.attachToTarget', { targetId: (await humanUi(app)).targetId, flatten: true });
+  for (const type of ['mousePressed', 'mouseReleased']) await app.rawCdp.send('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', clickCount: 1 }, sessionId as string);
+  await app.rawCdp.send('Target.detachFromTarget', { sessionId });
+  await waitFor(async () => (await shown(app)).focusedUi, '창 UI에 포커스');
+  await page.bringToFront();
+  await new Promise((r) => setTimeout(r, 300));
+  const s = await shown(app);
+  expect(s.focusedSession).toBeNull();
+  expect(s.focusedUi).toBe(true);
+});
+
+test('E3: 세션을 보는 중 숨은 내 탭이 포커스를 받아도(window.open 등) 키 입력은 화면에 보이는 쪽에 남는다', async () => {
+  // 세션을 보는 동안 내 탭들은 화면에 없다. 그 사이 내 탭 페이지가 팝업을 연다
+  await ui(`(() => { const i = document.querySelector('#address'); i.value = ${JSON.stringify(`${server.base}/widgets`)}; i.form.requestSubmit(); })()`);
+  await waitFor(async () => (await toolbar()).address === `${server.base}/widgets`, '내 탭이 widgets');
+  const a = await createSession(app);
+  await (await connect(a)).contexts()[0].pages()[0].goto(`${server.base}/a`);
+  await view(a);
+  await waitFor(async () => (await shown(app)).sessionId === a.id, 'A를 보는 중');
+  const humanTab = (await targets(app)).find((t) => t.url === `${server.base}/widgets`)!;
+  await evaluate(app, humanTab.targetId, `void window.open(${JSON.stringify(`${server.base}/b`)})`);
+  await new Promise((r) => setTimeout(r, 800));
+  const s = await shown(app);
+  expect(s.sessionId).toBe(a.id); // 화면은 그대로 A
+  const humanIds = (await targets(app)).filter((t) => t.url === `${server.base}/b`).length;
+  expect(humanIds).toBeGreaterThan(0);
+  expect(s.focusedSession === a.id || s.focusedUi).toBe(true); // 숨은 내 탭이 아니다
 });
 
 test('E4: 사람이 내 탭이나 B를 보는 동안에도 A의 CDP 조작(이동·클릭·스크린샷)이 된다', async () => {
