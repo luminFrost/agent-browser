@@ -2,7 +2,7 @@
   "name": "agent-browser",
   "version": "0.1.0",
   "private": true,
-  "description": "사람 창과 로그인을 공유하는 에이전트 전용 창을 세션마다 CDP로 여는 데스크톱 브라우저",
+  "description": "Claude Code 세션 여러 개가 사람 창 하나와 로그인을 함께 쓰는 데스크톱 브라우저(세션마다 격리된 탭 묶음을 CDP로 연다)",
   "license": "UNLICENSED",
   "main": "dist/launcher/index.js",
   "scripts": {

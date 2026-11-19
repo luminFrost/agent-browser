@@ -1,57 +1,191 @@
-# Agent Browser
+<p align="center">
+  <img src="docs/images/logo.svg" width="88" alt="Agent Browser 로고">
+</p>
 
-여러 Claude Code 세션이 브라우저를 나눠 쓰게 하는 macOS 앱이다. 창은 사람이 쓰는 창 하나뿐이다. Claude Code 세션마다 그 세션 전용 탭 묶음이 사람 창 안에 생기고, 사람 탭과 로그인(쿠키)을 함께 쓴다. 오른쪽 패널에서 세션을 고르면 왼쪽 화면에 그 세션의 탭이 보이고(읽기 전용), "내 탭으로"로 돌아온다. 에이전트는 자기 세션의 탭만 보고 다룰 수 있다. 사람의 탭이나 다른 세션의 탭은 보이지 않는다. 에이전트 탭에서 일어나는 폼 제출(POST)과 다운로드는 사람이 허용해야 진행된다.
+<h1 align="center">Agent Browser</h1>
 
-- 대상: Apple Silicon Mac
-- 정본 문서: `docs/spec.md`(앱 동작), `docs/spec-mac-app.md`(묶은 앱), `docs/spec-claude-attach.md`(Claude Code 붙이기), `docs/spec-company-setup.md`(다른 PC 설치)
-- 설치 절차(Claude가 따라 함): `docs/setup.md`
+<p align="center">
+  <b>Claude Code 세션 여러 개가 내 브라우저 하나를, 내 로그인 그대로 나눠 쓴다.</b><br>
+  창은 하나, 세션은 여럿. 에이전트는 자기 탭만 보고, 위험한 동작은 사람이 허락한다.
+</p>
 
-## 다른 PC(회사 PC)에 설치 — 이것부터
+<p align="center">
+  <a href="#빠른-시작">빠른 시작</a> ·
+  <a href="#쓰는-법">쓰는 법</a> ·
+  <a href="#동작-방식">동작 방식</a> ·
+  <a href="#안전-장치">안전 장치</a> ·
+  <a href="#문서">문서</a> ·
+  <a href="#개발">개발</a>
+</p>
 
-1. 이 저장소를 GitHub에서 받는다.
-   ```sh
-   git clone <이 저장소 주소> agent-browser && cd agent-browser
-   ```
-2. 그 폴더에서 Claude Code를 열고 이렇게 말한다.
-   > docs/setup.md대로 agent-browser를 설치해 줘
-   - Claude가 사전 확인 → 빌드(안 되면 Release dmg) → 앱 설치 → `claude mcp add` → 확인까지 한다. 절차는 `docs/setup.md`, 스크립트는 `scripts/install-mac.sh`에 있다.
-   - Claude 없이 직접 하려면 `scripts/install-mac.sh`를 실행한다. Node 22 이상이 없으면 Release dmg로 `scripts/install-mac.sh --from-dmg <파일>`을 실행한다.
-3. Claude가 끝났다고 하면 사람이 할 일은 두 가지다.
-   - 앱을 한 번 연다. 막히면 Finder에서 **우클릭 → 열기**를 하거나, 시스템 설정 → 개인정보 보호 및 보안 → **그래도 열기**를 누른다. 서명하지 않은 앱이라 그렇다. 회사 관리 정책이 서명 없는 앱을 막으면 IT 담당과 상의한다.
-   - 사람 창에서 회사 계정에 로그인해 둔다. 에이전트 탭도 이 로그인을 함께 쓴다.
+<p align="center">
+  <img alt="macOS Apple Silicon" src="https://img.shields.io/badge/macOS-Apple%20Silicon-111?logo=apple&logoColor=white">
+  <img alt="Electron 45" src="https://img.shields.io/badge/Electron-45-47848F?logo=electron&logoColor=white">
+  <img alt="MCP" src="https://img.shields.io/badge/MCP-chrome--devtools--mcp-5b4fe0">
+  <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-ready-d97757">
+  <img alt="version" src="https://img.shields.io/badge/version-0.1.0-2b2f77">
+  <img alt="license" src="https://img.shields.io/badge/license-UNLICENSED-lightgrey">
+</p>
 
-등록은 사용자 범위(`--scope user`)라 모든 프로젝트에서 쓸 수 있다. Node·인터넷 내려받기 없이 도는 도구(chrome-devtools-mcp)가 앱 안에 들어 있다. 지우는 방법은 `docs/setup.md` "지우기"에 있다.
+<p align="center">
+  <img src="docs/images/readme-viewing.png" width="860" alt="사람 창 안에서 에이전트 세션의 탭을 보는 화면. 오른쪽 패널에 세션 두 개가 있고, 선택한 세션의 운영 대시보드 탭이 왼쪽에 읽기 전용으로 보인다">
+  <br><sub>오른쪽 패널에서 세션을 고르면 그 세션의 탭이 왼쪽에 읽기 전용으로 보인다. 화면 속 페이지는 예시다.</sub>
+</p>
+
+---
+
+## 왜 Agent Browser인가
+
+- **로그인 그대로.** 에이전트 탭은 사람 탭과 쿠키를 함께 쓴다. 회사 계정에 한 번 로그인하면 Claude도 그 화면에서 일한다.
+- **창 하나.** 세션마다 창이 새로 뜨지 않는다. 모든 세션은 사람 창 안에 탭 묶음으로 있고, 오른쪽 패널이 목록이다.
+- **세션끼리 격리.** 에이전트는 자기 세션의 탭만 보고 다룬다. 사람의 탭이나 다른 세션의 탭은 보이지도 않는다.
+- **사람이 최종 승인.** 에이전트 탭의 폼 제출(POST)과 다운로드는 사람이 허용해야 진행된다.
+- **지켜보기와 멈추기.** 패널에서 "보기"로 세션 화면을 띄우고, "멈추기"로 그 세션을 바로 끊는다.
+- **붙이기는 한 줄.** `claude mcp add`로 한 번 등록하면 모든 프로젝트의 Claude Code가 쓴다. 앱이 꺼져 있으면 알아서 켠다.
+
+## 빠른 시작
+
+다른 PC(회사 PC)에 설치할 때는 이것부터 한다.
+
+```sh
+git clone https://github.com/luminFrost/agent-browser.git && cd agent-browser
+```
+
+그 폴더에서 Claude Code를 열고 이렇게 말한다.
+
+> docs/setup.md대로 agent-browser를 설치해 줘
+
+Claude가 사전 확인 → 빌드(안 되면 Release dmg) → 앱 설치 → `claude mcp add` → 확인까지 한다. 절차는 [`docs/setup.md`](docs/setup.md), 스크립트는 [`scripts/install-mac.sh`](scripts/install-mac.sh)에 있다.
+
+<details>
+<summary>Claude 없이 직접 설치하기</summary>
+
+```sh
+scripts/install-mac.sh                      # Node 22 이상이 있으면 빌드해서 설치
+scripts/install-mac.sh --from-dmg <파일>    # Node가 없으면 Release dmg로 설치
+```
+
+</details>
+
+설치가 끝나면 사람이 할 일은 두 가지다.
+
+1. **앱을 한 번 연다.** 서명하지 않은 앱이라 막히면 Finder에서 **우클릭 → 열기**, 또는 시스템 설정 → 개인정보 보호 및 보안 → **그래도 열기**. 회사 정책이 서명 없는 앱을 막으면 IT 담당과 상의한다.
+2. **사람 창에서 회사 계정에 로그인해 둔다.** 에이전트 탭도 이 로그인을 함께 쓴다.
+
+> 등록은 사용자 범위(`--scope user`)라 모든 프로젝트에서 쓸 수 있다. 앱 안에 chrome-devtools-mcp가 들어 있어 Node나 인터넷 내려받기 없이 돈다. 지우는 방법은 [`docs/setup.md`](docs/setup.md)의 "지우기"에 있다.
 
 ## 쓰는 법
 
-- Claude Code 세션을 열고 "agent-browser로 ○○ 페이지 열어 줘"처럼 시키면 된다. Claude는 붙을 때 쓸 때 알 것(자기 세션의 탭만 보임, 사람 승인, 막힌 도구)을 MCP 안내로 받는다.
-- Claude Code 세션이 시작되면(MCP 서버가 뜰 때) 오른쪽 패널에 그 세션이 하나 생긴다. 새 창은 뜨지 않는다. 패널에서 "보기"를 누르면 왼쪽에 그 세션의 탭이 보인다. 보는 동안 주소창·이동 버튼은 잠긴다(읽기 전용).
+Claude Code에 이렇게 시키면 된다.
+
+> agent-browser로 사내 지원센터의 열린 티켓 목록을 열고 긴급한 것만 정리해 줘
+
+| 내 탭으로 일하는 중 | 세션을 골라 지켜보는 중 |
+|---|---|
+| <img src="docs/images/readme-own.png" width="420" alt="내 탭에서 사내 위키를 보는 화면. 오른쪽 패널에 에이전트 세션 두 개가 있다"> | <img src="docs/images/readme-viewing.png" width="420" alt="패널에서 고른 세션의 탭이 왼쪽에 읽기 전용으로 보이는 화면"> |
+| 에이전트 세션은 패널에 보이고, 내 화면은 그대로다 | "세션 ○○ 보는 중" 표시와 함께 주소창·이동 버튼이 잠긴다 |
+
+- Claude Code 세션이 시작되면(MCP 서버가 뜰 때) 오른쪽 패널에 그 세션이 생긴다. 새 창은 뜨지 않는다. 탭은 사람 창 안에 있다.
+- 패널에서 **보기**를 누르면 왼쪽에 그 세션의 탭이 보인다. 보는 동안 주소창·이동 버튼은 잠기고, **내 탭으로**를 누르면 돌아온다.
+- Claude는 붙을 때 MCP 안내로 쓸 때 알아야 할 것(자기 세션의 탭만 보임, 사람 승인, 막힌 도구)을 받는다.
 - 앱이 꺼져 있으면 붙이기 명령이 앱을 켠다. 15초 안에 못 켜면 Claude Code에 MCP 연결 실패로 보인다.
 - Claude Code 세션이 끝나면 그 세션은 5초 안에 패널에서 사라진다. 강제 종료돼도 같다. 그 세션을 보던 중이면 내 탭으로 돌아온다.
-- 사람이 패널에서 그 세션의 멈추기 버튼을 누르면 그 세션은 더 이상 브라우저를 쓰지 못한다. 다시 쓰려면 Claude Code에서 `/mcp`로 다시 연결한다.
+- 사람이 패널에서 그 세션의 **멈추기**를 누르면 그 세션은 더 이상 브라우저를 쓰지 못한다. 다시 쓰려면 Claude Code에서 `/mcp`로 다시 연결한다.
+
+## 동작 방식
+
+```mermaid
+flowchart LR
+  subgraph CC["Claude Code"]
+    A["세션 A"]
+    B["세션 B"]
+  end
+  subgraph APP["Agent Browser 앱"]
+    L["런처<br/>원본 CDP를 혼자 쥔다(pipe)"]
+    P["CDP 프록시<br/>세션 범위 · 정책 · 승인"]
+    subgraph W["사람 창 (창은 이것 하나)"]
+      H["내 탭"]
+      SA["세션 A 탭 묶음"]
+      SB["세션 B 탭 묶음"]
+      PN["오른쪽 패널<br/>보기 · 멈추기 · 승인"]
+    end
+  end
+  A -- "MCP (붙이기 명령 + chrome-devtools-mcp)" --> P
+  B -- "MCP" --> P
+  P --> L
+  L -- "--remote-debugging-pipe" --> W
+```
+
+- **런처만 원본 CDP를 쥔다.** 브라우저는 `--remote-debugging-pipe`로만 열리고 브라우저 자체의 TCP 디버그 포트는 없다([ADR-0002](docs/adr/0002-launcher-pipe.md)). 세션마다 받는 `browserUrl`은 그 세션 범위로 걸러진 프록시이고, 추측할 수 없는 비밀 경로가 붙는다([ADR-0003](docs/adr/0003-gates-and-secret-path.md)).
+- **세션 = 사람 창 안의 탭 묶음.** 세션의 탭은 사람 탭과 같은 자리에 놓이고, 한 번에 하나(내 탭 또는 고른 세션)만 보인다([ADR-0009](docs/adr/0009-sessions-in-human-window.md)).
+- **보이지 않아도 일한다.** 화면에 없는 세션도 계속 그려져서 에이전트의 이동·클릭·스크린샷이 멈추지 않는다.
+
+## 안전 장치
+
+| 장치 | 무엇을 막나 |
+|---|---|
+| **세션 범위** | 세션은 자기 탭만 보고 다룬다. 사람 탭·다른 세션의 탭은 목록에도 없다. |
+| **사람 승인** | 에이전트 탭의 폼 제출(POST)·다운로드는 패널에서 허용/거부를 누를 때까지 기다린다. |
+| **막힌 도구** | 브라우저 전체에 닿는 기능(창 크기, 성능 트레이스, lighthouse, 힙 스냅샷, 화면 녹화)은 막는다. 화면 크기는 `emulate`로 바꾼다. |
+| **디버그 포트 없음** | 브라우저의 디버그 포트를 열지 않는다. 바깥에서는 세션별 비밀 경로가 붙은 프록시 주소로만 닿는다. |
+| **키보드 보호** | 화면에 없는 에이전트 탭이 키보드 포커스를 가져가면 사람이 쓰던 자리로 돌려준다. 사람이 치던 글자가 에이전트 페이지로 새지 않는다. |
+| **외부 전송 끔** | 앱에 넣은 chrome-devtools-mcp는 Google 사용 통계와 CrUX(방문 URL 조회)를 끈 채 돈다. |
+| **읽기 전용 보기** | 세션을 지켜보는 동안 주소·이동·새 탭·닫기 명령은 잠긴다(main 쪽에서도 막는다). |
+
+<details>
+<summary>그냥 Chrome에 원격 디버깅을 켜고 쓰는 것과 무엇이 다른가</summary>
+
+| | 원격 디버깅 Chrome | Agent Browser |
+|---|---|---|
+| 접속 | 브라우저가 TCP 디버그 포트를 연다 | 브라우저 포트 없음, 런처만 pipe로 접속하고 세션은 비밀 경로 프록시로 |
+| 에이전트가 보는 탭 | 브라우저의 모든 탭 | 자기 세션의 탭만 |
+| 여러 세션 | 서로의 탭을 보고 건드린다 | 세션마다 격리된 탭 묶음 |
+| 폼 제출·다운로드 | 바로 실행 | 사람이 허용해야 진행 |
+| 지켜보기 | 창을 직접 찾아야 한다 | 패널에서 세션을 골라 본다 |
+
+</details>
 
 ## 알려진 한계
 
-- **서명 없음:** 처음 열 때 우클릭 → 열기가 필요하다. 회사 정책에 따라 아예 안 열릴 수 있다.
-- **사람 승인 창:** 에이전트 탭에서 폼을 제출하거나 파일을 내려받으면 사람 창에 허용/거부가 뜬다. 사람이 누르기 전까지 에이전트는 기다린다. `fetch`·XHR로 보내는 요청은 묻지 않는다(ADR-0005).
-- **막힌 도구:** 브라우저 전체에 닿는 기능은 막혀 있다. 예: `resize_page`(창 크기), 성능 트레이스, lighthouse, 힙 스냅샷, 화면 녹화. 화면 크기는 `emulate`로 바꾼다(ADR-0005).
-- **외부 전송 끔:** 앱에 넣은 chrome-devtools-mcp는 Google 사용 통계와 CrUX(방문 URL 조회)를 끈 채 돈다.
-- **공유 로그인:** 에이전트는 사람과 같은 계정으로 움직인다. 에이전트의 행동은 실제 계정에서 되돌릴 수 없다. 승인 창은 보조 장치일 뿐 완전한 보장은 아니다.
+- **서명 없음.** 처음 열 때 우클릭 → 열기가 필요하다. 회사 정책에 따라 아예 안 열릴 수 있다.
+- **승인은 보조 장치.** `fetch`·XHR로 보내는 요청은 묻지 않는다([ADR-0005](docs/adr/0005-narrow-allowlist-and-gate-all-posts.md)). 에이전트는 사람과 같은 계정으로 움직이고, 실제 계정에서 한 행동은 되돌릴 수 없다.
+- **보는 중 페이지 안 입력은 열려 있다.** 세션을 지켜보는 동안 잠기는 것은 주소·이동 명령이다. 사람이 그 페이지 안을 클릭하면 에이전트의 탭이 움직인다.
+- **창 하나에 묶인다.** 사람 창을 최소화하거나 숨기면 세션 탭의 그리기도 영향을 받을 수 있다(macOS 확인 중).
+
+## 문서
+
+| 문서 | 내용 |
+|---|---|
+| [`docs/spec.md`](docs/spec.md) | 앱 동작의 정본 |
+| [`docs/spec-embedded-sessions.md`](docs/spec-embedded-sessions.md) | 세션을 사람 창 안에 두는 설계 |
+| [`docs/spec-claude-attach.md`](docs/spec-claude-attach.md) | Claude Code 붙이기 |
+| [`docs/spec-mac-app.md`](docs/spec-mac-app.md) | 묶은 Mac 앱 |
+| [`docs/spec-company-setup.md`](docs/spec-company-setup.md) · [`docs/setup.md`](docs/setup.md) | 다른 PC 설치(Claude가 따라 하는 절차) |
+| [`docs/adr/`](docs/adr/) | 설계 결정 기록 |
 
 ## 개발
 
 ```sh
 npm install
 npm test            # build → Vitest → Playwright E2E
-npm run lint
+npm run lint        # eslint + tsc
 npm run dist        # release/Agent-Browser-<버전>-arm64.dmg
 npm run test:dist   # 묶은 앱 확인(실제 창이 뜬다)
 ```
 
-직접 붙이려면 프로필 폴더(`~/Library/Application Support/agent-browser`)의 `control.json`에 적힌 포트와 토큰을 쓴다.
+<details>
+<summary>제어 API로 직접 붙이기</summary>
 
-- `POST /sessions` → `{id, browserUrl}`
-- `POST /sessions?hold=1` → 첫 줄로 같은 정보를 주고, 연결이 끊기면 그 세션을 닫는다
-- `DELETE /sessions/<id>` → 세션을 닫는다
+프로필 폴더(`~/Library/Application Support/agent-browser`)의 `control.json`에 적힌 포트와 토큰을 쓴다. 모든 요청에 `Authorization: Bearer <token>` 헤더가 필요하다.
 
-모든 요청에 `Authorization: Bearer <token>` 헤더가 필요하다.
+| 요청 | 결과 |
+|---|---|
+| `POST /sessions` | `{id, browserUrl}` |
+| `POST /sessions?hold=1` | 첫 줄로 같은 정보를 주고, 연결이 끊기면 그 세션을 닫는다 |
+| `DELETE /sessions/<id>` | 세션을 닫는다 |
+
+</details>
+
+## 라이선스
+
+사내용이며 공개 라이선스는 없다(`UNLICENSED`).
