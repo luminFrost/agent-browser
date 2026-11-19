@@ -1,0 +1,66 @@
+# Apple Silicon dmg를 만들어 GitHub Release에 올린다(카드 20261119-release-ci).
+# 다른 PC는 소스 없이 이 Release의 dmg로 설치한다(docs/setup.md, README "빠른 시작").
+#   - v* 태그를 push하면 그 태그로 올린다. 태그는 package.json 버전과 같아야 한다(v0.2.0 ↔ 0.2.0).
+#   - Actions 화면에서 수동 실행하면 package.json 버전으로 태그를 만들어 올린다.
+# 시험(lint·단위·묶은 앱 E2E)을 통과해야만 올린다.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  mac-dmg:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 버전 확인
+        run: |
+          VERSION="$(node -p 'require("./package.json").version')"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v$VERSION" ]; then
+            echo "태그와 package.json 버전이 다르다: ${GITHUB_REF_NAME} ≠ v$VERSION" >&2
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run
+
+      - name: dmg 만들기
+        run: npm run dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false' # 서명하지 않는다(ad-hoc). spec-mac-app
+
+      - name: 묶은 앱 시험
+        run: npx playwright test -c playwright.dist.config.ts
+
+      - name: Release 올리기
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DMG="release/Agent-Browser-$VERSION-arm64.dmg"
+          test -f "$DMG"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            gh release upload "v$VERSION" "$DMG" scripts/install-mac.sh --clobber
+          else
+            gh release create "v$VERSION" "$DMG" scripts/install-mac.sh \
+              --target "$GITHUB_SHA" \
+              --title "Agent Browser $VERSION" \
+              --notes "Apple Silicon(arm64) Mac용. 설치: dmg를 열어 Agent Browser를 Applications로 옮긴 뒤 README의 빠른 시작대로 claude mcp add 한 줄을 실행한다. Claude Code에게 시키려면 docs/setup.md."
+          fi
