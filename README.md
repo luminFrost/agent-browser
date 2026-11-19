@@ -23,7 +23,7 @@
   <img alt="Electron 45" src="https://img.shields.io/badge/Electron-45-47848F?logo=electron&logoColor=white">
   <img alt="MCP" src="https://img.shields.io/badge/MCP-chrome--devtools--mcp-5b4fe0">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-ready-d97757">
-  <img alt="version" src="https://img.shields.io/badge/version-0.1.0-2b2f77">
+  <a href="https://github.com/luminFrost/agent-browser/releases/latest"><img alt="최신 Release" src="https://img.shields.io/github/v/release/luminFrost/agent-browser?color=2b2f77&label=release"></a>
   <img alt="license" src="https://img.shields.io/badge/license-UNLICENSED-lightgrey">
 </p>
 
@@ -45,34 +45,44 @@
 
 ## 빠른 시작
 
-다른 PC(회사 PC)에 설치할 때는 이것부터 한다.
+소스는 필요 없다. 앱을 설치하고 Claude Code에 한 줄로 연결한다. Apple Silicon Mac과 Claude Code만 있으면 된다.
+
+**1. 내려받기:** [최신 Release](https://github.com/luminFrost/agent-browser/releases/latest)에서 `Agent-Browser-<버전>-arm64.dmg`를 받는다.
+
+**2. 설치:** dmg를 열어 **Agent Browser**를 **응용 프로그램(Applications)** 폴더로 끌어 놓는다.
+
+**3. 처음 열기:** 서명하지 않은 앱이라 처음 한 번은 막힌다. Finder에서 **우클릭 → 열기**를 누르거나, 시스템 설정 → 개인정보 보호 및 보안 → **그래도 열기**를 누른다. 회사 정책이 서명 없는 앱을 막으면 IT 담당과 상의한다.
+
+**4. Claude Code에 연결(한 번만):** 터미널에서 실행한다. 사용자 범위라 모든 프로젝트의 Claude Code가 쓴다.
+
+```sh
+claude mcp add --scope user agent-browser -- "/Applications/Agent Browser.app/Contents/Resources/agent-browser-mcp"
+```
+
+**5. 로그인:** 사람 창에서 회사 계정에 로그인해 둔다. 에이전트 탭도 이 로그인을 함께 쓴다.
+
+> Claude Code에게 통째로 맡겨도 된다. 아무 폴더에서 Claude Code를 열고 이렇게 말한다.
+> `https://github.com/luminFrost/agent-browser/blob/main/docs/setup.md 대로 agent-browser 설치해 줘`
+
+### 업데이트
+
+1. 앱을 끈다.
+2. 새 Release의 dmg로 2번을 다시 한다(덮어쓰기). 로그인 정보는 그대로 남는다.
+3. MCP는 다시 등록하지 않아도 된다(경로가 같다). Claude Code에서 `/mcp`로 다시 연결한다.
+
+<details>
+<summary>소스로 빌드해서 설치하기 (개발자용)</summary>
+
+Node 22 이상이 있는 Mac에서:
 
 ```sh
 git clone https://github.com/luminFrost/agent-browser.git && cd agent-browser
+scripts/install-mac.sh          # npm ci → npm run dist → 앱 복사 → claude mcp add
 ```
 
-그 폴더에서 Claude Code를 열고 이렇게 말한다.
-
-> docs/setup.md대로 agent-browser를 설치해 줘
-
-Claude가 사전 확인 → 빌드(안 되면 Release dmg) → 앱 설치 → `claude mcp add` → 확인까지 한다. 절차는 [`docs/setup.md`](docs/setup.md), 스크립트는 [`scripts/install-mac.sh`](scripts/install-mac.sh)에 있다.
-
-<details>
-<summary>Claude 없이 직접 설치하기</summary>
-
-```sh
-scripts/install-mac.sh                      # Node 22 이상이 있으면 빌드해서 설치
-scripts/install-mac.sh --from-dmg <파일>    # Node가 없으면 Release dmg로 설치
-```
+지우는 방법은 [`docs/setup.md`](docs/setup.md)의 "지우기"에 있다.
 
 </details>
-
-설치가 끝나면 사람이 할 일은 두 가지다.
-
-1. **앱을 한 번 연다.** 서명하지 않은 앱이라 막히면 Finder에서 **우클릭 → 열기**, 또는 시스템 설정 → 개인정보 보호 및 보안 → **그래도 열기**. 회사 정책이 서명 없는 앱을 막으면 IT 담당과 상의한다.
-2. **사람 창에서 회사 계정에 로그인해 둔다.** 에이전트 탭도 이 로그인을 함께 쓴다.
-
-> 등록은 사용자 범위(`--scope user`)라 모든 프로젝트에서 쓸 수 있다. 앱 안에 chrome-devtools-mcp가 들어 있어 Node나 인터넷 내려받기 없이 돈다. 지우는 방법은 [`docs/setup.md`](docs/setup.md)의 "지우기"에 있다.
 
 ## 쓰는 법
 
@@ -172,6 +182,8 @@ npm run lint        # eslint + tsc
 npm run dist        # release/Agent-Browser-<버전>-arm64.dmg
 npm run test:dist   # 묶은 앱 확인(실제 창이 뜬다)
 ```
+
+**릴리스:** `package.json`(과 lock)의 버전을 올려 main에 합친 뒤 `git tag v<버전> && git push origin v<버전>`. GitHub Actions(macOS arm64)가 시험을 통과하면 dmg와 `install-mac.sh`를 Release에 올린다([`.github/workflows/release.yml`](.github/workflows/release.yml)). Actions 화면의 Run workflow로도 된다.
 
 <details>
 <summary>제어 API로 직접 붙이기</summary>

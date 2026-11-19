@@ -6,6 +6,7 @@
 - 앱 준비는 "빌드 우선, 안 되면 Release".
 - Claude 안내는 "설치 절차 + 쓸 때 알 것".
 - 계획 "승인".
+- **바뀜 (2026-11-19, 카드 20261119-release-ci):** 다른 PC는 소스를 받지 않는다. 기본 경로는 Release dmg 설치 + `claude mcp add` 한 줄이고, Release는 GitHub Actions(macOS arm64)가 만든다. 소스 빌드는 개발자용으로 뒤로 뺐다(`docs/setup.md` 2-나).
 
 ## 가치
 회사 PC에서 사람은 GitHub에서 저장소를 받고 그 안에서 Claude Code에게 "설치해 줘"라고만 하면 된다. Claude가 저장소의 안내를 읽고 빌드(안 되면 Release dmg), 앱 설치, `claude mcp add`, 확인까지 한다. 그 뒤 다른 프로젝트에서 agent-browser를 쓰는 Claude도 쓸 때 알아야 할 것(자기 창만 보임, 사람 승인, 막힌 도구, 창이 닫혔을 때)을 MCP 안내로 받는다. 앞 작업의 안내(`docs/install-company-pc.html`, 브랜치 docs/install-guide)는 이 Mac 경로와 USB 옮기기를 전제로 해서 맞지 않았다.
