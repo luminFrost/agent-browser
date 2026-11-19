@@ -157,6 +157,7 @@ test('E3: 보이지 않는 세션이 생기거나 이동하거나 bringToFront�
   await page.goto(`${server.base}/widgets`);
   await page.bringToFront();
   await new Promise((r) => setTimeout(r, 300));
+  expect((await shown(app)).offscreenFocusCount).toBeGreaterThan(0); // 화면에 없는 탭이 실제로 포커스를 받았다
   expect((await shown(app)).focusedSession).toBeNull();
   // 에이전트의 키 입력(CDP)은 포커스 없이도 그 페이지에 들어간다
   await page.fill('#name', 'agent');
@@ -182,9 +183,11 @@ test('E3: 사람이 주소창에 입력하던 중 보이지 않는 세션이 포
   for (const type of ['mousePressed', 'mouseReleased']) await app.rawCdp.send('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', clickCount: 1 }, sessionId as string);
   await app.rawCdp.send('Target.detachFromTarget', { sessionId });
   await waitFor(async () => (await shown(app)).focusedUi, '창 UI에 포커스');
+  const count = (await shown(app)).offscreenFocusCount;
   await page.bringToFront();
   await new Promise((r) => setTimeout(r, 300));
   const s = await shown(app);
+  expect(s.offscreenFocusCount).toBeGreaterThan(count);
   expect(s.focusedSession).toBeNull();
   expect(s.focusedUi).toBe(true);
 });
@@ -198,13 +201,29 @@ test('E3: 세션을 보는 중 숨은 내 탭이 포커스를 받아도(window.o
   await view(a);
   await waitFor(async () => (await shown(app)).sessionId === a.id, 'A를 보는 중');
   const humanTab = (await targets(app)).find((t) => t.url === `${server.base}/widgets`)!;
+  const count = (await shown(app)).offscreenFocusCount;
   await evaluate(app, humanTab.targetId, `void window.open(${JSON.stringify(`${server.base}/b`)})`);
   await new Promise((r) => setTimeout(r, 800));
   const s = await shown(app);
   expect(s.sessionId).toBe(a.id); // 화면은 그대로 A
   const humanIds = (await targets(app)).filter((t) => t.url === `${server.base}/b`).length;
   expect(humanIds).toBeGreaterThan(0);
-  expect(s.focusedSession === a.id || s.focusedUi).toBe(true); // 숨은 내 탭이 아니다
+  expect(s.offscreenFocusCount).toBeGreaterThan(count); // 숨은 내 탭(팝업)이 실제로 포커스를 받았다
+  expect(s.focusedUi).toBe(true); // 사람이 쓰던 자리(패널의 보기 버튼, 창 UI)로 돌아왔다
+});
+
+test('E3: 사람 창이 앞에 없을 때(다른 앱을 쓰는 중) 세션이 포커스를 가져가도 창을 앞으로 끌어오지 않고, 돌아왔을 때 키 입력은 사람 쪽으로 간다', async () => {
+  const a = await createSession(app);
+  const page = (await connect(a)).contexts()[0].pages()[0];
+  // 시험 화면(Xvfb 등)에서는 창이 보통 앞에 없다. 앞에 있던 화면이면 이 비교는 그대로 참이다
+  const before = (await shown(app)).windowFocused;
+  await page.goto(`${server.base}/widgets`);
+  await page.bringToFront();
+  await new Promise((r) => setTimeout(r, 500));
+  const s = await shown(app);
+  expect(s.offscreenFocusCount).toBeGreaterThan(0);
+  expect(s.windowFocused).toBe(before); // 앞에 없던 창을 끌어오지 않는다(다른 앱의 입력을 빼앗지 않는다)
+  expect(s.focusedSession).toBeNull(); // 돌아오면 사람 쪽으로 간다
 });
 
 test('E4: 사람이 내 탭이나 B를 보는 동안에도 A의 CDP 조작(이동·클릭·스크린샷)이 된다', async () => {
