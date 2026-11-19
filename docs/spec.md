@@ -30,7 +30,7 @@
 | R3 | 세션 생성 | 토큰 파일(권한 0600)의 토큰을 붙여 `POST http://127.0.0.1:<제어포트>/sessions` → `{id, browserUrl}`을 받는다(세션마다 별도 포트, 경로에 세션 비밀값). browserUrl의 `/json/version`과 `/json/list`가 CDP 형식으로 응답한다 | 단위(Vitest) + E2E |
 | R4 | 기존 도구 호환 | chrome-devtools-mcp를 `--browserUrl`로 붙여 navigate와 snapshot이 성공한다. Playwright의 `connectOverCDP`로 페이지를 열고 클릭할 수 있다 | E2E (chrome-devtools-mcp, Playwright) |
 | R5 | 탭 격리 | 세션 A·B와 사람 창에 탭이 있다 → A의 `/json/list`와 `Target.getTargets`에는 A의 탭만 나온다. `Target.setDiscoverTargets` 이벤트에도 다른 탭이 나오지 않는다 | 단위 + E2E |
-| R6 | 격리 우회 차단 | A가 B의 탭 targetId나 사람 창의 탭 targetId로 `attachToTarget` → 오류를 받는다. A의 `Target.createTarget`과 A의 탭에서 연 팝업(`window.open`) → A의 창에 생긴다 | 단위 + E2E |
+| R6 | 격리 우회 차단 | A가 B의 탭 targetId나 사람 창의 탭 targetId로 `attachToTarget` → 오류를 받는다. A의 `Target.createTarget`과 A의 탭에서 연 팝업(`window.open`) → A의 탭 묶음(사람 창 안)에 생긴다 | 단위 + E2E |
 | R7 | 공유 상태 보호 | A가 CDP 명령으로 브라우저 전체나 다른 출처의 상태를 지우거나 바꾸려 한다(`Browser.close`, `Network.clearBrowserCookies`, `Storage.clearDataForOrigin`, 쿠키 설정, `ServiceWorker.unregister`, Fetch 응답의 Set-Cookie 등) → 오류를 받고 사람의 로그인은 그대로다. 페이지 세션 명령은 허용 목록으로 거른다(ADR-0004) | 단위 + E2E |
 | R8 | 동시 세션 | A와 B가 동시에 다른 주소로 navigate → 서로 영향이 없다 | E2E |
 | R9 | 종료 | 사람이 세션 A를 멈추거나 A의 창을 닫는다(바뀜: 창이 없으므로 패널의 멈추기, spec-embedded-sessions E6) → A의 CDP 연결이 끊기고 A의 browserUrl은 더 이상 응답하지 않는다. B는 계속 동작한다 | E2E |
