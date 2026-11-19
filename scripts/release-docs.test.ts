@@ -59,6 +59,11 @@ describe('소스 없이 dmg로 설치 (카드 20261119-release-ci)', () => {
     expect(workflow).toMatch(/태그와 package\.json 버전이 다르다/);
   });
 
+  it('묶기는 스스로 올리지 않는다(CI에서 electron-builder가 토큰 없이 올리려다 멈춘다. 올리기는 워크플로가 한다)', () => {
+    const scripts = (JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { scripts: Record<string, string> }).scripts;
+    expect(scripts.dist).toMatch(/electron-builder[^&]*--publish never/);
+  });
+
   it('README 빠른 시작: Release에서 dmg 받기 → 처음 열기 → claude mcp add 한 줄(설치 스크립트와 같은 경로), 업데이트 방법', () => {
     const quick = readme.slice(readme.indexOf('## 빠른 시작'), readme.indexOf('## 쓰는 법'));
     expect(quick).toContain('releases/latest');
