@@ -1,4 +1,4 @@
-// Release 절차(spec-company-setup B6)가 실제 산출물 이름과 맞는지 본다.
+// Release 절차(spec-company-setup B6, 카드 20261119-release-ci)가 실제 산출물 이름과 맞는지 본다.
 // GitHub은 Release 자산 이름에 [0-9A-Za-z._-] 밖의 문자(공백 등)를 바꿔 올리므로, 문서의 받기·설치 명령이 그 이름과 어긋나면 안 된다.
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -7,6 +7,11 @@ import { describe, expect, it } from 'vitest';
 const ROOT = resolve(__dirname, '..');
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { version: string; build: { dmg: { artifactName: string } } };
 const setup = readFileSync(join(ROOT, 'docs', 'setup.md'), 'utf8');
+const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
+const workflow = readFileSync(join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
+const installer = readFileSync(join(ROOT, 'scripts', 'install-mac.sh'), 'utf8');
+/** 설치 스크립트가 등록하는 붙이기 명령 경로(/Applications에 설치했을 때) */
+const attachPath = `/Applications/${/APP_NAME="([^"]+)"/.exec(installer)![1]}/${/ATTACH_REL="([^"]+)"/.exec(installer)![1]}`;
 /** electron-builder가 채우는 자리에 실제 값을 넣은 dmg 이름 */
 const dmgName = pkg.build.dmg.artifactName.replace('${version}', pkg.version).replace('${arch}', 'arm64').replace('${ext}', 'dmg');
 
@@ -23,7 +28,7 @@ describe('Release 절차와 산출물 이름 (B6)', () => {
   });
 
   it('받는 폴더를 비우고 받는다(지난 dmg가 남아 둘 이상이 잡히지 않게)', () => {
-    const download = setup.slice(setup.indexOf('## 2-나'), setup.indexOf('## 3.'));
+    const download = setup.slice(setup.indexOf('## 2-가'), setup.indexOf('## 2-나'));
     expect(download).toMatch(/rm -rf \/tmp\/agent-browser-release/);
     expect(download.indexOf('rm -rf /tmp/agent-browser-release')).toBeLessThan(download.indexOf('gh release download'));
   });
@@ -31,5 +36,34 @@ describe('Release 절차와 산출물 이름 (B6)', () => {
   it('Release 올리기는 이번 버전의 dmg 하나만 올린다(release/에 쌓인 옛 dmg 제외)', () => {
     const upload = setup.slice(setup.indexOf('## Release 올리기'));
     expect(upload).not.toMatch(/release\/[^\n]*\*[^\n]*\.dmg/);
+    expect(workflow).not.toMatch(/release\/[^\n]*\*[^\n]*\.dmg/);
+  });
+});
+
+describe('소스 없이 dmg로 설치 (카드 20261119-release-ci)', () => {
+  it('기본 설치 경로(2-가)가 Release이고, 저장소 안의 스크립트가 아니라 Release에 올린 install-mac.sh를 쓴다', () => {
+    const release = setup.slice(setup.indexOf('## 2-가'), setup.indexOf('## 2-나'));
+    expect(release).toContain('gh release download');
+    expect(release).toContain("--pattern 'install-mac.sh'");
+    expect(release).not.toContain('scripts/install-mac.sh');
+    expect(setup.slice(setup.indexOf('## 2-나'), setup.indexOf('## 3.'))).toContain('scripts/install-mac.sh'); // 소스 빌드는 개발자용
+  });
+
+  it('CI가 macOS arm64에서 시험한 뒤 그 버전의 dmg와 설치 스크립트를 올리고, 태그와 버전이 다르면 멈춘다', () => {
+    expect(workflow).toMatch(/runs-on:\s*macos-1\d/);
+    expect(workflow).toMatch(/tags:\s*\[?\s*'?v\*/);
+    expect(workflow).toContain('npm run dist');
+    expect(workflow).toContain('playwright test -c playwright.dist.config.ts');
+    expect(workflow).toContain(pkg.build.dmg.artifactName.replace('${version}', '$VERSION').replace('${arch}', 'arm64').replace('${ext}', 'dmg'));
+    expect(workflow).toContain('scripts/install-mac.sh');
+    expect(workflow).toMatch(/태그와 package\.json 버전이 다르다/);
+  });
+
+  it('README 빠른 시작: Release에서 dmg 받기 → 처음 열기 → claude mcp add 한 줄(설치 스크립트와 같은 경로), 업데이트 방법', () => {
+    const quick = readme.slice(readme.indexOf('## 빠른 시작'), readme.indexOf('## 쓰는 법'));
+    expect(quick).toContain('releases/latest');
+    expect(quick).toContain(`claude mcp add --scope user agent-browser -- "${attachPath}"`);
+    expect(quick).toMatch(/업데이트/);
+    expect(quick.indexOf('releases/latest')).toBeLessThan(quick.indexOf('git clone') === -1 ? Infinity : quick.indexOf('git clone'));
   });
 });
