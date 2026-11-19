@@ -1,6 +1,6 @@
-import { app, session } from 'electron';
-import { createHumanWindow, type HumanWindow } from './humanWindow';
-import { createAgentWindow, type AgentWindow } from './agentWindow';
+import { app, BrowserWindow, session } from 'electron';
+import { CONTENT_AREA, createHumanWindow, type HumanWindow } from './humanWindow';
+import { createAgentSession, type AgentSession } from './agentSession';
 import { DOWNLOADS_FLAG, HIDDEN_FLAG, SHARED_PARTITION, USER_DATA_FLAG } from '../shared/constants';
 import { ApprovalQueue } from './gate/approvals';
 import { installFormGate } from './gate/formGate';
@@ -21,7 +21,7 @@ const showWindows = !process.argv.includes(HIDDEN_FLAG);
 
 const send = (m: BrowserReply, rid?: number) => process.send?.({ ...m, rid });
 let human: HumanWindow | undefined;
-const agents = new Map<string, AgentWindow>();
+const agents = new Map<string, AgentSession>();
 const approvals = new ApprovalQueue((views) => human?.showApprovals(views));
 
 /** 이 webContents가 어느 세션의 탭인가(사람 창이면 undefined) */
@@ -30,10 +30,19 @@ const sessionOfContents = (contentsId: number): string | undefined => {
   return undefined;
 };
 
-const listWindows = (): WindowInfo[] => [
-  ...(human && !human.win.isDestroyed() ? [{ kind: 'human' as const }] : []),
-  ...[...agents.keys()].map((sessionId) => ({ kind: 'agent' as const, sessionId })),
-];
+/** OS 창은 사람 창 하나뿐이다. 세션은 사람 창 안에 있다(spec-embedded-sessions E1) */
+const listWindows = (): WindowInfo[] => BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed()).map((w) => ({ kind: w === human?.win ? 'human' : 'other' }));
+
+/** 왼쪽 영역에 보이는 탭을 targetId로 알린다(테스트·진단용) */
+const shownTab = (): BrowserReply => {
+  if (!human) return { type: 'error', message: '사람 창이 없다' };
+  const s = human.shown();
+  const focused = s.focusedContentsId;
+  const focusedSession = focused === undefined ? null : [...agents.values()].find((a) => a.contentsIds.has(focused))?.sessionId ?? null;
+  if (s.view === 'human') return { type: 'shownTab', view: 'human', exposed: s.exposed, content: s.content, focusedSession, focusedUi: s.focusedUi, windowFocused: s.windowFocused, offscreenFocusCount: s.offscreenFocusCount };
+  const targetId = s.contentsId === undefined ? undefined : agents.get(s.sessionId)?.targetIds.get(s.contentsId);
+  return { type: 'shownTab', view: 'session', sessionId: s.sessionId, ...(targetId ? { targetId } : {}), exposed: s.exposed, content: s.content, focusedSession, focusedUi: s.focusedUi, windowFocused: s.windowFocused, offscreenFocusCount: s.offscreenFocusCount };
+};
 
 /** 사람 창의 지켜보기 패널에 세션과 탭 URL을 보인다(R11) */
 const refreshPanel = () => {
@@ -43,7 +52,7 @@ const refreshPanel = () => {
   }));
 };
 
-const agentOf = (sessionId: string): AgentWindow => {
+const agentOf = (sessionId: string): AgentSession => {
   const agent = agents.get(sessionId);
   if (!agent) throw new Error(`없는 세션: ${sessionId}`);
   return agent;
@@ -58,23 +67,35 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
       return undefined;
     case 'listWindows':
       return { type: 'windows', windows: listWindows() };
+    case 'listSessions':
+      return { type: 'sessions', sessionIds: [...agents.keys()] };
+    case 'shownTab':
+      return shownTab();
     case 'focus':
       bringHumanToFront();
       return { type: 'done' };
     case 'createSession': {
       if (agents.has(m.sessionId)) return { type: 'error', message: `이미 있는 세션: ${m.sessionId}` };
-      const agent = createAgentWindow(m.sessionId, showWindows, {
-        stateChanged: () => refreshPanel(),
+      if (!human || human.win.isDestroyed()) return { type: 'error', message: '사람 창이 없다' };
+      const host = human;
+      // 세션마다 창을 띄우지 않고 사람 창 안에 탭 묶음을 둔다(spec-embedded-sessions, ADR-0009)
+      const agent = createAgentSession(m.sessionId, host.win, CONTENT_AREA, {
+        stateChanged: (sessionId) => { refreshPanel(); host.sessionChanged(sessionId); },
         tabClosing: (contentsId) => approvals.cancelContents(contentsId),
         tabAdded: (sessionId, targetId) => send({ type: 'tabAdded', sessionId, targetId }),
         tabRemoved: (sessionId, targetId) => send({ type: 'tabRemoved', sessionId, targetId }),
+        closed: (sessionId) => {
+          agents.delete(sessionId);
+          host.removeSession(sessionId);
+          send({ type: 'sessionClosed', sessionId }); // 사람이 패널에서 멈춘 경우도 런처가 세션을 끝낸다(R9)
+          refreshPanel();
+        },
+        layoutChanged: () => host.restack(),
+        tabFocused: (view) => host.tabFocused(view),
       });
       agents.set(m.sessionId, agent);
-      agent.win.on('closed', () => {
-        agents.delete(m.sessionId);
-        send({ type: 'sessionClosed', sessionId: m.sessionId }); // 사람이 창을 닫은 경우도 런처가 세션을 끝낸다(R9)
-        refreshPanel();
-      });
+      host.addSession(m.sessionId, agent.tabs);
+      refreshPanel();
       const targetId = await agent.ready; // 첫 탭의 tabAdded가 sessionCreated보다 먼저 가게 한다
       return { type: 'sessionCreated', sessionId: m.sessionId, targetId };
     }
@@ -98,8 +119,7 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
       return { type: 'done' };
     }
     case 'closeSession': {
-      const agent = agents.get(m.sessionId);
-      if (agent && !agent.win.isDestroyed()) agent.win.close();
+      agents.get(m.sessionId)?.close();
       return { type: 'done' };
     }
     case 'activateTab': {

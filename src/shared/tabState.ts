@@ -22,7 +22,16 @@ export type HumanCommand =
   | { cmd: 'activate'; id: number }
   | { cmd: 'close'; id: number }
   | { cmd: 'stopSession'; sessionId: string }
-  | { cmd: 'decide'; id: string; allow: boolean };
+  /** 왼쪽 영역에 볼 대상: 세션 id 또는 null(내 탭) */
+  | { cmd: 'view'; sessionId: string | null }
+  | { cmd: 'decide'; id: string; allow: boolean }
+  /** 사람 창 UI의 화면 크기가 바뀌었다. 창 내용 높이는 resize 이벤트 없이 바뀔 수 있다(Linux 메뉴 막대) */
+  | { cmd: 'relayout' };
+
+/** 사람 창 머리(탭 막대·주소창)에 보일 상태. viewing이 있으면 그 세션의 탭을 보는 중이다(읽기 전용) */
+export interface HumanToolbarState extends TabStripState {
+  viewing: string | null;
+}
 
 /** 지켜보기 패널에 보이는 세션 하나(R11) */
 export interface SessionView {

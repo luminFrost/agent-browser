@@ -1,7 +1,7 @@
 // 붙이기 명령(spec-claude-attach). Claude Code가 MCP stdio 서버로 띄운다:
 //   claude mcp add agent-browser -- "/Applications/Agent Browser.app/Contents/Resources/agent-browser-mcp"
-// 켜진 앱에 붙잡은 세션(에이전트 창 1개)을 열고, 함께 넣은 chrome-devtools-mcp를 그 세션에 붙여 stdio를 넘긴다.
-// 이 프로세스가 어떻게 끝나든 붙잡은 연결이 끊겨 런처가 그 창을 닫는다(A3).
+// 켜진 앱에 붙잡은 세션(사람 창 안의 세션 탭 묶음 1개)을 열고, 함께 넣은 chrome-devtools-mcp를 그 세션에 붙여 stdio를 넘긴다.
+// 이 프로세스가 어떻게 끝나든 붙잡은 연결이 끊겨 런처가 그 세션을 끝낸다(A3).
 // 묶은 앱에서는 앱 실행 파일을 Node 모드(ELECTRON_RUN_AS_NODE)로 돌린다. 시스템 Node가 필요 없다(A6).
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -122,10 +122,10 @@ async function main(): Promise<void> {
   for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) {
     process.on(sig, () => { held.close(); child.kill(sig); });
   }
-  // 런처 쪽에서 끊었다(사람이 창을 닫음·앱 종료) → 더 할 일이 없다
+  // 런처 쪽에서 끊었다(사람이 패널에서 멈춤·앱 종료) → 더 할 일이 없다
   held.closed.then(() => {
     if (child.exitCode === null) {
-      process.stderr.write('agent-browser: 세션이 닫혔다(에이전트 창을 닫았거나 앱이 끝났다)\n');
+      process.stderr.write('agent-browser: 세션이 닫혔다(사람이 패널에서 멈췄거나 앱이 끝났다)\n');
       child.kill('SIGTERM');
     }
   }).catch(() => undefined);

@@ -321,13 +321,13 @@ test(`C1 끄는 중 다시 열기(${REOPEN_GAPS_MS.join('·')}ms 뒤, 간격마�
 // ── 붙이기 명령(spec-claude-attach A1·A2·A3·A5·A6) ──
 /** Claude Code에 등록하는 붙이기 명령(README) */
 const ATTACH = join(APP, 'Contents', 'Resources', 'agent-browser-mcp');
-/** A3: 붙이기 명령이 끝나면 그 창이 이 시간 안에 닫힌다 */
+/** A3: 붙이기 명령이 끝나면 그 세션이 이 시간 안에 끝난다 */
 const ATTACH_CLOSE_WITHIN_MS = 5_000;
 /** A5: 앱이 꺼져 있을 때 붙이기 명령이 15초 안에 붙는다(MCP initialize 응답까지) */
 const ATTACH_START_WITHIN_MS = 15_000 + 5_000;
 const ATTACH_COUNT = 3;
 
-test('A5·A6·A1·A2·A3 붙이기 명령: 앱이 꺼져 있어도 Node 없이 동시에 3개를 띄우면 앱이 1번 켜지고 각자 자기 창에 붙으며, 끝나면 그 창이 닫힌다', async () => {
+test('A5·A6·A1·A2·A3·E1 붙이기 명령: 앱이 꺼져 있어도 Node 없이 동시에 3개를 띄우면 앱이 1번 켜지고 각자 자기 세션에 붙으며(창은 사람 창 1개뿐), 끝나면 그 세션이 끝난다', async () => {
   const profile = mkdtempSync(join(tmpdir(), 'ab-attach-'));
   const server = await startTestServer();
   const procs: ChildProcess[] = [];
@@ -348,7 +348,7 @@ test('A5·A6·A1·A2·A3 붙이기 명령: 앱이 꺼져 있어도 Node 없이 �
     // B5(spec-company-setup): 쓸 때 알 것이 MCP 안내로 온다
     for (const mcp of clients) expect(mcp.initResult.instructions?.startsWith(AGENT_BROWSER_GUIDE)).toBe(true);
 
-    // A1·A2: 각자 자기 창에서 다른 페이지를 열고, 서로의 탭이 보이지 않는다
+    // A1·A2: 각자 자기 세션에서 다른 페이지를 열고, 서로의 탭이 보이지 않는다
     const paths = ['/a?n=1', '/b?n=2', '/a?n=3']; // 서로의 부분 문자열이 아니다
     for (const [i, mcp] of clients.entries()) {
       const pageId = Number(/(\d+):/.exec(await mcp.tool('list_pages'))?.[1]);
@@ -362,14 +362,21 @@ test('A5·A6·A1·A2·A3 붙이기 명령: 앱이 꺼져 있어도 Node 없이 �
       expect(pages).not.toContain('/renderer/');
     }
 
-    // A3: 창 수(사람 1 + 에이전트 3)가 붙이기 명령이 끝날 때마다 하나씩 준다. (다) 강제 종료 → (나) SIGTERM → (가) stdin 닫힘
+    // E1(spec-embedded-sessions): 세션이 3개여도 창은 사람 창 1개다. 세션 탭은 사람 창 안에 있다
     const { browser } = await waitFor(() => { const p = appProcesses(profile); return p.browser ? p : undefined; }, '브라우저');
     const windows = () => onScreenWindowOwners().filter((pid) => pid === browser!.pid).length;
-    await waitFor(() => windows() === 1 + ATTACH_COUNT, '사람 창 + 에이전트 창 3개');
+    await waitFor(() => windows() === 1, '사람 창 1개');
+    // A3: 붙이기 명령이 끝날 때마다 그 세션이 끝난다(그 browserUrl이 더 응답하지 않는다). 나머지는 그대로다.
+    // browserUrl은 붙이기 명령이 띄운 chrome-devtools-mcp의 인자(--browserUrl)에서 읽는다. (다) 강제 종료 → (나) SIGTERM → (가) stdin 닫힘
+    const urls = procs.map((p) => /--browserUrl (\S+)/.exec(processes().find((c) => c.ppid === p.pid && c.command.includes('--browserUrl'))?.command ?? '')?.[1]);
+    expect(urls.every((u) => u !== undefined)).toBe(true);
+    const responds = (url: string) => fetch(`${url}json/version`).then((r) => r.ok, () => false);
     const ends: ((p: ChildProcess) => void)[] = [(p) => p.kill('SIGKILL'), (p) => p.kill('SIGTERM'), (p) => p.stdin!.end()];
     for (const [i, end] of ends.entries()) {
       end(procs[i]);
-      await waitFor(() => windows() === ATTACH_COUNT - i, `붙이기 명령 ${i + 1}이 끝나 그 창이 닫힘`, ATTACH_CLOSE_WITHIN_MS);
+      await waitFor(async () => !(await responds(urls[i]!)), `붙이기 명령 ${i + 1}이 끝나 그 세션이 끝남`, ATTACH_CLOSE_WITHIN_MS);
+      for (const url of urls.slice(i + 1)) expect(await responds(url!)).toBe(true);
+      expect(windows()).toBe(1);
     }
   } finally {
     for (const p of procs) p.kill('SIGKILL');

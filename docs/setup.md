@@ -59,7 +59,7 @@ scripts/install-mac.sh --from-dmg /tmp/agent-browser-release/Agent-Browser-*-arm
 claude mcp list
 ```
 
-- `agent-browser`가 연결됨(✓ Connected)으로 나오면 성공이다. 이 확인을 할 때 앱이 켜지고 에이전트 창이 잠깐 생겼다가 닫힐 수 있다. 정상이다.
+- `agent-browser`가 연결됨(✓ Connected)으로 나오면 성공이다. 이 확인을 할 때 앱이 켜지고 오른쪽 패널에 세션이 잠깐 생겼다가 사라질 수 있다. 정상이다.
 - 연결 실패(✗)로 나오면 `~/Library/Application Support/agent-browser/launcher.log`의 끝 30줄을 보여 준다. 앱이 처음 실행을 막혔을 가능성이 크다(4번).
 
 ## 4. 사람에게 남은 일을 알린다
@@ -67,7 +67,7 @@ claude mcp list
 설치가 끝나면 아래를 사람에게 그대로 전한다.
 
 1. 앱을 한 번 여세요. `open "<설치 완료에 나온 앱 경로>"`(보통 `/Applications/Agent Browser.app`, 쓸 수 없었으면 `~/Applications/Agent Browser.app`). 막히면 Finder에서 우클릭 → 열기를 하거나, 시스템 설정 → 개인정보 보호 및 보안 → "그래도 열기"를 누르세요. 그래도 안 되면 회사 정책이 서명 없는 앱을 막는 것이니 IT 담당과 상의해야 합니다.
-2. 사람 창에서 회사 계정에 로그인해 두세요. Claude의 창도 이 로그인을 함께 씁니다.
+2. 사람 창에서 회사 계정에 로그인해 두세요. Claude의 탭도 이 로그인을 함께 씁니다.
 3. 새 Claude Code 세션부터 agent-browser 도구를 쓸 수 있습니다. 지금 이 세션에서 쓰려면 `/mcp`로 다시 연결하세요.
 
 ## 지우기
@@ -95,10 +95,11 @@ gh release create "v$VERSION" "release/Agent-Browser-$VERSION-arm64.dmg" \
 ## 쓸 때 (설치 뒤, 다른 프로젝트에서)
 
 agent-browser MCP에 붙으면 initialize 안내(instructions)로 쓸 때 알 것을 받는다. 요약:
-- 이 세션 전용 창의 탭만 보인다.
+- 이 세션 전용 탭만 보인다(사람 창 안에 있고, 사람이 패널에서 골라 지켜볼 수 있다).
 - 사람의 회사 계정 로그인을 함께 쓴다.
 - 폼 제출(POST)·다운로드는 사람이 허용해야 진행된다.
 - 막힌 도구가 있다. 화면 크기는 `emulate`로 바꾼다.
-- 연결이 끊기면 사람에게 `/mcp` 재연결을 부탁한다.
+- 세션은 창을 따로 띄우지 않는다. 사람이 패널에서 그 세션의 멈추기를 누르거나 Claude Code 세션이 끝나면 세션이 끝난다.
+- 연결이 끊기면(사람이 패널에서 멈추기를 눌렀거나 앱이 꺼짐) 사람에게 `/mcp` 재연결을 부탁한다.
 
 자세한 것은 `README.md`의 "알려진 한계"를 본다.

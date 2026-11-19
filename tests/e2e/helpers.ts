@@ -6,8 +6,19 @@ import { startApp, type RunningApp, type StartOptions } from '../../src/launcher
 
 export const tempDir = (prefix = 'ab-') => mkdtempSync(join(tmpdir(), prefix));
 
+/** AB_TEST_SHOW=1이면 창을 보이게 띄운다. 숨긴 창을 그리지 않는 환경(Linux Xvfb)에서 화면·스크린샷 확인용 */
 export async function launch(options: Partial<StartOptions> = {}): Promise<RunningApp> {
-  return startApp({ userDataDir: tempDir(), hidden: true, ...options });
+  return startApp({ userDataDir: tempDir(), hidden: process.env.AB_TEST_SHOW !== '1', ...options });
+}
+
+/** 브라우저 main에 살아 있는 에이전트 세션 id (spec-embedded-sessions E1) */
+export async function sessionIds(app: RunningApp): Promise<string[]> {
+  return (await app.request({ type: 'listSessions' }, 'sessions')).sessionIds;
+}
+
+/** 사람 창 왼쪽 영역에 지금 보이는 탭: 사람 탭이면 view 'human', 세션 탭이면 그 세션 id와 targetId (E2) */
+export async function shown(app: RunningApp) {
+  return app.request({ type: 'shownTab' }, 'shownTab');
 }
 
 export interface TargetInfo { targetId: string; type: string; url: string; title: string }
