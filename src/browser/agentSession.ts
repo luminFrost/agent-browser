@@ -1,51 +1,51 @@
-import { BrowserWindow, type WebContents } from 'electron';
-import { join } from 'node:path';
+import type { BrowserWindow, WebContents } from 'electron';
 import { TabStrip } from './tabStrip';
 import { targetIdOf } from './targetId';
 import { SHARED_PARTITION } from '../shared/constants';
 import { isAgentNavigable } from '../shared/url';
 import type { TabStripState } from '../shared/tabState';
 
-/** 에이전트 창 머리줄 높이(px). renderer/agent/agent.css의 --header-height와 같아야 한다 */
-const HEADER_HEIGHT = 36;
-
-export interface AgentWindow {
+export interface AgentSession {
   sessionId: string;
-  win: BrowserWindow;
   tabs: TabStrip;
-  /** 이 창의 탭 webContents id → CDP targetId */
+  /** 이 세션의 탭 webContents id → CDP targetId */
   targetIds: Map<number, string>;
-  /** 이 창의 탭 webContents id. 탭이 생기는 즉시 들어간다(관문 판별용, targetId 알림을 기다리지 않는다) */
+  /** 이 세션의 탭 webContents id. 탭이 생기는 즉시 들어간다(관문 판별용, targetId 알림을 기다리지 않는다) */
   contentsIds: Set<number>;
   /** 첫 탭의 targetId를 알린 뒤 그 targetId로 풀린다 */
   ready: Promise<string>;
   /** 새 탭을 만들고, 소유권을 알린 뒤 targetId를 돌려준다 */
   openTab(): Promise<string>;
-  /** targetId로 탭 찾기(이 창의 탭이 아니면 undefined) */
+  /** targetId로 탭 찾기(이 세션의 탭이 아니면 undefined) */
   tabIdOf(targetId: string): number | undefined;
+  /** 세션을 끝낸다: 탭을 모두 닫고(탭마다 tabRemoved) closed를 알린다. 두 번 불러도 한 번만 한다 */
+  close(): void;
 }
 
-export interface AgentWindowEvents {
-  /** 탭 상태가 바뀜(지켜보기 패널용) */
+export interface AgentSessionEvents {
+  /** 탭 상태가 바뀜(지켜보기 패널·보는 화면용) */
   stateChanged(sessionId: string, state: TabStripState): void;
   /** 탭이 닫히기 직전(관문의 기다리는 요청 취소용) */
   tabClosing(contentsId: number): void;
   tabAdded(sessionId: string, targetId: string): void;
   tabRemoved(sessionId: string, targetId: string): void;
+  /** 세션이 끝났다(close) */
+  closed(sessionId: string): void;
+  /** 탭 배치가 바뀌었다(사람 창이 보는 탭을 다시 맨 위로 올린다) */
+  layoutChanged(): void;
+}
+
+/** 세션 탭이 들어갈 사람 창의 자리(주소창 아래, 지켜보기 패널 왼쪽) */
+export interface ContentArea {
+  topInset: number;
+  rightInset: number;
 }
 
 /**
- * 에이전트 세션 하나의 창. 사람 창과 같은 파티션을 써서 로그인을 공유한다.
- * 사람은 보기만 한다(주소창 없음). 탭은 에이전트가 CDP로 만든다.
+ * 에이전트 세션 하나의 탭 묶음. 따로 창을 띄우지 않고 사람 창 안에 두며, 사람이 패널에서 고를 때만 보인다
+ * (spec-embedded-sessions, ADR-0009). 사람 창과 같은 파티션을 써서 로그인을 공유한다. 탭은 에이전트가 CDP로 만든다.
  */
-export function createAgentWindow(sessionId: string, show: boolean, events: AgentWindowEvents): AgentWindow {
-  const win = new BrowserWindow({
-    width: 1100,
-    height: 760,
-    show,
-    title: `에이전트 세션 ${sessionId}`,
-    webPreferences: { preload: join(__dirname, 'preload', 'agent.js'), sandbox: true, contextIsolation: true, additionalArguments: [`--ab-session=${sessionId}`] },
-  });
+export function createAgentSession(sessionId: string, host: BrowserWindow, area: ContentArea, events: AgentSessionEvents): AgentSession {
   const targetIds = new Map<number, string>();
   const contentsIds = new Set<number>();
   /** webContents id → 소유권 알림이 끝나면 풀리는 약속 */
@@ -62,14 +62,15 @@ export function createAgentWindow(sessionId: string, show: boolean, events: Agen
     announced.set(contents.id, p);
   };
 
-  const tabs = new TabStrip(win, {
+  const tabs = new TabStrip(host, {
     partition: SHARED_PARTITION,
-    topInset: HEADER_HEIGHT,
-    onChange: (state) => {
-      win.webContents.send('agent:state', state);
-      events.stateChanged(sessionId, state);
-    },
+    topInset: area.topInset,
+    rightInset: area.rightInset,
+    shown: false,
+    keepPainting: true, // 사람이 다른 세션이나 내 탭을 보는 동안에도 에이전트가 조작할 수 있게(E4)
+    onChange: (state) => events.stateChanged(sessionId, state),
     onTabCreated: announce,
+    onLayout: () => events.layoutChanged(),
     allowNavigation: isAgentNavigable,
     onTabClosing: (contentsId) => {
       contentsIds.delete(contentsId);
@@ -80,9 +81,6 @@ export function createAgentWindow(sessionId: string, show: boolean, events: Agen
       events.tabRemoved(sessionId, targetId);
     },
   });
-  win.webContents.on('did-finish-load', () => win.webContents.send('agent:state', tabs.state()));
-  win.on('close', () => tabs.destroy()); // 창을 닫으면 탭마다 tabRemoved를 알린다
-  win.loadFile(join(__dirname, 'renderer', 'agent', 'index.html')).catch(() => undefined);
   const openTab = async () => {
     const id = tabs.newTab('about:blank');
     const contents = tabs.contentsOf(id);
@@ -94,6 +92,13 @@ export function createAgentWindow(sessionId: string, show: boolean, events: Agen
     for (const [contentsId, t] of targetIds) if (t === targetId) return tabs.idOfContents(contentsId);
     return undefined;
   };
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    tabs.destroy(); // 탭마다 tabRemoved를 알린다
+    events.closed(sessionId);
+  };
   const ready = openTab();
-  return { sessionId, win, tabs, targetIds, contentsIds, ready, openTab, tabIdOf };
+  return { sessionId, tabs, targetIds, contentsIds, ready, openTab, tabIdOf, close };
 }

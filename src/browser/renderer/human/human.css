@@ -13,12 +13,26 @@ body { margin: 0; height: 100vh; overflow: hidden; background: Canvas; }
 #nav button:disabled { opacity: .3; }
 #address { flex: 1; padding: 5px 10px; border: 1px solid color-mix(in srgb, CanvasText 20%, Canvas); border-radius: 6px; font: inherit; }
 #loading { color: GrayText; }
+#address:read-only { color: GrayText; background: color-mix(in srgb, CanvasText 5%, Canvas); }
+
+/* 세션 보는 중(spec-embedded-sessions E2): 머리에 표시하고, 세션 색으로 테두리를 둔다 */
+#viewing { display: flex; align-items: center; gap: 8px; margin: 0 0 4px auto; padding: 3px 4px 3px 10px; border-radius: 6px; background: color-mix(in srgb, #5b3cc4 18%, Canvas); color: #5b3cc4; font-weight: 600; white-space: nowrap; }
+#viewing[hidden] { display: none; }
+#viewing .back-to-own { border: 1px solid #5b3cc4; border-radius: 4px; background: Canvas; color: #5b3cc4; font: inherit; font-weight: 400; padding: 2px 8px; }
+body.viewing #tabbar, body.viewing #nav { background: color-mix(in srgb, #5b3cc4 8%, Canvas); }
+body.viewing .tab .close { display: none; }
+#new-tab:disabled { opacity: .3; }
+#view-empty { position: fixed; top: var(--toolbar-height); left: 0; right: var(--panel-width); margin: 0; padding-top: 40px; text-align: center; color: GrayText; }
 
 #panel { position: fixed; top: 0; right: 0; bottom: 0; width: var(--panel-width); box-sizing: border-box; padding: 10px 12px; overflow-y: auto; border-left: 1px solid color-mix(in srgb, CanvasText 15%, Canvas); background: color-mix(in srgb, CanvasText 4%, Canvas); }
 #panel h2 { margin: 0 0 8px; font-size: 13px; }
 #sessions-empty { color: GrayText; }
 #sessions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .session { padding: 8px; border-radius: 6px; background: Canvas; border: 1px solid color-mix(in srgb, #5b3cc4 40%, Canvas); }
+.session.viewing { outline: 2px solid #5b3cc4; }
+.session .view { border: 1px solid #5b3cc4; color: #5b3cc4; background: none; border-radius: 4px; padding: 2px 8px; font: inherit; }
+.session.viewing .view { background: #5b3cc4; color: Canvas; }
+.session .buttons { display: flex; gap: 4px; }
 .session header { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
 .session .id { font-family: ui-monospace, monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
 .session .stop { border: 1px solid #c4373c; color: #c4373c; background: none; border-radius: 4px; padding: 2px 8px; font: inherit; }

@@ -38,7 +38,7 @@ export interface RunningApp {
   rawCdp: CdpPipe;
   browserPid: number;
   controlFile: string;
-  /** 세션을 끝낸다: 엔드포인트를 닫아 연결을 끊고, 세션 창을 닫는다(R9). 없는 세션이면 아무 일도 없다 */
+  /** 세션을 끝낸다: 엔드포인트를 닫아 연결을 끊고, 사람 창 안의 세션 탭을 닫는다(R9). 없는 세션이면 아무 일도 없다 */
   stopSession(id: string): Promise<void>;
   /** 브라우저 프로세스가 끝나면 풀린다 */
   exited: Promise<void>;

@@ -10,6 +10,7 @@
   <div id="tabbar">
     <div id="tabs"></div>
     <button id="new-tab" title="새 탭">+</button>
+    <div id="viewing" hidden><span class="label"></span><button type="button" class="back-to-own">내 탭으로</button></div>
   </div>
   <form id="nav">
     <button type="button" id="back" title="뒤로">←</button>
@@ -18,6 +19,7 @@
     <input id="address" name="address" autocomplete="off" spellcheck="false" placeholder="주소 입력">
     <span id="loading" hidden>불러오는 중…</span>
   </form>
+  <p id="view-empty" hidden>이 세션에 열린 탭이 없습니다</p>
   <aside id="panel" aria-label="에이전트 세션">
     <section id="approvals-section" hidden>
       <h2>승인 요청</h2>

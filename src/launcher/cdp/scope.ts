@@ -1,15 +1,15 @@
 import type { Connection } from './connection';
 
-/** 세션 창의 탭을 다루는 앱 쪽 동작(런처 → 브라우저 ipc) */
+/** 세션의 탭을 다루는 앱 쪽 동작(런처 → 브라우저 ipc) */
 export interface TabActions {
-  /** 세션 창에 새 탭을 만들고 targetId를 돌려준다. 소유권 알림(tabAdded)이 끝난 뒤에 풀린다 */
+  /** 세션에 새 탭을 만들고 targetId를 돌려준다. 소유권 알림(tabAdded)이 끝난 뒤에 풀린다 */
   newTab(url: string): Promise<string>;
   closeTab(targetId: string): Promise<void>;
   activateTab(targetId: string): Promise<void>;
 }
 
 /**
- * 에이전트 세션 하나가 볼 수 있는 범위: 그 세션 창의 탭(targetId)과 붙어 있는 연결들.
+ * 에이전트 세션 하나가 볼 수 있는 범위: 그 세션의 탭(targetId)과 붙어 있는 연결들.
  * 탭은 브라우저 main의 tabAdded/tabRemoved로만 늘고 준다(design.md).
  */
 export class SessionScope {

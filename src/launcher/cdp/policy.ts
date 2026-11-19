@@ -14,7 +14,7 @@ export type BrowserLevelAction =
   | 'getTargets' // 자기 탭만 돌려준다
   | 'setDiscoverTargets' // 연결 상태로 흉내
   | 'setAutoAttach' // 연결 상태로 흉내
-  | 'createTarget' // 앱이 세션 창에 탭을 만든다
+  | 'createTarget' // 앱이 세션에 탭을 만든다(사람 창 안의 세션 탭 묶음)
   | 'closeTarget' // 자기 탭만, 앱이 닫는다
   | 'activateTarget' // 자기 탭만, 앱이 앞으로 가져온다
   | 'ignore'; // 넘기지 않고 {}로 답한다
