@@ -12,7 +12,7 @@ const list = async (s: SessionInfo) => (await (await fetch(s.browserUrl + 'json/
 const browserWs = async (s: SessionInfo) => CdpClient.connect(((await (await fetch(s.browserUrl + 'json/version')).json()) as { webSocketDebuggerUrl: string }).webSocketDebuggerUrl);
 const humanGo = async (url: string) => evaluate(app, (await humanUi(app)).targetId, `(() => { const i = document.querySelector('#address'); i.value = ${JSON.stringify(url)}; i.form.requestSubmit(); })()`);
 const humanNewTab = async () => evaluate(app, (await humanUi(app)).targetId, `document.querySelector('#new-tab').click()`);
-/** 사람 창의 탭과 UI, 다른 세션 창의 UI 등 A가 볼 수 없어야 하는 대상 전부 */
+/** 사람 창의 탭과 UI, 다른 세션의 탭 등 A가 볼 수 없어야 하는 대상 전부 */
 const notMine = async (mine: string[]) => (await targets(app)).filter((t) => !mine.includes(t.targetId)).map((t) => t.targetId);
 
 test('R5: A의 /json/list와 Target.getTargets에는 A의 탭만 나온다', async () => {
@@ -26,7 +26,8 @@ test('R5: A의 /json/list와 Target.getTargets에는 A의 탭만 나온다', asy
   try {
     const { targetInfos } = await client.send('Target.getTargets');
     expect((targetInfos as { targetId: string }[]).map((t) => t.targetId)).toEqual(aTabs);
-    expect((await notMine(aTabs)).length).toBeGreaterThanOrEqual(4); // 사람 UI·사람 탭·B의 UI·B의 탭·A의 UI
+    // 사람 UI·사람 탭·B의 탭. 세션은 사람 창 안에 있어 세션마다 창 UI가 따로 없다(spec-embedded-sessions E1)
+    expect((await notMine(aTabs)).length).toBeGreaterThanOrEqual(3);
   } finally { client.close(); }
 });
 

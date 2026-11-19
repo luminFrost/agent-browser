@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
-import { createSession, launch, waitFor } from './helpers';
+import { createSession, launch, sessionIds, waitFor } from './helpers';
 import { McpClient } from './mcpClient';
 import { AGENT_BROWSER_GUIDE } from '../../src/attach/attach';
 import { startTestServer, type TestServer } from '../fixtures/server';
@@ -23,7 +23,7 @@ test.afterEach(async () => {
 });
 
 const profileOf = (a: RunningApp) => join(a.controlFile, '..');
-const agentWindows = async () => (await app.request({ type: 'listWindows' }, 'windows')).windows.filter((w) => w.kind === 'agent').length;
+const agentWindows = async () => (await sessionIds(app)).length; // 세션 수(E1: 세션마다 창을 띄우지 않는다)
 
 async function attach(): Promise<McpClient> {
   const proc = spawn(process.execPath, [CLI], { env: { ...process.env, AGENT_BROWSER_PROFILE: profileOf(app) }, stdio: ['pipe', 'pipe', 'ignore'] });
@@ -33,7 +33,7 @@ async function attach(): Promise<McpClient> {
 
 const firstPageId = async (mcp: McpClient) => Number(/(\d+):/.exec(await mcp.tool('list_pages'))?.[1]);
 
-test('A1: 붙이기 명령에 MCP로 navigate·snapshot을 보내면 새 에이전트 창에서 페이지가 열린다', async () => {
+test('A1: 붙이기 명령에 MCP로 navigate·snapshot을 보내면 새 세션에서 페이지가 열린다', async () => {
   expect(await agentWindows()).toBe(0);
   const mcp = await attach();
   const tools = await mcp.rpc('tools/list', {}) as { result?: { tools?: { name: string }[] } };
@@ -44,7 +44,7 @@ test('A1: 붙이기 명령에 MCP로 navigate·snapshot을 보내면 새 에이�
   expect(await mcp.tool('take_snapshot', { pageId })).toMatch(/heading "A"/);
 });
 
-test('A2: 붙이기 명령 2개는 창이 따로 생기고 서로의 탭이 보이지 않는다', async () => {
+test('A2: 붙이기 명령 2개는 세션이 따로 생기고 서로의 탭이 보이지 않는다', async () => {
   const [a, b] = await Promise.all([attach(), attach()]);
   expect(await agentWindows()).toBe(2);
   await a.tool('navigate_page', { pageId: await firstPageId(a), type: 'url', url: `${server.base}/a` });
@@ -62,11 +62,11 @@ for (const [name, end] of [
   ['(나) SIGTERM이면', (p: ChildProcess) => p.kill('SIGTERM')],
   ['(다) SIGKILL로 강제 종료되면', (p: ChildProcess) => p.kill('SIGKILL')],
 ] as const) {
-  test(`A3 ${name} 그 창이 5초 안에 닫히고 다른 세션은 그대로다`, async () => {
+  test(`A3 ${name} 그 세션이 5초 안에 끝나고 다른 세션은 그대로다`, async () => {
     const [a, b] = await Promise.all([attach(), attach()]);
     expect(await agentWindows()).toBe(2);
     end(a.proc);
-    await waitFor(async () => (await agentWindows()) === 1, '끝난 세션의 창이 닫힘', CLOSE_WITHIN_MS);
+    await waitFor(async () => (await agentWindows()) === 1, '끝난 세션이 사라짐', CLOSE_WITHIN_MS);
     const pageId = await firstPageId(b);
     await b.tool('navigate_page', { pageId, type: 'url', url: `${server.base}/a` });
     expect(await b.tool('take_snapshot', { pageId })).toMatch(/heading "A"/);
