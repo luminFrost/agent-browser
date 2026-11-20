@@ -24,6 +24,7 @@ function fakeHandlers(createDelayMs = 0) {
         closed.push(id);
         return true;
       },
+      listSessions() { return [...live]; },
     },
   };
 }
@@ -64,6 +65,28 @@ describe('세션 닫기 API (spec-claude-attach A4)', () => {
     expect((await call('DELETE', `/sessions/${id}`, null)).status).toBe(401);
     expect((await call('DELETE', `/sessions/${id}`, 'Bearer wrong')).status).toBe(401);
     expect(f.closed).toEqual([]);
+  });
+});
+
+describe('세션 목록 API (살아 있는 세션 확인, 묶은 앱 시험 A3)', () => {
+  it('토큰과 함께 GET /sessions → 200, 살아 있는 세션 id 목록', async () => {
+    const f = fakeHandlers();
+    server = await startControlServer(TOKEN, 0, f.handlers);
+    expect(await (await call('GET', '/sessions')).json()).toEqual({ sessions: [] });
+    const a = (await (await call('POST', '/sessions')).json()) as { id: string };
+    const b = (await (await call('POST', '/sessions')).json()) as { id: string };
+    await call('DELETE', `/sessions/${a.id}`);
+    const res = await call('GET', '/sessions');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ sessions: [{ id: b.id }] });
+  });
+
+  it('토큰이 없으면 401, browserUrl은 주지 않는다', async () => {
+    const f = fakeHandlers();
+    server = await startControlServer(TOKEN, 0, f.handlers);
+    await call('POST', '/sessions');
+    expect((await call('GET', '/sessions', null)).status).toBe(401);
+    expect(JSON.stringify(await (await call('GET', '/sessions')).json())).not.toContain('browserUrl');
   });
 });
 

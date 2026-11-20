@@ -60,6 +60,18 @@ test('R10: 제어 포트는 127.0.0.1에만 열려 외부 인터페이스 IP로�
   expect((await post('/sessions')).status).toBe(401); // 127.0.0.1로는 응답한다
 });
 
+test('GET /sessions: 살아 있는 세션 id 목록이 브라우저의 세션과 같다(만들기·닫기를 따라간다)', async () => {
+  const auth = { authorization: `Bearer ${control().token}` };
+  const list = async () => ((await (await fetch(`http://127.0.0.1:${control().port}/sessions`, { headers: auth })).json()) as { sessions: { id: string }[] }).sessions.map((s) => s.id).sort();
+  expect(await list()).toEqual([]);
+  const a = ((await (await post('/sessions', auth)).json()) as { id: string }).id;
+  const b = ((await (await post('/sessions', auth)).json()) as { id: string }).id;
+  expect(await list()).toEqual([a, b].sort());
+  expect(await list()).toEqual((await sessionIds(app)).sort());
+  await fetch(`http://127.0.0.1:${control().port}/sessions/${a}`, { method: 'DELETE', headers: auth });
+  expect(await list()).toEqual([b]);
+});
+
 test('없는 경로·잘못된 메서드는 404/405', async () => {
   const auth = { authorization: `Bearer ${control().token}` };
   expect((await post('/nope', auth)).status).toBe(404);

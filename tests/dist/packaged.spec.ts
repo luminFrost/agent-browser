@@ -368,28 +368,20 @@ test('A5·A6·A1·A2·A3·E1 붙이기 명령: 앱이 꺼져 있어도 Node 없�
     const { browser } = await waitFor(() => { const p = appProcesses(profile); return p.browser ? p : undefined; }, '브라우저');
     const windows = () => onScreenWindowOwners().filter((pid) => pid === browser!.pid).length;
     await waitFor(() => windows() === 1, '사람 창 1개');
-    // A3: 붙이기 명령이 끝날 때마다 그 세션이 끝난다(그 browserUrl이 더 응답하지 않는다). 나머지는 그대로다.
-    // browserUrl은 붙이기 명령이 띄운 chrome-devtools-mcp의 인자(--browserUrl)에서 읽는다. (다) 강제 종료 → (나) SIGTERM → (가) stdin 닫힘
-    // chrome-devtools-mcp가 자식을 한 단계 더 띄울 수 있어 자손 전체에서 찾는다(CI run 44642749008에서 직계 자식만 보고 못 찾음)
-    const browserUrlOf = (root: number): string | undefined => {
-      const all = processes();
-      const queue = [root];
-      for (let pid = queue.shift(); pid !== undefined; pid = queue.shift()) {
-        for (const c of all.filter((x) => x.ppid === pid)) {
-          const m = /--browserUrl[= ](\S+)/.exec(c.command);
-          if (m) return m[1];
-          queue.push(c.pid);
-        }
-      }
-      return undefined;
+    // A3: 붙이기 명령이 끝날 때마다 그 세션이 끝난다(제어 API의 세션 목록이 하나씩 준다). 나머지는 그대로 쓸 수 있다.
+    // (다) 강제 종료 → (나) SIGTERM → (가) stdin 닫힘. 세션 수는 GET /sessions로 본다: macOS에서는 ps에 MCP의 인자가
+    // 보이지 않아 프로세스 목록으로는 세션 주소를 찾지 못했다(CI run 44642749008, 44645320754)
+    const liveSessions = async () => {
+      const { port, token } = readControl(profile);
+      const res = await fetch(`http://127.0.0.1:${port}/sessions`, { headers: { authorization: `Bearer ${token}` } });
+      return ((await res.json()) as { sessions: { id: string }[] }).sessions.length;
     };
-    const urls = await Promise.all(procs.map((p, i) => waitFor(() => browserUrlOf(p.pid!), `붙이기 명령 ${i + 1}의 browserUrl`)));
-    const responds = (url: string) => fetch(`${url}json/version`).then((r) => r.ok, () => false);
+    expect(await liveSessions()).toBe(ATTACH_COUNT);
     const ends: ((p: ChildProcess) => void)[] = [(p) => p.kill('SIGKILL'), (p) => p.kill('SIGTERM'), (p) => p.stdin!.end()];
     for (const [i, end] of ends.entries()) {
       end(procs[i]);
-      await waitFor(async () => !(await responds(urls[i]!)), `붙이기 명령 ${i + 1}이 끝나 그 세션이 끝남`, ATTACH_CLOSE_WITHIN_MS);
-      for (const url of urls.slice(i + 1)) expect(await responds(url!)).toBe(true);
+      await waitFor(async () => (await liveSessions()) === ATTACH_COUNT - (i + 1), `붙이기 명령 ${i + 1}이 끝나 그 세션이 끝남`, ATTACH_CLOSE_WITHIN_MS);
+      for (const [j, mcp] of clients.entries()) if (j > i) expect(await mcp.tool('list_pages')).toContain(`${server.base}${paths[j]}`);
       expect(windows()).toBe(1);
     }
   } finally {
