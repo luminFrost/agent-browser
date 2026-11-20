@@ -66,6 +66,17 @@ describe('소스 없이 dmg로 설치 (카드 20261119-release-ci)', () => {
     expect(scripts.dist).toMatch(/electron-builder[^&]*--publish never/);
   });
 
+  it('업데이트 확인: 설치된 버전을 읽는 명령과 최신 Release를 보는 곳이 README·setup.md에 있고, Release 노트에 바뀐 내용이 자동으로 들어간다', () => {
+    const versionCmd = `defaults read "/Applications/${/APP_NAME="([^"]+)"/.exec(installer)![1]}/Contents/Info" CFBundleShortVersionString`;
+    const quick = readme.slice(readme.indexOf('## 빠른 시작'), readme.indexOf('## 쓰는 법'));
+    expect(quick).toContain(versionCmd);
+    expect(quick).toMatch(/Watch[^\n]*Releases/);
+    const update = setup.slice(setup.indexOf('## 업데이트'), setup.indexOf('## Release 올리기'));
+    expect(update).toContain(versionCmd);
+    expect(update).toContain('gh release view --repo luminFrost/agent-browser');
+    expect(workflow).toContain('--generate-notes');
+  });
+
   it('README 빠른 시작: Release에서 dmg 받기 → 처음 열기 → claude mcp add 한 줄(설치 스크립트와 같은 경로), 업데이트 방법', () => {
     const quick = readme.slice(readme.indexOf('## 빠른 시작'), readme.indexOf('## 쓰는 법'));
     expect(quick).toContain('releases/latest');

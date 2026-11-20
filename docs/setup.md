@@ -83,7 +83,16 @@ rm -rf "/Applications/Agent Browser.app"     # 또는 ~/Applications
 
 ## 업데이트
 
-새 버전이 Release에 올라오면 2-가를 그대로 다시 한다. 앱은 덮어쓰고, 로그인 정보(프로필)는 그대로 남는다. MCP 경로가 같으므로 다시 등록해도 결과는 같다. 앱이 켜져 있으면 먼저 끄라고 사람에게 부탁한다. 끝나면 Claude Code에서 `/mcp`로 다시 연결하라고 알린다.
+사람이 "업데이트 확인해 줘", "업데이트해 줘"라고 하면 먼저 버전을 비교한다.
+
+```sh
+defaults read "/Applications/Agent Browser.app/Contents/Info" CFBundleShortVersionString   # 설치된 버전(~/Applications에 깔렸으면 그 경로)
+gh release view --repo luminFrost/agent-browser --json tagName,publishedAt,body --jq '.tagName, .publishedAt, .body'   # 최신 Release(태그는 v<버전>)
+```
+
+- 설치된 버전과 최신 태그(`v` 뺀 값)가 같으면 "최신입니다"라고 알리고 끝낸다.
+- 최신이 더 높으면 Release 노트(바뀐 내용)를 짧게 보여 주고 2-가를 그대로 다시 한다. 앱은 덮어쓰고, 로그인 정보(프로필)는 그대로 남는다. MCP 경로가 같으므로 다시 등록해도 결과는 같다. 앱이 켜져 있으면 먼저 끄라고 사람에게 부탁한다. 끝나면 Claude Code에서 `/mcp`로 다시 연결하라고 알린다.
+- `gh`가 없으면 사람에게 https://github.com/luminFrost/agent-browser/releases/latest 의 버전을 봐 달라고 부탁한다.
 
 ## Release 올리기 (CI가 한다)
 
