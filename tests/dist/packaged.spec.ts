@@ -162,7 +162,9 @@ test.describe('한 번 띄운 앱', () => {
     expect(await openApp(profile)).toBe(0);
     // 런처가 신호를 받아 창을 앞으로 가져온 뒤 받음 표시를 남긴다(spec-start-fixes D2)
     expect(readFileSync(join(profile, 'launcher.lock.ack'), 'utf8')).toBe(String(launcherPid));
-    await waitFor(() => frontmostPid() === browserPid, '기존 앱이 앞으로 옴');
+    // CI(GitHub macOS 15 러너)에서는 창이 다른 앱 앞으로 오지 않아 이 확인만 뺀다(사람 승인 2026-11-20, 카드 20261119-release-ci).
+    // 추론: macOS 14부터 다른 앱이 쓰는 중에는 포커스를 강제로 가져오지 못한다. 실제 Mac에서는 이 확인을 그대로 한다
+    if (process.env.AB_DIST_SKIP_FRONTMOST !== '1') await waitFor(() => frontmostPid() === browserPid, '기존 앱이 앞으로 옴');
     const { browser, launcher, all } = appProcesses(profile);
     expect(browser?.pid).toBe(browserPid);
     expect(launcher?.pid).toBe(launcherPid);
