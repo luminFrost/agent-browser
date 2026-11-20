@@ -66,9 +66,21 @@ claude mcp add --scope user agent-browser -- "/Applications/Agent Browser.app/Co
 
 ### 업데이트
 
+**새 버전이 있는지 확인**
+
+```sh
+defaults read "/Applications/Agent Browser.app/Contents/Info" CFBundleShortVersionString   # 설치된 버전
+```
+
+이 숫자를 [최신 Release](https://github.com/luminFrost/agent-browser/releases/latest)의 버전(맨 위 배지에도 보인다)과 비교한다. 더 높으면 새 버전이다. Release 노트에 무엇이 바뀌었는지(합친 PR 목록)가 나온다. 새 버전이 나올 때 알림을 받으려면 GitHub 저장소에서 **Watch → Custom → Releases**를 켠다.
+
+**업데이트하기**
+
 1. 앱을 끈다.
 2. 새 Release의 dmg로 2번을 다시 한다(덮어쓰기). 로그인 정보는 그대로 남는다.
 3. MCP는 다시 등록하지 않아도 된다(경로가 같다). Claude Code에서 `/mcp`로 다시 연결한다.
+
+> Claude Code에게 "agent-browser 업데이트 확인해 줘"라고 해도 된다. [`docs/setup.md`](docs/setup.md)의 "업데이트" 절차대로 버전을 비교하고, 새 버전이면 설치까지 한다.
 
 <details>
 <summary>소스로 빌드해서 설치하기 (개발자용)</summary>

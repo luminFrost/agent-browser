@@ -61,8 +61,10 @@ jobs:
           if gh release view "v$VERSION" >/dev/null 2>&1; then
             gh release upload "v$VERSION" "$DMG" scripts/install-mac.sh --clobber
           else
+            # 바뀐 내용(지난 Release 뒤 합친 PR 목록)은 GitHub가 자동으로 만든다(--generate-notes). 그 앞에 설치·업데이트 안내를 붙인다
             gh release create "v$VERSION" "$DMG" scripts/install-mac.sh \
               --target "$GITHUB_SHA" \
               --title "Agent Browser $VERSION" \
-              --notes "Apple Silicon(arm64) Mac용. 설치: dmg를 열어 Agent Browser를 Applications로 옮긴 뒤 README의 빠른 시작대로 claude mcp add 한 줄을 실행한다. Claude Code에게 시키려면 docs/setup.md."
+              --generate-notes \
+              --notes "Apple Silicon(arm64) Mac용. 처음 설치: dmg를 열어 Agent Browser를 Applications로 옮긴 뒤 README 빠른 시작대로 claude mcp add 한 줄을 실행한다. 업데이트: 앱을 끄고 dmg로 덮어쓴 뒤 Claude Code에서 /mcp로 다시 연결한다(MCP 재등록·재로그인 필요 없음)." 
           fi
