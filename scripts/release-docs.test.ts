@@ -54,6 +54,8 @@ describe('소스 없이 dmg로 설치 (카드 20261119-release-ci)', () => {
     expect(workflow).toMatch(/tags:\s*\[?\s*'?v\*/);
     expect(workflow).toContain('npm run dist');
     expect(workflow).toContain('playwright test -c playwright.dist.config.ts');
+    // CI에서 빼는 것은 P5의 "앞으로 오기" 하나뿐이다(그 밖의 묶은 앱 시험은 모두 게이트)
+    expect(workflow.match(/AB_DIST_SKIP_\w+/g)).toEqual(['AB_DIST_SKIP_FRONTMOST']);
     expect(workflow).toContain(pkg.build.dmg.artifactName.replace('${version}', '$VERSION').replace('${arch}', 'arm64').replace('${ext}', 'dmg'));
     expect(workflow).toContain('scripts/install-mac.sh');
     expect(workflow).toMatch(/태그와 package\.json 버전이 다르다/);

@@ -49,6 +49,8 @@ jobs:
 
       - name: 묶은 앱 시험
         run: npx playwright test -c playwright.dist.config.ts
+        env:
+          AB_DIST_SKIP_FRONTMOST: '1' # P5 "기존 창이 앞으로 온다"만 뺀다(러너에서 다른 앱 앞으로 못 옴). 실제 Mac에서 확인한다
 
       - name: Release 올리기
         env:
