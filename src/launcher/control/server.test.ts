@@ -7,24 +7,26 @@ const TOKEN = 'test-token';
 /** 흉내 낸 세션 저장소. 만들기를 늦출 수 있다 */
 function fakeHandlers(createDelayMs = 0) {
   const live = new Set<string>();
+  const labels = new Map<string, string>();
   const closed: string[] = [];
   let n = 0;
   return {
     live,
     closed,
     handlers: {
-      async createSession() {
+      async createSession(opts: { label?: string } = {}) {
         const id = `s${++n}`;
         await new Promise((r) => setTimeout(r, createDelayMs));
         live.add(id);
-        return { id, browserUrl: `http://127.0.0.1:1/${id}/` };
+        if (opts.label !== undefined) labels.set(id, opts.label);
+        return { id, browserUrl: `http://127.0.0.1:1/${id}/`, ...(opts.label !== undefined ? { label: opts.label } : {}) };
       },
       async closeSession(id: string) {
         if (!live.delete(id)) return false;
         closed.push(id);
         return true;
       },
-      listSessions() { return [...live]; },
+      listSessions() { return [...live].map((id) => ({ id, ...(labels.has(id) ? { label: labels.get(id) } : {}) })); },
     },
   };
 }
@@ -87,6 +89,18 @@ describe('세션 목록 API (살아 있는 세션 확인, 묶은 앱 시험 A3)'
     await call('POST', '/sessions');
     expect((await call('GET', '/sessions', null)).status).toBe(401);
     expect(JSON.stringify(await (await call('GET', '/sessions')).json())).not.toContain('browserUrl');
+  });
+});
+
+describe('세션 이름 (카드 20261120-session-labels L2·L6)', () => {
+  it('POST /sessions?label=… 은 정리한 이름으로 만들고, GET /sessions에 이름이 나온다', async () => {
+    const f = fakeHandlers();
+    server = await startControlServer(TOKEN, 0, f.handlers);
+    const made = (await (await call('POST', `/sessions?label=${encodeURIComponent('  주문\u0000 관리 ')}`)).json()) as { id: string; label?: string };
+    expect(made.label).toBe('주문 관리');
+    const plain = (await (await call('POST', '/sessions?label=%20%20')).json()) as { id: string; label?: string };
+    expect(plain.label).toBeUndefined();
+    expect(await (await call('GET', '/sessions')).json()).toEqual({ sessions: [{ id: made.id, label: '주문 관리' }, { id: plain.id }] });
   });
 });
 

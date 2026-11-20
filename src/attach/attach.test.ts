@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AGENT_BROWSER_GUIDE, APP_READY_WAIT_MS, connect, initializeId, mcpArgs, withGuide, type AttachDeps, type HeldSession } from './attach';
+import { AGENT_BROWSER_GUIDE, sessionLabel, APP_READY_WAIT_MS, connect, initializeId, mcpArgs, withGuide, type AttachDeps, type HeldSession } from './attach';
 
 const CONTROL = { port: 1234, token: 't' };
 const held = (id = 's1'): HeldSession => ({ id, browserUrl: `http://127.0.0.1:9/${id}/`, close: () => undefined, closed: new Promise(() => undefined) });
@@ -88,5 +88,22 @@ describe('쓸 때 알 것을 initialize 응답에 덧붙임 (spec-company-setup 
 
   it('안내에 이 브라우저를 쓸 때 알아야 할 것이 있다', () => {
     for (const must of ['agent-browser', '이 세션 전용 탭', '사람 창 안', '패널에서 이 세션을 멈췄거나', 'new_page', 'select_page', '사람', '허용', 'emulate', '/mcp', 'fetch', '스스로 판단']) expect(AGENT_BROWSER_GUIDE).toContain(must);
+  });
+});
+
+describe('세션 이름 정하기 (카드 20261120-session-labels L1)', () => {
+  it('AGENT_BROWSER_LABEL이 있으면 그것', () => {
+    expect(sessionLabel({ AGENT_BROWSER_LABEL: ' 주문 관리 ' }, '/Users/me/work/agent-office')).toBe('주문 관리');
+  });
+  it('없으면 Claude Code가 넘겨준 프로젝트 폴더(CLAUDE_PROJECT_DIR) 이름', () => {
+    expect(sessionLabel({ CLAUDE_PROJECT_DIR: '/Users/me/work/agent-office' }, '/')).toBe('agent-office');
+    expect(sessionLabel({ AGENT_BROWSER_LABEL: '주문 관리', CLAUDE_PROJECT_DIR: '/Users/me/work/agent-office' }, '/')).toBe('주문 관리');
+  });
+  it('그것도 없으면 실행 폴더 이름', () => {
+    expect(sessionLabel({}, '/Users/me/work/agent-office')).toBe('agent-office');
+    expect(sessionLabel({ AGENT_BROWSER_LABEL: '  ' }, '/Users/me/work/agent-office')).toBe('agent-office');
+  });
+  it('폴더 이름도 없으면(루트) 이름 없음', () => {
+    expect(sessionLabel({}, '/')).toBeUndefined();
   });
 });
