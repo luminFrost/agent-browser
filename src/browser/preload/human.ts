@@ -8,8 +8,8 @@ contextBridge.exposeInMainWorld('humanApi', {
   onState: (listener: (s: HumanToolbarState) => void) => {
     ipcRenderer.on('human:state', (_e, s: HumanToolbarState) => listener(s));
   },
-  onSessions: (listener: (s: { sessions: SessionView[]; viewing: string | null }) => void) => {
-    ipcRenderer.on('human:sessions', (_e, s: { sessions: SessionView[]; viewing: string | null }) => listener(s));
+  onSessions: (listener: (s: { sessions: SessionView[]; viewing: string | null; follow: boolean }) => void) => {
+    ipcRenderer.on('human:sessions', (_e, s: { sessions: SessionView[]; viewing: string | null; follow: boolean }) => listener(s));
   },
   onApprovals: (listener: (a: ApprovalView[]) => void) => {
     ipcRenderer.on('human:approvals', (_e, a: ApprovalView[]) => listener(a));

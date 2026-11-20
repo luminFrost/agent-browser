@@ -9,7 +9,7 @@ interface Window {
   humanApi: {
     command(c: { cmd: string; [k: string]: unknown }): void;
     onState(listener: (s: HumanState) => void): void;
-    onSessions(listener: (s: { sessions: HumanSessionView[]; viewing: string | null }) => void): void;
+    onSessions(listener: (s: { sessions: HumanSessionView[]; viewing: string | null; follow: boolean }) => void): void;
     onApprovals(listener: (a: HumanApprovalView[]) => void): void;
   };
 }
@@ -83,7 +83,11 @@ interface Window {
   // 지켜보기 패널(R11): 세션마다 탭 URL과 멈추기 버튼
   const sessionsEl = byId<HTMLUListElement>('sessions');
   const emptyEl = byId<HTMLParagraphElement>('sessions-empty');
-  api.onSessions(({ sessions, viewing: shown }) => {
+  // 에이전트 따라 보기 스위치(카드 20261120-follow-agents). 값은 main이 가지고 남긴다
+  const followEl = byId<HTMLInputElement>('follow');
+  followEl.addEventListener('change', () => api.command({ cmd: 'follow', on: followEl.checked }));
+  api.onSessions(({ sessions, viewing: shown, follow }) => {
+    followEl.checked = follow;
     emptyEl.hidden = sessions.length > 0;
     sessionsEl.replaceChildren(...sessions.map((s) => {
       const li = document.createElement('li');

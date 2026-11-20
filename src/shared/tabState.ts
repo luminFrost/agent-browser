@@ -26,7 +26,9 @@ export type HumanCommand =
   | { cmd: 'view'; sessionId: string | null }
   | { cmd: 'decide'; id: string; allow: boolean }
   /** 사람 창 UI의 화면 크기가 바뀌었다. 창 내용 높이는 resize 이벤트 없이 바뀔 수 있다(Linux 메뉴 막대) */
-  | { cmd: 'relayout' };
+  | { cmd: 'relayout' }
+  /** 에이전트 따라 보기를 켜거나 끈다(카드 20261120-follow-agents) */
+  | { cmd: 'follow'; on: boolean };
 
 /** 사람 창 머리(탭 막대·주소창)에 보일 상태. viewing이 있으면 그 세션의 탭을 보는 중이다(읽기 전용) */
 export interface HumanToolbarState extends TabStripState {

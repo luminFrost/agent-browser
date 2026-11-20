@@ -57,7 +57,10 @@ export interface HumanWindowEvents {
   decide(id: string, allow: boolean): void;
 }
 
-export function createHumanWindow(show: boolean, events: HumanWindowEvents): HumanWindow {
+/** 따라 보기 설정을 읽고 남기는 곳(프로필의 settings.json) */
+export interface FollowStore { initial: boolean; save(on: boolean): void }
+
+export function createHumanWindow(show: boolean, events: HumanWindowEvents, followStore: FollowStore): HumanWindow {
   const win = new BrowserWindow({
     width: 1280,
     height: 860,
@@ -179,7 +182,23 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents): Hum
   });
 
   let lastSessions: SessionView[] = [];
-  const sendSessions = () => { if (!win.isDestroyed()) win.webContents.send('human:sessions', { sessions: lastSessions, viewing }); };
+  /**
+   * 에이전트 따라 보기(카드 20261120-follow-agents): 켜져 있으면 새 세션이 생기거나, 어떤 세션의 활성 탭이 바뀌거나
+   * 그 주소가 바뀔 때 그 세션을 왼쪽에 보인다. 제목·로딩만 바뀐 것으로는 옮기지 않는다(세션마다 마지막 "활성 탭·주소"를 기억).
+   */
+  let follow = followStore.initial;
+  const lastMove = new Map<string, string>();
+  const moveOf = (strip: TabStrip) => {
+    const s = strip.state();
+    return `${s.activeId}|${s.tabs.find((t) => t.id === s.activeId)?.url ?? ''}`;
+  };
+  const sendSessions = () => { if (!win.isDestroyed()) win.webContents.send('human:sessions', { sessions: lastSessions, viewing, follow }); };
+  const setFollow = (on: boolean) => {
+    if (follow === on) return;
+    follow = on;
+    followStore.save(on);
+    sendSessions();
+  };
 
   /** 보기 대상을 바꾼다. 없는 세션이면 무시한다 */
   const setViewing = (sessionId: string | null) => {
@@ -201,8 +220,12 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents): Hum
     switch (c.cmd) {
       case 'stopSession': return events.stopSession(c.sessionId);
       case 'decide': return events.decide(c.id, c.allow);
-      case 'view': return setViewing(c.sessionId);
+      case 'view':
+        // 사람이 "내 탭으로"(또는 보던 세션의 보기를 다시 눌러) 내 화면을 고르면 따라 보기를 끈다(F4)
+        if (c.sessionId === null) setFollow(false);
+        return setViewing(c.sessionId);
       case 'relayout': return relayoutAll();
+      case 'follow': return setFollow(c.on);
     }
     if (viewing !== null) {
       // 세션을 보는 중에는 읽기 전용이다(E3). 탭 막대에서 보는 탭을 고르는 것만 된다. 주인의 활성 탭은 바꾸지 않는다.
@@ -245,14 +268,26 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents): Hum
     showApprovals,
     addSession: (sessionId, strip) => {
       sessions.set(sessionId, strip);
+      lastMove.set(sessionId, moveOf(strip));
       restack(); // 첫 탭은 등록 전에 생겨 비켜 두지 못했다
+      if (follow) setViewing(sessionId);
     },
     removeSession: (sessionId) => {
       if (viewing === sessionId) setViewing(null);
       sessions.delete(sessionId);
+      lastMove.delete(sessionId);
       restack(); // 남은 세션의 탭이 한 칸씩 당겨진다
     },
-    sessionChanged: (sessionId) => { if (viewing === sessionId) sendToolbar(); },
+    sessionChanged: (sessionId) => {
+      const strip = sessions.get(sessionId);
+      if (strip) {
+        const move = moveOf(strip);
+        const moved = lastMove.get(sessionId) !== move;
+        lastMove.set(sessionId, move);
+        if (follow && moved && viewing !== sessionId) return setViewing(sessionId);
+      }
+      if (viewing === sessionId) sendToolbar();
+    },
     shown: () => {
       const { width, height } = win.getContentBounds();
       const content = { width, height };

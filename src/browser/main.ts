@@ -1,4 +1,5 @@
 import { app, BrowserWindow, session } from 'electron';
+import { readSettings, writeSettings } from './settings';
 import { CONTENT_AREA, createHumanWindow, type HumanWindow } from './humanWindow';
 import { createAgentSession, type AgentSession } from './agentSession';
 import { DOWNLOADS_FLAG, HIDDEN_FLAG, SHARED_PARTITION, USER_DATA_FLAG } from '../shared/constants';
@@ -170,6 +171,9 @@ app.whenReady().then(() => {
   human = createHumanWindow(showWindows, {
     stopSession: (sessionId) => send({ type: 'stopRequested', sessionId }),
     decide: (id, allow) => approvals.decide(id, allow),
+  }, {
+    initial: readSettings(app.getPath('userData')).followAgents,
+    save: (on) => writeSettings(app.getPath('userData'), { ...readSettings(app.getPath('userData')), followAgents: on }),
   });
   human.win.on('closed', () => {
     human = undefined;
