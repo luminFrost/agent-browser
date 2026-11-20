@@ -108,6 +108,11 @@ Claude Code에 이렇게 시키면 된다.
 | 에이전트 세션은 패널에 보이고, 내 화면은 그대로다 | "세션 ○○ 보는 중" 표시와 함께 주소창·이동 버튼이 잠긴다 |
 
 - Claude Code 세션이 시작되면(MCP 서버가 뜰 때) 오른쪽 패널에 그 세션이 생긴다. 새 창은 뜨지 않는다. 탭은 사람 창 안에 있다.
+- **세션 이름:** 패널에는 세션마다 이름이 보인다. 기본은 Claude Code를 연 프로젝트 폴더 이름이고(같은 이름이면 ` 2`, ` 3`), 이름 옆 **✎**로 바꿀 수 있다(Enter 저장, Esc 취소). 처음부터 정하려면 MCP를 등록할 때 환경 값을 준다(`--env`는 서버 이름 바로 앞에 두지 않는다):
+
+  ```sh
+  claude mcp add --env AGENT_BROWSER_LABEL=<이름> --scope user agent-browser -- "/Applications/Agent Browser.app/Contents/Resources/agent-browser-mcp"
+  ```
 - **따라 보기**(패널 위 스위치, 처음엔 켜져 있다): 에이전트가 새 세션을 열거나 페이지를 옮기면 그 세션 화면이 자동으로 왼쪽에 뜬다. 내 일을 할 때는 끄거나 **내 탭으로**를 누른다(누르면 따라 보기가 꺼진다). 값은 앱을 다시 켜도 남는다.
 - 패널에서 **보기**를 누르면 왼쪽에 그 세션의 탭이 보인다. 보는 동안 주소창·이동 버튼은 잠기고, **내 탭으로**를 누르면 돌아온다.
 - **멈추기**를 누르면 그 세션이 바로 끝난다.
@@ -206,9 +211,9 @@ npm run test:dist   # 묶은 앱 확인(실제 창이 뜬다)
 
 | 요청 | 결과 |
 |---|---|
-| `POST /sessions` | `{id, browserUrl}` |
+| `POST /sessions?label=<이름>` | `{id, browserUrl, label}` (이름은 없어도 된다) |
 | `POST /sessions?hold=1` | 첫 줄로 같은 정보를 주고, 연결이 끊기면 그 세션을 닫는다 |
-| `GET /sessions` | 살아 있는 세션 id 목록 `{sessions: [{id}]}` (browserUrl은 주지 않는다) |
+| `GET /sessions` | 살아 있는 세션 목록 `{sessions: [{id, label}]}` (browserUrl은 주지 않는다) |
 | `DELETE /sessions/<id>` | 세션을 닫는다 |
 
 </details>
