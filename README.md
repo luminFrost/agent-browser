@@ -196,6 +196,7 @@ npm run test:dist   # 묶은 앱 확인(실제 창이 뜬다)
 |---|---|
 | `POST /sessions` | `{id, browserUrl}` |
 | `POST /sessions?hold=1` | 첫 줄로 같은 정보를 주고, 연결이 끊기면 그 세션을 닫는다 |
+| `GET /sessions` | 살아 있는 세션 id 목록 `{sessions: [{id}]}` (browserUrl은 주지 않는다) |
 | `DELETE /sessions/<id>` | 세션을 닫는다 |
 
 </details>

@@ -9,6 +9,8 @@ export interface ControlHandlers {
   createSession(): Promise<{ id: string; browserUrl?: string }>;
   /** 세션을 닫는다. 없는 세션이면 false */
   closeSession(id: string): Promise<boolean>;
+  /** 살아 있는 세션 id */
+  listSessions(): string[];
 }
 
 const SESSION_PATH = /^\/sessions\/([^/]+)$/;
@@ -43,6 +45,8 @@ export async function startControlServer(token: string, port: number, handlers: 
     if (!isAuthorized(req.headers.authorization, token)) return json(res, 401, { error: 'unauthorized' });
     const path = new URL(req.url ?? '/', 'http://localhost').pathname;
     if (path === '/sessions') {
+      // 목록에는 id만 준다(browserUrl의 비밀 경로는 만든 쪽만 안다)
+      if (req.method === 'GET') return json(res, 200, { sessions: handlers.listSessions().map((id) => ({ id })) });
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
       if (new URL(req.url ?? '/', 'http://localhost').searchParams.get('hold') === '1') return hold(req, res);
       return json(res, 201, await handlers.createSession());
