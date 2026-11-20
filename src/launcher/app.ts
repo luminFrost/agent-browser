@@ -179,6 +179,8 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
       await stopSession(id);
       return true;
     },
+    // 살아 있는 세션 id(browserUrl은 주지 않는다). 묶은 앱 시험이 세션 끝남을 본다
+    listSessions: () => sessions.all().map((s) => s.id),
   });
   const controlFile = options.controlFile ?? join(options.userDataDir, CONTROL_FILE_NAME);
   writeControlFile(controlFile, { port: control.port, token });
