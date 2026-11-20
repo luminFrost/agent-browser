@@ -1,4 +1,6 @@
 // 붙이기 명령의 판단(spec-claude-attach). 파일·HTTP·시계는 밖에서 받아 시험한다. 실제 연결은 cli.ts가 한다.
+import { basename } from 'node:path';
+import { cleanLabel } from '../shared/label';
 
 /** 앱을 켠 뒤 제어 서버가 응답하기를 기다리는 최대 시간 */
 export const APP_READY_WAIT_MS = 15_000;
@@ -6,6 +8,18 @@ export const APP_READY_WAIT_MS = 15_000;
 export const READY_POLL_MS = 200;
 
 export interface ControlInfo { port: number; token: string }
+
+/** 세션 이름 환경 변수(카드 20261120-session-labels) */
+export const LABEL_ENV = 'AGENT_BROWSER_LABEL';
+
+/**
+ * 세션 이름: AGENT_BROWSER_LABEL이 있으면 그것, 없으면 Claude Code가 MCP 서버에 넘겨주는 프로젝트 폴더(CLAUDE_PROJECT_DIR)의
+ * 이름, 그것도 없으면 실행 폴더 이름. Claude Code 문서는 MCP 서버의 실행 폴더가 프로젝트 폴더라고 보장하지 않는다
+ */
+export function sessionLabel(env: Record<string, string | undefined>, cwd: string): string | undefined {
+  const projectDir = env.CLAUDE_PROJECT_DIR;
+  return cleanLabel(env[LABEL_ENV]) ?? (projectDir ? cleanLabel(basename(projectDir)) : undefined) ?? cleanLabel(basename(cwd));
+}
 
 /** 붙잡은 세션: 연결이 열려 있는 동안만 산다(끊기면 런처가 그 세션을 끝낸다) */
 export interface HeldSession {

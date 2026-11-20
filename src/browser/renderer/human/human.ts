@@ -1,9 +1,9 @@
 // 사람 창 UI (주소창·탭 막대). 모듈이 아닌 스크립트로 읽힌다.
 interface HumanTabView { id: number; title: string; url: string; loading: boolean }
 /** viewing이 있으면 그 세션의 탭을 보는 중이다(읽기 전용, spec-embedded-sessions) */
-interface HumanState { tabs: HumanTabView[]; activeId: number | null; canGoBack: boolean; canGoForward: boolean; viewing: string | null }
+interface HumanState { tabs: HumanTabView[]; activeId: number | null; canGoBack: boolean; canGoForward: boolean; viewing: string | null; viewingLabel?: string }
 interface HumanApprovalView { id: string; sessionId: string; host: string; kind: 'form' | 'download'; detail?: string }
-interface HumanSessionView { sessionId: string; tabs: HumanTabView[]; activeId: number | null }
+interface HumanSessionView { sessionId: string; label?: string; tabs: HumanTabView[]; activeId: number | null }
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- 전역 Window 확장(preload가 연 humanApi)이라 선언만 있다
 interface Window {
   humanApi: {
@@ -50,7 +50,7 @@ interface Window {
     if (switched) address.blur();
     document.body.classList.toggle('viewing', viewing !== null);
     viewingEl.hidden = viewing === null;
-    (viewingEl.querySelector('.label') as HTMLSpanElement).textContent = viewing === null ? '' : `세션 ${viewing} 보는 중`;
+    (viewingEl.querySelector('.label') as HTMLSpanElement).textContent = viewing === null ? '' : `세션 ${s.viewingLabel ?? viewing} 보는 중`;
     address.readOnly = viewing !== null;
     reload.disabled = viewing !== null;
     newTab.disabled = viewing !== null;
@@ -86,18 +86,67 @@ interface Window {
   // 에이전트 따라 보기 스위치(카드 20261120-follow-agents). 값은 main이 가지고 남긴다
   const followEl = byId<HTMLInputElement>('follow');
   followEl.addEventListener('change', () => api.command({ cmd: 'follow', on: followEl.checked }));
-  api.onSessions(({ sessions, viewing: shown, follow }) => {
+  /**
+   * 세션 이름 고치기(카드 20261120-session-labels). 패널은 에이전트가 움직일 때마다 다시 그려지므로
+   * 고치는 중인 세션과 글자를 따로 쥐고, 다시 그린 뒤 입력칸과 커서를 되살린다
+   */
+  let editing: { sessionId: string; value: string } | null = null;
+  let lastSessions: { sessions: HumanSessionView[]; viewing: string | null; follow: boolean } | null = null;
+  const renderSessions = () => {
+    if (!lastSessions) return;
+    const { sessions, viewing: shown, follow } = lastSessions;
     followEl.checked = follow;
     emptyEl.hidden = sessions.length > 0;
+    if (editing && !sessions.some((x) => x.sessionId === editing!.sessionId)) editing = null; // 고치던 세션이 끝났다
+    let editInput: HTMLInputElement | null = null;
     sessionsEl.replaceChildren(...sessions.map((s) => {
       const li = document.createElement('li');
       li.className = 'session' + (s.sessionId === shown ? ' viewing' : '');
       li.dataset.sessionId = s.sessionId;
       const header = document.createElement('header');
+      const name = document.createElement('div');
+      name.className = 'name';
+      if (editing?.sessionId === s.sessionId) {
+        const input = document.createElement('input');
+        input.className = 'label-edit';
+        input.value = editing.value;
+        input.maxLength = 80;
+        input.setAttribute('aria-label', '세션 이름');
+        input.addEventListener('input', () => { if (editing) editing.value = input.value; });
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            api.command({ cmd: 'rename', sessionId: s.sessionId, label: input.value });
+            editing = null;
+            renderSessions();
+          } else if (e.key === 'Escape') {
+            editing = null;
+            renderSessions();
+          }
+        });
+        name.append(input);
+        editInput = input;
+      } else {
+        if (s.label !== undefined) {
+          const label = document.createElement('span');
+          label.className = 'label';
+          label.textContent = s.label;
+          label.title = s.label;
+          name.append(label);
+        }
+        const rename = document.createElement('button');
+        rename.className = 'rename';
+        rename.type = 'button';
+        rename.textContent = '✎';
+        rename.title = '이름 바꾸기';
+        rename.setAttribute('aria-label', '이름 바꾸기');
+        rename.addEventListener('click', () => { editing = { sessionId: s.sessionId, value: s.label ?? '' }; renderSessions(); });
+        name.append(rename);
+      }
       const id = document.createElement('span');
-      id.className = 'id';
+      id.className = 'id key';
       id.textContent = s.sessionId;
       id.title = s.sessionId;
+      name.append(id);
       const stop = document.createElement('button');
       stop.className = 'stop';
       stop.textContent = '멈추기';
@@ -110,7 +159,7 @@ interface Window {
       const buttons = document.createElement('div');
       buttons.className = 'buttons';
       buttons.append(view, stop);
-      header.append(id, buttons);
+      header.append(name, buttons);
       const urls = document.createElement('ul');
       urls.append(...s.tabs.map((t) => {
         const u = document.createElement('li');
@@ -121,6 +170,15 @@ interface Window {
       li.append(header, urls);
       return li;
     }));
+    if (editInput) {
+      const input: HTMLInputElement = editInput;
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+  };
+  api.onSessions((payload) => {
+    lastSessions = payload;
+    renderSessions();
   });
 
   // 승인 요청(R12·R13): "세션 · 호스트 · 무엇 — 허용/거부"

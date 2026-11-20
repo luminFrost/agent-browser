@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { spawn, type ChildProcess } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createSession, launch, sessionIds, waitFor } from './helpers';
 import { McpClient } from './mcpClient';
@@ -25,8 +27,12 @@ test.afterEach(async () => {
 const profileOf = (a: RunningApp) => join(a.controlFile, '..');
 const agentWindows = async () => (await sessionIds(app)).length; // 세션 수(E1: 세션마다 창을 띄우지 않는다)
 
-async function attach(): Promise<McpClient> {
-  const proc = spawn(process.execPath, [CLI], { env: { ...process.env, AGENT_BROWSER_PROFILE: profileOf(app) }, stdio: ['pipe', 'pipe', 'ignore'] });
+async function attach(opts: { cwd?: string; label?: string } = {}): Promise<McpClient> {
+  const env: NodeJS.ProcessEnv = { ...process.env, AGENT_BROWSER_PROFILE: profileOf(app) };
+  delete env.AGENT_BROWSER_LABEL;
+  delete env.CLAUDE_PROJECT_DIR;
+  if (opts.label !== undefined) env.AGENT_BROWSER_LABEL = opts.label;
+  const proc = spawn(process.execPath, [CLI], { env, cwd: opts.cwd, stdio: ['pipe', 'pipe', 'ignore'] });
   running.push(proc);
   return McpClient.over(proc);
 }
@@ -93,4 +99,14 @@ test('B5(spec-company-setup): initialize 응답 안내에 agent-browser 사용 �
   if (original) expect(instructions).toContain(original);
   // 안내를 붙여도 도구는 그대로 쓴다
   expect(await mcp.tool('list_pages')).toContain('about:blank');
+});
+
+test('L1: 붙이기 명령의 세션 이름은 실행 폴더(Claude Code 프로젝트) 이름, AGENT_BROWSER_LABEL이 있으면 그것', async () => {
+  const project = join(mkdtempSync(join(tmpdir(), 'ab-proj-')), 'agent-office');
+  mkdirSync(project);
+  await (await attach({ cwd: project })).tool('list_pages');
+  await (await attach({ cwd: project, label: '주문 관리' })).tool('list_pages');
+  const { port, token } = JSON.parse(readFileSync(app.controlFile, 'utf8')) as { port: number; token: string };
+  const list = (await (await fetch(`http://127.0.0.1:${port}/sessions`, { headers: { authorization: `Bearer ${token}` } })).json()) as { sessions: { label?: string }[] };
+  expect(list.sessions.map((x) => x.label).sort()).toEqual(['agent-office', '주문 관리'].sort());
 });
