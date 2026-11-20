@@ -61,6 +61,9 @@ test('ADR-0005: chrome-devtools-mcp의 조작 도구들이 막히지 않고 동�
     // 새 페이지·선택·닫기
     await mcp.tool('new_page', { url: `${server.base}/b` });
     const pages = await mcp.tool('list_pages');
+    // 새 탭이 이 세션에 하나 더 생겼다(원래 탭 + /b 탭)
+    expect([...pages.matchAll(/(\d+):/g)].length).toBeGreaterThanOrEqual(2);
+    expect(pages).toContain(`${server.base}/b`);
     const second = Number([...pages.matchAll(/(\d+):/g)].map((m) => m[1]).at(-1));
     await mcp.tool('select_page', { pageId: second });
     await mcp.tool('close_page', { pageId: second });
