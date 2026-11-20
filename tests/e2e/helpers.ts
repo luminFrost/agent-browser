@@ -7,8 +7,22 @@ import { startApp, type RunningApp, type StartOptions } from '../../src/launcher
 export const tempDir = (prefix = 'ab-') => mkdtempSync(join(tmpdir(), prefix));
 
 /** AB_TEST_SHOW=1이면 창을 보이게 띄운다. 숨긴 창을 그리지 않는 환경(Linux Xvfb)에서 화면·스크린샷 확인용 */
-export async function launch(options: Partial<StartOptions> = {}): Promise<RunningApp> {
-  return startApp({ userDataDir: tempDir(), hidden: process.env.AB_TEST_SHOW !== '1', ...options });
+/**
+ * 앱을 띄운다. "에이전트 따라 보기"(기본 켬)는 세션이 생기면 화면을 그 세션으로 옮기므로, 화면을 다루는 기존 시험이
+ * 흔들리지 않게 끈 채로 시작한다. 따라 보기 자체를 보는 시험은 keepFollow로 그대로 둔다(카드 20261120-follow-agents).
+ */
+export async function launch(options: Partial<StartOptions> & { keepFollow?: boolean } = {}): Promise<RunningApp> {
+  const { keepFollow, ...rest } = options;
+  const app = await startApp({ userDataDir: tempDir(), hidden: process.env.AB_TEST_SHOW !== '1', ...rest });
+  if (!keepFollow) await setFollow(app, false);
+  return app;
+}
+
+/** 패널의 "따라 보기" 스위치를 사람이 바꾼 것처럼 바꾼다 */
+export async function setFollow(app: RunningApp, on: boolean): Promise<void> {
+  const ui = await humanUi(app);
+  await evaluate(app, ui.targetId, `window.humanApi.command({ cmd: 'follow', on: ${on} })`);
+  await waitFor(async () => (await evaluate<boolean>(app, ui.targetId, `document.querySelector('#follow').checked === ${on}`)), `따라 보기 ${on ? '켬' : '끔'}`);
 }
 
 /** 브라우저 main에 살아 있는 에이전트 세션 id (spec-embedded-sessions E1) */

@@ -26,6 +26,8 @@ body.viewing .tab .close { display: none; }
 
 #panel { position: fixed; top: 0; right: 0; bottom: 0; width: var(--panel-width); box-sizing: border-box; padding: 10px 12px; overflow-y: auto; border-left: 1px solid color-mix(in srgb, CanvasText 15%, Canvas); background: color-mix(in srgb, CanvasText 4%, Canvas); }
 #panel h2 { margin: 0 0 8px; font-size: 13px; }
+#panel .sessions-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+#panel .follow { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap; }
 #sessions-empty { color: GrayText; }
 #sessions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .session { padding: 8px; border-radius: 6px; background: Canvas; border: 1px solid color-mix(in srgb, #5b3cc4 40%, Canvas); }
