@@ -370,8 +370,20 @@ test('A5·A6·A1·A2·A3·E1 붙이기 명령: 앱이 꺼져 있어도 Node 없�
     await waitFor(() => windows() === 1, '사람 창 1개');
     // A3: 붙이기 명령이 끝날 때마다 그 세션이 끝난다(그 browserUrl이 더 응답하지 않는다). 나머지는 그대로다.
     // browserUrl은 붙이기 명령이 띄운 chrome-devtools-mcp의 인자(--browserUrl)에서 읽는다. (다) 강제 종료 → (나) SIGTERM → (가) stdin 닫힘
-    const urls = procs.map((p) => /--browserUrl (\S+)/.exec(processes().find((c) => c.ppid === p.pid && c.command.includes('--browserUrl'))?.command ?? '')?.[1]);
-    expect(urls.every((u) => u !== undefined)).toBe(true);
+    // chrome-devtools-mcp가 자식을 한 단계 더 띄울 수 있어 자손 전체에서 찾는다(CI run 44642749008에서 직계 자식만 보고 못 찾음)
+    const browserUrlOf = (root: number): string | undefined => {
+      const all = processes();
+      const queue = [root];
+      for (let pid = queue.shift(); pid !== undefined; pid = queue.shift()) {
+        for (const c of all.filter((x) => x.ppid === pid)) {
+          const m = /--browserUrl[= ](\S+)/.exec(c.command);
+          if (m) return m[1];
+          queue.push(c.pid);
+        }
+      }
+      return undefined;
+    };
+    const urls = await Promise.all(procs.map((p, i) => waitFor(() => browserUrlOf(p.pid!), `붙이기 명령 ${i + 1}의 browserUrl`)));
     const responds = (url: string) => fetch(`${url}json/version`).then((r) => r.ok, () => false);
     const ends: ((p: ChildProcess) => void)[] = [(p) => p.kill('SIGKILL'), (p) => p.kill('SIGTERM'), (p) => p.stdin!.end()];
     for (const [i, end] of ends.entries()) {
