@@ -1,5 +1,6 @@
 import { app, BrowserWindow, session } from 'electron';
 import { readSettings, writeSettings } from './settings';
+import { cleanLabel } from '../shared/label';
 import { CONTENT_AREA, createHumanWindow, type HumanWindow } from './humanWindow';
 import { createAgentSession, type AgentSession } from './agentSession';
 import { DOWNLOADS_FLAG, HIDDEN_FLAG, SHARED_PARTITION, USER_DATA_FLAG } from '../shared/constants';
@@ -46,10 +47,14 @@ const shownTab = (): BrowserReply => {
 };
 
 /** 사람 창의 지켜보기 패널에 세션과 탭 URL을 보인다(R11) */
+/** 세션 이름(카드 20261120-session-labels). 런처가 정한 이름으로 시작하고 사람이 패널에서 바꿀 수 있다 */
+const labels = new Map<string, string>();
+
 const refreshPanel = () => {
   human?.showSessions([...agents.values()].map((a) => {
     const state = a.tabs.state();
-    return { sessionId: a.sessionId, tabs: state.tabs, activeId: state.activeId };
+    const label = labels.get(a.sessionId);
+    return { sessionId: a.sessionId, tabs: state.tabs, activeId: state.activeId, ...(label !== undefined ? { label } : {}) };
   }));
 };
 
@@ -78,6 +83,7 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
     case 'createSession': {
       if (agents.has(m.sessionId)) return { type: 'error', message: `이미 있는 세션: ${m.sessionId}` };
       if (!human || human.win.isDestroyed()) return { type: 'error', message: '사람 창이 없다' };
+      if (m.label !== undefined) labels.set(m.sessionId, m.label);
       const host = human;
       // 세션마다 창을 띄우지 않고 사람 창 안에 탭 묶음을 둔다(spec-embedded-sessions, ADR-0009)
       const agent = createAgentSession(m.sessionId, host.win, CONTENT_AREA, {
@@ -87,6 +93,7 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
         tabRemoved: (sessionId, targetId) => send({ type: 'tabRemoved', sessionId, targetId }),
         closed: (sessionId) => {
           agents.delete(sessionId);
+          labels.delete(sessionId);
           host.removeSession(sessionId);
           send({ type: 'sessionClosed', sessionId }); // 사람이 패널에서 멈춘 경우도 런처가 세션을 끝낸다(R9)
           refreshPanel();
@@ -171,6 +178,13 @@ app.whenReady().then(() => {
   human = createHumanWindow(showWindows, {
     stopSession: (sessionId) => send({ type: 'stopRequested', sessionId }),
     decide: (id, allow) => approvals.decide(id, allow),
+    renameSession: (sessionId, raw) => {
+      const label = cleanLabel(raw);
+      if (!agents.has(sessionId) || label === undefined) return; // 빈 이름이면 그대로 둔다
+      labels.set(sessionId, label);
+      send({ type: 'sessionLabel', sessionId, label });
+      refreshPanel();
+    },
   }, {
     initial: readSettings(app.getPath('userData')).followAgents,
     save: (on) => writeSettings(app.getPath('userData'), { ...readSettings(app.getPath('userData')), followAgents: on }),

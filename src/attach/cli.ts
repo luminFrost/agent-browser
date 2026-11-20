@@ -9,7 +9,7 @@ import { request } from 'node:http';
 import { join } from 'node:path';
 import { CONTROL_FILE_NAME } from '../shared/constants';
 import { parseCliArgs } from '../launcher/cliArgs';
-import { connect, initializeId, mcpArgs, withGuide, type ControlInfo, type HeldSession } from './attach';
+import { connect, initializeId, mcpArgs, sessionLabel, withGuide, type ControlInfo, type HeldSession } from './attach';
 
 /** stdin이 닫힌 뒤 chrome-devtools-mcp가 스스로 끝나기를 기다리는 시간 */
 const CHILD_EXIT_GRACE_MS = 2_000;
@@ -30,12 +30,15 @@ function readControl(file: string): ControlInfo | undefined {
   }
 }
 
+/** 이 세션의 이름(패널에 보인다) */
+const label = sessionLabel(process.env, process.cwd());
+
 /** POST /sessions?hold=1: 첫 줄로 세션 정보를 받고 연결을 열어 둔다 */
 function openSession(control: ControlInfo): Promise<HeldSession | 'unreachable'> {
   return new Promise((ok, fail) => {
     let settled = false;
     const req = request({
-      host: '127.0.0.1', port: control.port, path: '/sessions?hold=1', method: 'POST',
+      host: '127.0.0.1', port: control.port, path: `/sessions?hold=1${label ? `&label=${encodeURIComponent(label)}` : ''}`, method: 'POST',
       headers: { authorization: `Bearer ${control.token}` },
     }, (res) => {
       if (res.statusCode !== 201) { settled = true; res.resume(); fail(new Error(`세션을 만들지 못했다(HTTP ${res.statusCode})`)); return; }

@@ -55,6 +55,8 @@ export interface HumanWindowEvents {
   stopSession(sessionId: string): void;
   /** 사람이 승인 요청에 답했다 */
   decide(id: string, allow: boolean): void;
+  /** 사람이 패널에서 세션 이름을 바꿨다 */
+  renameSession(sessionId: string, label: string): void;
 }
 
 /** 따라 보기 설정을 읽고 남기는 곳(프로필의 settings.json) */
@@ -75,7 +77,8 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
 
   const toolbarState = (): HumanToolbarState => {
     const strip = viewing === null ? undefined : sessions.get(viewing);
-    return strip ? { ...strip.viewState(), viewing } : { ...tabs.state(), viewing: null };
+    const viewingLabel = lastSessions.find((x) => x.sessionId === viewing)?.label;
+    return strip ? { ...strip.viewState(), viewing, ...(viewingLabel !== undefined ? { viewingLabel } : {}) } : { ...tabs.state(), viewing: null };
   };
   const sendToolbar = () => { if (!win.isDestroyed()) win.webContents.send('human:state', toolbarState()); };
 
@@ -226,6 +229,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
         return setViewing(c.sessionId);
       case 'relayout': return relayoutAll();
       case 'follow': return setFollow(c.on);
+      case 'rename': return events.renameSession(c.sessionId, c.label);
     }
     if (viewing !== null) {
       // 세션을 보는 중에는 읽기 전용이다(E3). 탭 막대에서 보는 탭을 고르는 것만 된다. 주인의 활성 탭은 바꾸지 않는다.
@@ -246,6 +250,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
   const showSessions = (list: SessionView[]) => {
     lastSessions = list;
     sendSessions();
+    if (viewing !== null) sendToolbar(); // 보는 세션의 이름이 바뀌었을 수 있다
   };
   let lastApprovals: ApprovalView[] = [];
   const showApprovals = (approvals: ApprovalView[]) => {

@@ -6,7 +6,8 @@ export type LauncherCommand =
   | { type: 'listSessions' }
   /** 사람 창 왼쪽 영역에 지금 보이는 탭(테스트·진단용) */
   | { type: 'shownTab' }
-  | { type: 'createSession'; sessionId: string }
+  /** label: 세션 이름(카드 20261120-session-labels). 없으면 이름 없음 */
+  | { type: 'createSession'; sessionId: string; label?: string }
   | { type: 'newTab'; sessionId: string }
   | { type: 'navigateTab'; sessionId: string; targetId: string; url: string }
   | { type: 'closeTab'; sessionId: string; targetId: string }
@@ -38,6 +39,8 @@ export type BrowserReply =
   | { type: 'tabRemoved'; sessionId: string; targetId: string }
   | { type: 'sessionClosed'; sessionId: string }
   /** 사람이 지켜보기 패널에서 멈추기를 눌렀다(R11) */
-  | { type: 'stopRequested'; sessionId: string };
+  | { type: 'stopRequested'; sessionId: string }
+  /** 사람이 패널에서 세션 이름을 바꿨다(label 없으면 이름 지움) */
+  | { type: 'sessionLabel'; sessionId: string; label?: string };
 
 export type BrowserToLauncher = BrowserReply & { rid?: number };

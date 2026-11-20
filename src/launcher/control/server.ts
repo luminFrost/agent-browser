@@ -1,16 +1,18 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { isAuthorized } from './auth';
+import { cleanLabel } from '../../shared/label';
 
 /** 제어 서버와 세션 엔드포인트는 이 주소에만 연다(spec 보안 제약, R10) */
 export const LOOPBACK = '127.0.0.1';
 
 export interface ControlHandlers {
-  createSession(): Promise<{ id: string; browserUrl?: string }>;
+  /** label은 정리한 세션 이름(없으면 이름 없음) */
+  createSession(opts?: { label?: string }): Promise<{ id: string; browserUrl?: string; label?: string }>;
   /** 세션을 닫는다. 없는 세션이면 false */
   closeSession(id: string): Promise<boolean>;
-  /** 살아 있는 세션 id */
-  listSessions(): string[];
+  /** 살아 있는 세션 id와 이름 */
+  listSessions(): { id: string; label?: string }[];
 }
 
 const SESSION_PATH = /^\/sessions\/([^/]+)$/;
@@ -30,10 +32,10 @@ export async function startControlServer(token: string, port: number, handlers: 
    * 붙잡은 세션(spec-claude-attach A3): 첫 줄로 세션 정보를 주고 응답을 열어 둔다.
    * 연결이 어떻게 끊기든(프로세스 강제 종료 포함) 세션을 닫는다. 만드는 중에 끊겨도 다 만든 뒤 닫는다
    */
-  const hold = async (req: IncomingMessage, res: ServerResponse) => {
+  const hold = async (req: IncomingMessage, res: ServerResponse, label: string | undefined) => {
     const state: { gone: boolean; id?: string } = { gone: false };
     res.on('close', () => { state.gone = true; if (state.id) handlers.closeSession(state.id).catch(() => undefined); });
-    const session = await handlers.createSession();
+    const session = await handlers.createSession({ label });
     state.id = session.id;
     if (state.gone) { await handlers.closeSession(session.id).catch(() => undefined); return; }
     res.writeHead(201, { 'content-type': 'application/x-ndjson' });
@@ -45,11 +47,13 @@ export async function startControlServer(token: string, port: number, handlers: 
     if (!isAuthorized(req.headers.authorization, token)) return json(res, 401, { error: 'unauthorized' });
     const path = new URL(req.url ?? '/', 'http://localhost').pathname;
     if (path === '/sessions') {
-      // 목록에는 id만 준다(browserUrl의 비밀 경로는 만든 쪽만 안다)
-      if (req.method === 'GET') return json(res, 200, { sessions: handlers.listSessions().map((id) => ({ id })) });
+      // 목록에는 id와 이름만 준다(browserUrl의 비밀 경로는 만든 쪽만 안다)
+      if (req.method === 'GET') return json(res, 200, { sessions: handlers.listSessions().map(({ id, label }) => (label === undefined ? { id } : { id, label })) });
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
-      if (new URL(req.url ?? '/', 'http://localhost').searchParams.get('hold') === '1') return hold(req, res);
-      return json(res, 201, await handlers.createSession());
+      const query = new URL(req.url ?? '/', 'http://localhost').searchParams;
+      const label = cleanLabel(query.get('label'));
+      if (query.get('hold') === '1') return hold(req, res, label);
+      return json(res, 201, await handlers.createSession({ label }));
     }
     const one = SESSION_PATH.exec(path);
     if (one) {

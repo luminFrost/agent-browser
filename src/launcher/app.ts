@@ -1,3 +1,4 @@
+import { uniqueLabel } from '../shared/label';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import { join, resolve } from 'node:path';
@@ -126,15 +127,22 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
       additions.delete(`${m.sessionId}/${m.targetId}`);
       router.removeTarget(m.sessionId, m.targetId);
     }
+    if (m.type === 'sessionLabel' && sessions.get(m.sessionId)) {
+      if (m.label === undefined) labels.delete(m.sessionId);
+      else labels.set(m.sessionId, m.label);
+    }
   });
 
   const sessions = new SessionRegistry();
+  /** 세션 이름(만드는 중인 세션도 이름을 잡아 둔다: 동시에 같은 이름이 와도 번호가 겹치지 않게) */
+  const labels = new Map<string, string>();
   /** 창이 닫혔거나 멈추기를 요청한 세션(생성 중에 그런 경우를 알아채려고) */
   const closedWindows = new Set<string>();
   /** 여러 번 불려도 한 번만 끝낸다(멈추기 버튼 → 창 닫힘 → sessionClosed가 다시 부른다) */
   async function stopSession(id: string): Promise<void> {
     const session = sessions.remove(id);
     if (!session) return;
+    labels.delete(id);
     closedWindows.delete(id);
     await session.endpoint.close(); // 먼저 끊는다: 창이 닫히는 동안 에이전트가 더 움직이지 못하게
     router.removeScope(id);
@@ -142,8 +150,10 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
   }
   const token = newToken();
   const control = await startControlServer(token, options.controlPort ?? 0, {
-    async createSession() {
+    async createSession({ label: wanted } = {}) {
       const id = sessions.newId();
+      const label = wanted === undefined ? undefined : uniqueLabel(wanted, [...labels.values()]);
+      if (label !== undefined) labels.set(id, label);
       // 첫 탭의 tabAdded를 받을 수 있게 창보다 먼저 만든다
       const scope = router.addScope(id, {
         async newTab(url) {
@@ -158,7 +168,7 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
       }, (method, reason) => options.onBlocked?.({ sessionId: id, method, reason }));
       let endpoint: SessionEndpoint | undefined;
       try {
-        const created = await request({ type: 'createSession', sessionId: id }, 'sessionCreated');
+        const created = await request({ type: 'createSession', sessionId: id, ...(label !== undefined ? { label } : {}) }, 'sessionCreated');
         await added(id, created.targetId); // 첫 탭이 범위에 들어간 뒤 응답한다(바로 /json/list에 보이게)
         endpoint = await startSessionEndpoint(scope, router, version);
         if (closedWindows.has(id)) throw new Error('세션이 만들어지는 중에 닫혔거나 멈췄다');
@@ -168,10 +178,11 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
         router.removeScope(id);
         closedWindows.delete(id);
         await request({ type: 'closeSession', sessionId: id }, 'done').catch(() => undefined);
+        labels.delete(id);
         throw e;
       }
       sessions.add({ id, endpoint });
-      return { id, browserUrl: endpoint.browserUrl };
+      return { id, browserUrl: endpoint.browserUrl, ...(label !== undefined ? { label } : {}) };
     },
     // 붙이기 명령이 끝났거나 붙잡은 연결이 끊겼다(spec-claude-attach A3·A4)
     async closeSession(id) {
@@ -179,8 +190,8 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
       await stopSession(id);
       return true;
     },
-    // 살아 있는 세션 id(browserUrl은 주지 않는다). 묶은 앱 시험이 세션 끝남을 본다
-    listSessions: () => sessions.all().map((s) => s.id),
+    // 살아 있는 세션 id와 이름(browserUrl은 주지 않는다). 묶은 앱 시험이 세션 끝남을 본다
+    listSessions: () => sessions.all().map((s) => (labels.has(s.id) ? { id: s.id, label: labels.get(s.id) } : { id: s.id })),
   });
   const controlFile = options.controlFile ?? join(options.userDataDir, CONTROL_FILE_NAME);
   writeControlFile(controlFile, { port: control.port, token });
