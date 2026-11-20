@@ -1,6 +1,6 @@
 {
   "name": "agent-browser",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Claude Code 세션 여러 개가 사람 창 하나와 로그인을 함께 쓰는 데스크톱 브라우저(세션마다 격리된 탭 묶음을 CDP로 연다)",
   "license": "UNLICENSED",
