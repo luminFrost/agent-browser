@@ -72,6 +72,17 @@ describe('쓸 때 알 것을 initialize 응답에 덧붙임 (spec-company-setup 
     expect(out.result.instructions).toBe(AGENT_BROWSER_GUIDE);
   });
 
+  it('U4: 안내는 한 번 붙이고 그 id를 잊는다(같은 id가 다시 와도 붙이지 않는다)', () => {
+    const ids = new Set<number | string>([0]);
+    withGuide(init(), ids);
+    expect(ids.has(0)).toBe(false);
+    expect(withGuide(init(), ids)).toBe(init());
+  });
+
+  it('U3: 서비스 워커를 거친 POST도 묻지 않는다는 한계가 안내에 있다(ADR-0007)', () => {
+    expect(AGENT_BROWSER_GUIDE).toMatch(/서비스 워커/);
+  });
+
   it('initialize가 아닌 응답·알림·JSON이 아닌 줄은 그대로 둔다', () => {
     const other = JSON.stringify({ jsonrpc: '2.0', id: 5, result: { content: [] } });
     expect(withGuide(other, new Set([0]))).toBe(other);

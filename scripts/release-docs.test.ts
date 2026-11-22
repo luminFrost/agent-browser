@@ -33,6 +33,21 @@ describe('Release 절차와 산출물 이름 (B6)', () => {
     expect(download.indexOf('rm -rf /tmp/agent-browser-release')).toBeLessThan(download.indexOf('gh release download'));
   });
 
+  it('U2: 설치 줄이 받은 폴더의 파일을 쓰고, 받기 --pattern이 실제 자산 이름에 맞는다', () => {
+    const block = setup.slice(setup.indexOf('## 2-가'), setup.indexOf('## 2-나'));
+    const dir = /gh release download[^\n]*--dir (\S+)/.exec(block)?.[1];
+    expect(dir).toBeTruthy();
+    const patterns = [...block.matchAll(/--pattern '([^']+)'/g)].map((m) => m[1]);
+    const glob = (p: string) => new RegExp(`^${p.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*')}$`);
+    const assets = [dmgName, 'install-mac.sh'];
+    for (const a of assets) expect(patterns.some((p) => glob(p).test(a)), a).toBe(true);
+    const install = /^bash (\S+)\/install-mac\.sh --from-dmg (\S+)\/(\S+)$/m.exec(block);
+    expect(install, '설치 줄').toBeTruthy();
+    expect(install![1]).toBe(dir);
+    expect(install![2]).toBe(dir);
+    expect(glob(install![3]).test(dmgName)).toBe(true);
+  });
+
   it('Release 올리기는 이번 버전의 dmg 하나만 올린다(release/에 쌓인 옛 dmg 제외)', () => {
     const upload = setup.slice(setup.indexOf('## Release 올리기'));
     expect(upload).not.toMatch(/release\/[^\n]*\*[^\n]*\.dmg/);
