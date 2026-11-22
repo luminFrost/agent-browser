@@ -34,4 +34,5 @@
 - macOS Electron은 거부된 위치 요청(`getCurrentPosition`)에 오류 콜백을 부르지 않고 멈춘다. 권한 처리기에도 오지 않는다. 거부 확인은 `permissions.query` 상태로 한다.
 - Electron은 `Target.createTarget`을 지원하지 않는다(Not supported) → 프록시가 가로채 그 세션의 탭 묶음(사람 창 안)에 탭을 만든다.
 - 숨긴(`setVisible(false)`) 탭, 다른 탭 view에 완전히 덮인 탭은 그리지 않는다 → CDP 클릭·스크린샷이 멈춘다. 그래서 보이지 않는 세션의 활성 탭은 크기 그대로 창 오른쪽 아래 구석 바깥에 두고 페이지 왼쪽 위 1px만 드러낸다(에이전트가 화면 크기를 줄여도 페이지 안이어야 한다). 드러난 점은 `View`로도 덮지 않는다(덮으면 멈춘다). Linux 메뉴 막대는 resize 이벤트 없이 내용 높이를 줄이므로 사람 창 UI가 `relayout`으로 알린다(ADR-0009).
+- 에이전트 탭의 `before-mouse-event`는 사람 마우스와 CDP `Input.dispatchMouseEvent`를 똑같이 받는다(구별할 값이 없다). 그래서 프록시가 `Input.*` 앞뒤로 `agentInput`을 알린다. `before-input-event`는 CDP 키 입력을 거치지 않는다. 휠은 두 이벤트 모두에 오지 않는다. 사람 입력 시험은 `simulateHumanInput`(sendInputEvent, OS 입력과 같은 길)으로 한다(ADR-0009).
 - 세션 탭은 생길 때와 `Page.bringToFront` 때 키보드 포커스를 가져간다. 화면에 없는 탭이면 사람이 보는 탭으로 포커스를 돌려준다. focus 이벤트 안에서 바로 돌리면 먹히지 않아 `setImmediate`로 한다(ADR-0009 3-1). Linux에서 숨긴 창(테스트 기본)은 아예 그리지 않으니 화면이 필요한 E2E는 `launch({ hidden: false })`로 창을 띄운다(embedded.spec). 다른 화면 시험은 `AB_TEST_SHOW=1`로 본다.

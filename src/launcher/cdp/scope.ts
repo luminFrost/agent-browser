@@ -6,6 +6,8 @@ export interface TabActions {
   newTab(url: string): Promise<string>;
   closeTab(targetId: string): Promise<void>;
   activateTab(targetId: string): Promise<void>;
+  /** 에이전트 입력(Input.*)을 보내기 전(on)과 응답을 받은 뒤(off)에 알린다. 브라우저가 그 사이에만 마우스를 통과시킨다 */
+  agentInput?(inputId: number, on: boolean): Promise<void>;
 }
 
 /**

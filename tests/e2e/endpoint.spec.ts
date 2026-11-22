@@ -31,7 +31,9 @@ test('R3: browserUrl의 /json/version과 /json/list가 CDP 형식으로 응답�
   expect(list.body).toHaveLength(1);
   expect(list.body[0]).toMatchObject({ type: 'page', url: 'about:blank' });
   expect(list.body[0].webSocketDebuggerUrl).toBe(`ws://127.0.0.1:${parts(a).port}/${parts(a).secret}/devtools/page/${list.body[0].id}`);
-  expect((await getJson(a.browserUrl + 'json')).body).toEqual(list.body);
+  // /json은 /json/list와 같은 목록이다. 새 탭의 title은 ""에서 "about:blank"로 바뀌는 중일 수 있어 title은 빼고 견준다(카드 20261122-agent-input-lock A7)
+  const withoutTitle = (l: unknown) => (l as Record<string, unknown>[]).map(({ title: _t, ...rest }) => rest);
+  expect(withoutTitle((await getJson(a.browserUrl + 'json')).body)).toEqual(withoutTitle(list.body));
 });
 
 test('R3: 브라우저 WebSocket으로 자기 탭에 붙어 명령을 보낼 수 있다', async () => {

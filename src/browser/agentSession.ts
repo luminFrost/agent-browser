@@ -35,6 +35,10 @@ export interface AgentSessionEvents {
   layoutChanged(): void;
   /** 탭이 키보드 포커스를 받았다 */
   tabFocused(view: WebContentsView): void;
+  /** 지금 이 세션의 에이전트 입력(CDP Input.*)이 진행 중인가. 아니면 탭의 마우스 입력은 사람 것이라 막는다 */
+  agentInputActive(sessionId: string): boolean;
+  /** 사람 키 입력을 막았다(키보드 포커스를 사람 쪽으로 돌린다) */
+  humanKeyBlocked(sessionId: string): void;
 }
 
 /** 세션 탭이 들어갈 사람 창의 자리(주소창 아래, 지켜보기 패널 왼쪽) */
@@ -55,6 +59,10 @@ export function createAgentSession(sessionId: string, host: BrowserWindow, area:
 
   const announce = (contents: WebContents) => {
     contentsIds.add(contents.id);
+    // 에이전트 탭은 사람이 조작하지 않는다(보는 중 읽기 전용, 구석 1px 점). 카드 20261122-agent-input-lock
+    // 마우스: CDP 입력도 같은 길로 오므로 에이전트 입력 중에만 통과시킨다. 키: CDP 키 입력은 이 이벤트를 거치지 않아 늘 막는다
+    contents.on('before-mouse-event', (event) => { if (!events.agentInputActive(sessionId)) event.preventDefault(); });
+    contents.on('before-input-event', (event) => { event.preventDefault(); events.humanKeyBlocked(sessionId); });
     const p = targetIdOf(contents).then((targetId) => {
       if (contents.isDestroyed()) return undefined;
       targetIds.set(contents.id, targetId);

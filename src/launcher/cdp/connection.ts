@@ -6,6 +6,9 @@ import type { SessionScope } from './scope';
 import { blockedError, type ClientRequest } from './types';
 import { isAgentNavigable } from '../../shared/url';
 
+/** 에이전트 입력 알림 번호(모든 연결에서 겹치지 않게) */
+let nextInputId = 1;
+
 /** 정책 위반으로 끊을 때 쓰는 WebSocket 종료 코드 */
 const WS_POLICY_VIOLATION = 1008;
 
@@ -33,6 +36,8 @@ export class Connection {
   private autoAttach?: { filter?: TargetFilterEntry[] };
   private readonly autoAttached = new Set<string>();
   private readonly queue: string[] = [];
+  /** 클라이언트 메시지를 받은 순서대로 처리한다(입력 알림을 기다리는 동안 뒤 명령이 앞지르지 않게) */
+  private chain: Promise<void> = Promise.resolve();
   private ready: boolean;
 
   constructor(private readonly ws: WebSocket, readonly scope: SessionScope, private readonly router: Router, private readonly pinnedTargetId?: string) {
@@ -139,15 +144,22 @@ export class Connection {
       return this.dispose();
     }
     const req: ClientRequest = this.pinnedSession && !parsed.sessionId ? { ...parsed, sessionId: this.pinnedSession } : parsed;
-    if (req.sessionId) this.handleSessionLevel(req);
-    else this.handleBrowserLevel(req);
+    this.chain = this.chain.then(() => (req.sessionId ? this.handleSessionLevel(req) : this.handleBrowserLevel(req))).catch(() => undefined);
   }
 
-  private handleSessionLevel(req: ClientRequest): void {
+  private handleSessionLevel(req: ClientRequest): void | Promise<void> {
     if (this.router.ownerOf(req.sessionId as string) !== this) return this.refuse(req, '이 연결의 세션이 아니다');
     const reason = sessionLevelBlockReason(req.method, req.params);
     if (reason) return this.refuse(req, reason);
-    this.router.forward(this, req);
+    const notify = this.scope.actions.agentInput?.bind(this.scope.actions);
+    if (!req.method.startsWith('Input.') || !notify) return this.router.forward(this, req);
+    // 에이전트 입력: 브라우저가 이 세션 탭의 마우스를 통과시킨 뒤 보내고, 응답이 오면 다시 막게 한다(카드 20261122-agent-input-lock)
+    const inputId = nextInputId++;
+    const off = () => { notify(inputId, false).catch(() => undefined); };
+    return notify(inputId, true).catch(() => undefined).then(() => {
+      if (this.closed) return off();
+      this.router.forward(this, req, off);
+    });
   }
 
   private handleBrowserLevel(req: ClientRequest): void {

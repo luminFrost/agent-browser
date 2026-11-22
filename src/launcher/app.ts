@@ -165,6 +165,7 @@ export async function startApp(options: StartOptions): Promise<RunningApp> {
         },
         async closeTab(targetId) { await request({ type: 'closeTab', sessionId: id, targetId }, 'done'); },
         async activateTab(targetId) { await request({ type: 'activateTab', sessionId: id, targetId }, 'done'); },
+        async agentInput(inputId, on) { await request({ type: 'agentInput', sessionId: id, inputId, on }, 'done'); },
       }, (method, reason) => options.onBlocked?.({ sessionId: id, method, reason }));
       let endpoint: SessionEndpoint | undefined;
       try {
