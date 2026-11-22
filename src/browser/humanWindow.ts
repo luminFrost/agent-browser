@@ -48,6 +48,10 @@ export interface HumanWindow {
   shown(): Shown;
   /** 탭의 위아래 순서와 비켜 둔 세션 탭의 자리를 다시 정한다(탭 배치가 바뀐 뒤 부른다) */
   restack(): void;
+  /** 이 세션에 사람이 볼 일이 생겼다(승인 요청). 따라 보기가 켜져 있으면 보인다 */
+  attention(sessionId: string): void;
+  /** 이 세션을 왼쪽에 보인다(승인 알림을 눌렀을 때) */
+  showSession(sessionId: string): void;
   /** 세션 탭이 키보드 포커스를 받았다. 화면에 보이는 탭이 아니면 포커스를 사람이 보는 쪽으로 돌려준다 */
   tabFocused(view: WebContentsView): void;
 }
@@ -265,6 +269,8 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     if (viewing !== null) sendToolbar(); // 보는 세션의 이름이 바뀌었을 수 있다
   };
   let lastApprovals: ApprovalView[] = [];
+  /** 지금 보는 세션이 승인을 기다리면 따라 보기가 다른 세션으로 옮기지 않는다(사람이 답할 화면을 빼앗지 않게) */
+  const holdForApproval = () => viewing !== null && lastApprovals.some((a) => a.sessionId === viewing);
   const showApprovals = (approvals: ApprovalView[]) => {
     lastApprovals = approvals;
     if (!win.isDestroyed()) win.webContents.send('human:approvals', approvals);
@@ -287,7 +293,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
       sessions.set(sessionId, strip);
       lastMove.set(sessionId, moveOf(strip));
       restack(); // 첫 탭은 등록 전에 생겨 비켜 두지 못했다
-      if (follow) setViewing(sessionId);
+      if (follow && !holdForApproval()) setViewing(sessionId);
     },
     removeSession: (sessionId) => {
       if (viewing === sessionId) setViewing(null);
@@ -301,7 +307,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
         const move = moveOf(strip);
         const moved = lastMove.get(sessionId) !== move;
         lastMove.set(sessionId, move);
-        if (follow && moved && viewing !== sessionId) return setViewing(sessionId);
+        if (follow && moved && viewing !== sessionId && !holdForApproval()) return setViewing(sessionId);
       }
       if (viewing === sessionId) sendToolbar();
     },
@@ -316,5 +322,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     },
     restack,
     tabFocused,
+    attention: (sessionId) => { if (follow && sessions.has(sessionId)) setViewing(sessionId); },
+    showSession: (sessionId) => { if (sessions.has(sessionId)) setViewing(sessionId); },
   };
 }

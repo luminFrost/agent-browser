@@ -14,7 +14,9 @@ export type LauncherCommand =
   | { type: 'activateTab'; sessionId: string; targetId: string }
   | { type: 'closeSession'; sessionId: string }
   /** 사람 창을 앞으로 가져온다(묶은 앱을 다시 열 때, ADR-0008) */
-  | { type: 'focus' };
+  | { type: 'focus' }
+  /** 승인 요청 알림 상태(시험·진단용, 카드 20261122-approval-attention) */
+  | { type: 'attention' };
 
 export type LauncherToBrowser = LauncherCommand & { rid?: number };
 
@@ -30,6 +32,8 @@ export type BrowserReply =
   | { type: 'sessions'; sessionIds: string[] }
   /** view: 사람 탭을 보는 중이면 human, 세션을 보는 중이면 session(그 세션에 탭이 없으면 targetId 없음) */
   | { type: 'shownTab'; view: 'human' | 'session'; sessionId?: string; targetId?: string; exposed: Rect[]; content: { width: number; height: number }; focusedSession: string | null; focusedUi: boolean; windowFocused: boolean; offscreenFocusCount: number }
+  /** badge: Dock 배지에 보인 기다리는 승인 수, notices: 띄운 승인 알림 수 */
+  | { type: 'attention'; badge: number; notices: number; bounces: number; noticeFailures: number }
   | { type: 'sessionCreated'; sessionId: string; targetId: string }
   | { type: 'tabCreated'; targetId: string }
   | { type: 'done' }

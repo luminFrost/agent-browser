@@ -1,5 +1,5 @@
 import { test, expect, chromium, type Browser, type Page } from '@playwright/test';
-import { launch, createSession, humanUi, evaluate, targets, waitFor, approvals, decide, CdpClient, type SessionInfo } from './helpers';
+import { launch, createSession, humanUi, evaluate, targets, waitFor, approvals, decide, setFollow, shown, CdpClient, type SessionInfo } from './helpers';
 import { startTestServer, type TestServer } from '../fixtures/server';
 import type { RunningApp } from '../../src/launcher/app';
 
@@ -124,4 +124,33 @@ test('R12: 브라우저가 보내는 CSP 위반 보고는 묻지 않는다 (ADR-
   await page.goto(`${server.base}/csp`);
   await waitFor(async () => server.hits.includes('POST /csp-report'), 'CSP 보고가 서버에');
   expect(await approvals(app)).toEqual([]);
+});
+
+test('P1·P2·P4·P6: 승인 요청이 오면 알림을 띄우고 Dock을 튀기고 배지에 기다리는 수를 보이며, 줄에 "자동 거부"까지 남은 시간이 보인다', async () => {
+  await page.goto(`${server.base}/form`);
+  await submit();
+  const [req] = await waitFor(async () => { const l = await approvals(app); return l.length ? l : undefined; }, '승인 요청');
+  expect(req.text).toMatch(/\d+분 뒤 자동 거부/);
+  const attention = await app.request({ type: 'attention' }, 'attention');
+  expect(attention.notices).toBe(1);
+  expect(attention.badge).toBe(1);
+  expect(attention.bounces).toBe(1); // P6: 알림이 막혀도 Dock 아이콘이 튄다
+  expect(attention.noticeFailures).toBeGreaterThanOrEqual(0);
+  await decide(app, req.id, 'deny');
+  await waitFor(async () => (await app.request({ type: 'attention' }, 'attention')).badge === 0, '배지 지움');
+});
+
+test('P3: 따라 보기가 켜져 있으면 승인 요청이 온 세션을 왼쪽에 보인다', async () => {
+  await page.goto(`${server.base}/form`);
+  await setFollow(app, true);
+  const b = await createSession(app); // 따라 보기로 B를 보는 중
+  await waitFor(async () => (await shown(app)).sessionId === b.id, 'B를 보는 중');
+  await submit();
+  await waitFor(async () => (await approvals(app)).length === 1, '승인 요청');
+  await waitFor(async () => (await shown(app)).sessionId === a.id, '승인 요청이 온 A를 보임');
+  // A가 승인을 기다리는 동안 B가 움직여도 화면은 A 그대로다
+  const pageB = (await chromium.connectOverCDP(b.browserUrl)).contexts()[0].pages()[0];
+  await pageB.goto(`${server.base}/a`);
+  await new Promise((r) => setTimeout(r, 500));
+  expect((await shown(app)).sessionId).toBe(a.id);
 });

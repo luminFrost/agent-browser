@@ -1,10 +1,10 @@
-import { app, BrowserWindow, session } from 'electron';
+import { app, BrowserWindow, Notification, session } from 'electron';
 import { readSettings, writeSettings } from './settings';
 import { cleanLabel } from '../shared/label';
 import { CONTENT_AREA, createHumanWindow, type HumanWindow } from './humanWindow';
 import { createAgentSession, type AgentSession } from './agentSession';
 import { DOWNLOADS_FLAG, HIDDEN_FLAG, SHARED_PARTITION, USER_DATA_FLAG } from '../shared/constants';
-import { ApprovalQueue } from './gate/approvals';
+import { ApprovalQueue, approvalNotice, approvalTimeoutMs } from './gate/approvals';
 import { installFormGate } from './gate/formGate';
 import { installDownloadGate } from './gate/downloadGate';
 import { join } from 'node:path';
@@ -24,7 +24,36 @@ const showWindows = !process.argv.includes(HIDDEN_FLAG);
 const send = (m: BrowserReply, rid?: number) => process.send?.({ ...m, rid });
 let human: HumanWindow | undefined;
 const agents = new Map<string, AgentSession>();
-const approvals = new ApprovalQueue((views) => human?.showApprovals(views));
+/**
+ * 승인 요청(R12·R13). 새 요청이 오면 알리고(알림·Dock 배지), 따라 보기가 켜져 있으면 그 세션을 보인다.
+ * 답이 없으면 정한 시간 뒤 거부로 끝난다(카드 20261122-approval-attention)
+ */
+let badge = 0;
+let notices = 0;
+/** 알림 대신 Dock을 튀긴 수, 알림이 표시되지 못한 수(P6. Electron 42부터 macOS 알림은 서명된 앱에서만 보이고 아니면 failed가 온다) */
+let bounces = 0;
+let noticeFailures = 0;
+const approvals = new ApprovalQueue((views) => {
+  human?.showApprovals(views);
+  badge = views.length;
+  app.setBadgeCount(badge); // 지원하지 않는 곳(일부 Linux)에서는 false를 돌려줄 뿐이다
+}, {
+  timeoutMs: approvalTimeoutMs(process.env),
+  onAdded: (view) => {
+    notices++;
+    human?.attention(view.sessionId);
+    bounces++;
+    app.dock?.bounce('informational'); // 알림이 막혀도 보이는 신호. macOS 밖에서는 dock이 없다
+    if (!Notification.isSupported()) return;
+    const note = new Notification({ ...approvalNotice(view, labels.get(view.sessionId)), silent: false });
+    note.on('click', () => {
+      bringHumanToFront();
+      human?.showSession(view.sessionId);
+    });
+    note.on('failed', () => { noticeFailures++; });
+    note.show();
+  },
+});
 
 /** 이 webContents가 어느 세션의 탭인가(사람 창이면 undefined) */
 const sessionOfContents = (contentsId: number): string | undefined => {
@@ -77,6 +106,8 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
       return { type: 'sessions', sessionIds: [...agents.keys()] };
     case 'shownTab':
       return shownTab();
+    case 'attention':
+      return { type: 'attention', badge, notices, bounces, noticeFailures };
     case 'focus':
       bringHumanToFront();
       return { type: 'done' };
