@@ -5,12 +5,12 @@ P="$(mktemp -d /tmp/ab-c1.XXXX)"
 start() { env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin AGENT_BROWSER_PROFILE="$P" "$APP"; echo "starter exit $? at $(date +%T.%N | cut -c1-12)"; }
 snap() { echo "--- $(date +%T.%N | cut -c1-12) $1"; ps -axww -o pid=,ppid=,stat=,command= | grep -F "Agent Browser" | grep -v grep | grep -v -- '--type=' | cut -c1-60; echo "  -E cli.js 전체: $(ps -axwwE -o pid=,command= | grep -F dist/launcher/cli.js | grep -v grep | awk '{print $1}' | tr '\n' ' ') / 프로필 맞음: $(ps -axwwE -o pid=,command= | grep -F dist/launcher/cli.js | grep -v grep | grep -c "AGENT_BROWSER_PROFILE=$P")"; }
 sw_vers
-start; sleep 8; snap "첫 실행 뒤"
+start; for i in $(seq 1 100); do ps -axww -o pid=,command= | grep -F -- "--ab-user-data=$P" | grep -v -- "--type=" | grep -vq grep && break; sleep 0.1; done; snap "브라우저 프로세스 보임(바로 끔)"; echo "log 실행 중 줄: $(grep -c "실행 중" $P/launcher.log)"
 echo "ps -E 런처 줄:"; ps -axwwE -o pid=,command= | grep -F "dist/launcher/cli.js" | grep -v grep | grep -c "AGENT_BROWSER_PROFILE=$P"
 L=$(ps -axwwE -o pid=,command= | grep -F "dist/launcher/cli.js" | grep -v grep | grep "AGENT_BROWSER_PROFILE=$P" | awk '{print $1}' | head -1)
 echo "launcher=$L"
 kill -TERM "$L"; start
 for i in $(seq 1 12); do snap "kill 뒤 $i"; sleep 1; done
-for i in 1 2 3; do t0=$(date +%s); swift tests/dist/windows.swift | tr "\n" " "; echo " swift 걸린 초: $(( $(date +%s) - t0 ))"; done
+for i in 1; do t0=$(date +%s); swift tests/dist/windows.swift | tr "\n" " "; echo " swift 걸린 초: $(( $(date +%s) - t0 ))"; done
 echo "=== launcher.log"; cat "$P"/launcher.log* 2>/dev/null | tail -80
 ls -la "$P"
