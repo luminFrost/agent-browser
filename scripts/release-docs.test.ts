@@ -40,6 +40,21 @@ describe('Release 절차와 산출물 이름 (B6)', () => {
   });
 });
 
+describe('PR CI (카드 20261122-pr-ci)', () => {
+  const ci = readFileSync(join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
+  it('PR과 main push에서 Linux(lint·build·E2E 창 표시)와 macOS(lint·단위 시험)를 돌리고, 시험을 건너뛰지 않는다', () => {
+    expect(ci).toMatch(/pull_request/);
+    expect(ci).toMatch(/branches:\s*\[\s*main\s*\]/);
+    expect(ci).toMatch(/runs-on:\s*ubuntu-/);
+    expect(ci).toMatch(/runs-on:\s*macos-1\d/);
+    expect(ci).toContain('xvfb-run');
+    expect(ci).toContain("AB_TEST_SHOW: '1'");
+    expect(ci).toContain('npx playwright test');
+    expect(ci).toContain('npx vitest run');
+    expect(ci).not.toMatch(/--grep-invert|test\.skip|AB_DIST_SKIP/);
+  });
+});
+
 describe('소스 없이 dmg로 설치 (카드 20261119-release-ci)', () => {
   it('기본 설치 경로(2-가)가 Release이고, 저장소 안의 스크립트가 아니라 Release에 올린 install-mac.sh를 쓴다', () => {
     const release = setup.slice(setup.indexOf('## 2-가'), setup.indexOf('## 2-나'));
