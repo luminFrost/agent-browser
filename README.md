@@ -80,6 +80,8 @@ defaults read "/Applications/Agent Browser.app/Contents/Info" CFBundleShortVersi
 2. 새 Release의 dmg로 2번을 다시 한다(덮어쓰기). 로그인 정보는 그대로 남는다.
 3. MCP는 다시 등록하지 않아도 된다(경로가 같다). Claude Code에서 `/mcp`로 다시 연결한다.
 
+> 업데이트한 뒤 Mac에서만 볼 수 있는 동작(최소화·Cmd+H, 다른 앱 포커스, 승인 알림)은 [`docs/verify/20261122-company-pc-check.md`](docs/verify/20261122-company-pc-check.md) 확인표로 확인한다.
+
 > Claude Code에게 "agent-browser 업데이트 확인해 줘"라고 해도 된다. [`docs/setup.md`](docs/setup.md)의 "업데이트" 절차대로 버전을 비교하고, 새 버전이면 설치까지 한다.
 
 <details>
