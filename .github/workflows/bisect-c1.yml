@@ -1,6 +1,8 @@
 # 임시: C1 끄는 중 다시 열기 원인 가르기(지울 브랜치)
 name: bisect-c1
-on: workflow_dispatch
+on:
+  push:
+    branches: ['bisect/**']
 jobs:
   c1:
     runs-on: macos-15
