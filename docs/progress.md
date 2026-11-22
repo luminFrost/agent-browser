@@ -1,25 +1,20 @@
 # Progress
-갱신: 2026-11-15 · 단계: 전달 끝 · 작업: 20261115-company-setup · 브랜치: feat/company-setup (main에 합치기는 사람이 한다)
+갱신: 2026-11-22 · 단계: 검증 끝, 머지·릴리스 대기 · 작업: 20261122-release-v022 외 · 브랜치: release/v0.2.2 (main에 합치기는 사람이 한다)
 덮어쓴다. 기록이 아니라 현재 상태다.
 
 ## 지금 상태
-- main에 합친 것: Mac 앱 묶기, 런처 자물쇠, 정리 5건, 앱 시작 결함 4건, Claude Code 붙이기(0859ad2).
-- 회사 PC에서 Claude가 설치하고 쓰기(20261115-company-setup):
-  - 회사 PC 절차: GitHub에서 저장소를 받고 Claude에게 "docs/setup.md대로 설치해 줘"라고 한다. Claude가 `scripts/install-mac.sh`로 빌드(안 되면 Release dmg `--from-dmg`), 앱 복사, `claude mcp add --scope user`, 확인까지 한다.
-  - 붙이기 명령이 MCP initialize 안내에 "쓸 때 알 것"을 덧붙인다(`AGENT_BROWSER_GUIDE`).
-  - dmg 이름을 `Agent-Browser-<버전>-arm64.dmg`로 바꿨다. GitHub Release 자산 이름에는 공백을 쓸 수 없다.
-  - `.gitignore`에 `.aif/tasks/`와 `.DS_Store`를 넣었다.
-  - 검증 2회차 PASS(723bf82). 1회차 FAIL은 Release 받기 명령의 dmg 이름 때문이었다. 보고는 `docs/verify/20261115-company-setup.md`, 사람용은 `docs/verify/company-setup-report.html`.
-  - 전달 2026-11-15, 사람 승인 "승인, 합치기는 직접". 원격 저장소는 아직 없다.
-- 빌드 산출물: `release/Agent-Browser-0.1.0-arm64.dmg`. 버전 0.1.0, Apple Silicon, 서명 없음, 123,060,157바이트, SHA-256 `fecd2a54b1c865ab1ede4f84636aca4999dec2ffd273438cc30c348940fb2ba7`.
-- 되돌리기: main을 0859ad2로 되돌린다. 설치한 PC에서는 `claude mcp remove --scope user agent-browser`를 실행한다.
+- 배포: GitHub Release v0.2.1(2026-11-20, `Agent-Browser-0.2.1-arm64.dmg` + `install-mac.sh`). 다른 PC는 소스 없이 dmg로 설치하고 `claude mcp add` 한 줄로 붙인다(README 빠른 시작, `docs/setup.md`).
+- main에 있는 것: 세션을 사람 창 안 탭 묶음으로(ADR-0009), Release CI, 따라 보기, 세션 이름, MCP 안내의 탭 쓰기, 업데이트 확인 안내.
+- 머지 대기(검증 통과): #12 사람 창 UI 보호, #13 PR CI, #14 승인 알림·자동 거부, #15 v0.2.2(확인표, 11/15 후속 7건, aif 정리). #15에 앞의 셋이 합쳐져 있어 함께 시험했다.
+- 확인(합친 상태, Linux): lint·build 0, Vitest Linux에서 macOS 전용 9건 빼고 통과, E2E 창 표시 전체 통과. PR CI는 macOS에서 단위 전부 통과.
+- Mac에서만 볼 수 있는 것은 `docs/verify/20261122-company-pc-check.md` 확인표로 사람이 본다. 특히 macOS 알림은 Electron 42부터 서명된 앱에서만 보여서 ad-hoc 서명인 이 앱에서 막힐 수 있다. 그래서 Dock 아이콘을 함께 튀긴다.
 
 ## 다음 할 일
-- 사람: `git checkout main && git merge --ff-only feat/company-setup`으로 합친다.
-- 사람: GitHub에 비공개 저장소를 만들고 main만 push한다. `docs/install-guide` 브랜치(개인 경로가 든 옛 안내)는 올리지 않는다. 지워도 된다.
-- 사람(회사 PC): clone → `claude` → "docs/setup.md대로 agent-browser를 설치해 줘" → 앱 첫 실행 허용 → 회사 계정 로그인.
-- 빌드가 막히면 개발 Mac에서 `docs/setup.md` "Release 올리기"를 실행한다.
-- 후속: `docs/verify/20261115-company-setup.md` "후속" 7건, `docs/verify/20261115-claude-attach.md` "후속".
+- 사람: #12 → #13 → #14 → #15 순서로 머지한다.
+- Claude: 머지 뒤 release workflow를 dispatch해 v0.2.2를 올린다(태그 push는 이 환경에서 막혀 있다).
+- 사람(회사 PC): v0.2.2로 업데이트하고 확인표를 따라 한다. 결과를 Claude에게 주면 반영한다.
 
 ## 막힌 것 · 결정 필요
-- 없음.
+- 20261119-embedded-sessions(표준 경로, 규모 M)의 검증 게이트가 4회 FAIL 뒤 열린 채다. 자동 수정 횟수를 넘어 사람 결정이 필요하다. 그 뒤 고친 내용은 #1로 머지됐고, 이후 작업들의 E2E가 그 동작을 계속 시험한다. 새 reviewer로 다시 검증할지, 머지로 전달된 것으로 닫을지 정한다.
+- 세션을 보는 동안 페이지 입력 잠그기, 구석 1px 클릭, endpoint R3 가끔 실패: 고칠지 사람이 정한다.
+- 저장소가 공개라 커밋 작성자 이메일이 보인다. 앞으로 noreply로 바꿀지 정한다.
