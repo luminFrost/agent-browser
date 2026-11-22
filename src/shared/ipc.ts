@@ -48,7 +48,7 @@ export type BrowserReply =
   | { type: 'sessionClosed'; sessionId: string }
   /** 사람이 지켜보기 패널에서 멈추기를 눌렀다(R11) */
   | { type: 'stopRequested'; sessionId: string }
-  /** 사람이 패널에서 세션 이름을 바꿨다(label 없으면 이름 지움) */
+  /** 사람이 패널에서 세션 이름을 바꿨다. 브라우저는 빈 이름이면 보내지 않는다(이름 지우기는 없다). label이 없으면 런처는 이름을 지운다 */
   | { type: 'sessionLabel'; sessionId: string; label?: string };
 
 export type BrowserToLauncher = BrowserReply & { rid?: number };

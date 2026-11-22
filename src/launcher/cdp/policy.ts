@@ -1,7 +1,7 @@
 import { isAgentNavigable } from '../../shared/url';
 /**
  * CDP 명령을 어떻게 다룰지 정하는 표(docs/design.md 인터페이스 절).
- * 브라우저 수준(sessionId 없음)은 허용 목록, 페이지 세션은 차단 목록이다.
+ * 브라우저 수준(sessionId 없음)과 페이지 세션 모두 허용 목록이다(ADR-0004·0005). 목록에 없으면 막는다.
  */
 
 /** 브라우저 수준 명령의 처리 방식 */
