@@ -2,7 +2,7 @@
 interface HumanTabView { id: number; title: string; url: string; loading: boolean }
 /** viewing이 있으면 그 세션의 탭을 보는 중이다(읽기 전용, spec-embedded-sessions) */
 interface HumanState { tabs: HumanTabView[]; activeId: number | null; canGoBack: boolean; canGoForward: boolean; viewing: string | null; viewingLabel?: string }
-interface HumanApprovalView { id: string; sessionId: string; host: string; kind: 'form' | 'download'; detail?: string }
+interface HumanApprovalView { id: string; sessionId: string; host: string; kind: 'form' | 'download'; detail?: string; expiresAt: number }
 interface HumanSessionView { sessionId: string; label?: string; tabs: HumanTabView[]; activeId: number | null }
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- 전역 Window 확장(preload가 연 humanApi)이라 선언만 있다
 interface Window {
@@ -185,7 +185,13 @@ interface Window {
   const approvalsEl = byId<HTMLUListElement>('approvals');
   const approvalsSection = byId<HTMLElement>('approvals-section');
   const KIND_LABEL = { form: '폼 제출', download: '다운로드' } as const;
-  api.onApprovals((list) => {
+  /** 답이 없으면 거부되기까지 남은 시간(1분 단위로 올림, 카드 20261122-approval-attention) */
+  const untilDeny = (expiresAt: number) => `${Math.max(1, Math.ceil((expiresAt - Date.now()) / 60_000))}분 뒤 자동 거부`;
+  /** 세션 이름(패널 목록에서). 없으면 id */
+  const nameOf = (sessionId: string) => lastSessions?.sessions.find((x) => x.sessionId === sessionId)?.label;
+  let lastApprovals: HumanApprovalView[] = [];
+  const renderApprovals = () => {
+    const list = lastApprovals;
     approvalsSection.hidden = list.length === 0;
     approvalsEl.replaceChildren(...list.map((a) => {
       const li = document.createElement('li');
@@ -196,7 +202,11 @@ interface Window {
       li.dataset.kind = a.kind;
       const what = document.createElement('div');
       what.className = 'what';
-      what.textContent = `세션 ${a.sessionId} · ${a.host} · ${KIND_LABEL[a.kind]}${a.detail ? ` (${a.detail})` : ''}`;
+      const name = nameOf(a.sessionId);
+      what.textContent = `세션 ${name ? `${name} (${a.sessionId})` : a.sessionId} · ${a.host} · ${KIND_LABEL[a.kind]}${a.detail ? ` (${a.detail})` : ''}`;
+      const left = document.createElement('div');
+      left.className = 'expires';
+      left.textContent = untilDeny(a.expiresAt);
       const buttons = document.createElement('div');
       buttons.className = 'buttons';
       for (const [cls, label, allow] of [['allow', '허용', true], ['deny', '거부', false]] as const) {
@@ -206,8 +216,20 @@ interface Window {
         b.addEventListener('click', () => { b.disabled = true; api.command({ cmd: 'decide', id: a.id, allow }); });
         buttons.append(b);
       }
-      li.append(what, buttons);
+      li.append(what, left, buttons);
       return li;
     }));
+  };
+  api.onApprovals((list) => {
+    lastApprovals = list;
+    renderApprovals();
   });
+  // 남은 시간 글자를 고친다(누르던 버튼이 사라지지 않게 글자만 바꾼다)
+  setInterval(() => {
+    for (const li of approvalsEl.querySelectorAll<HTMLLIElement>('.approval')) {
+      const a = lastApprovals.find((x) => x.id === li.dataset.id);
+      const el = li.querySelector('.expires');
+      if (a && el) el.textContent = untilDeny(a.expiresAt);
+    }
+  }, 15_000);
 }

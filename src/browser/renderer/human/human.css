@@ -55,3 +55,5 @@ body.viewing .tab .close { display: none; }
 .approval button { flex: 1; padding: 3px 0; border-radius: 4px; font: inherit; border: 1px solid color-mix(in srgb, CanvasText 30%, Canvas); background: Canvas; color: inherit; }
 .approval .allow { border-color: #2f7d32; color: #2f7d32; }
 .approval .deny { border-color: #c4373c; color: #c4373c; }
+
+.approval .expires { font-size: 11px; opacity: .7; margin: 2px 0 4px; }

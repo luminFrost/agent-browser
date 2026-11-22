@@ -7,4 +7,6 @@ export interface ApprovalView {
   kind: 'form' | 'download';
   /** 다운로드면 파일 이름 */
   detail?: string;
+  /** 답이 없으면 이 시각(epoch ms)에 거부로 끝난다 */
+  expiresAt: number;
 }
