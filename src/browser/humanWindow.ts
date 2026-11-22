@@ -54,6 +54,8 @@ export interface HumanWindow {
   showSession(sessionId: string): void;
   /** 세션 탭이 키보드 포커스를 받았다. 화면에 보이는 탭이 아니면 포커스를 사람이 보는 쪽으로 돌려준다 */
   tabFocused(view: WebContentsView): void;
+  /** 키보드 포커스를 창 UI로 돌린다(에이전트 탭이 사람 키를 막았을 때) */
+  focusUi(): void;
 }
 
 export interface HumanWindowEvents {
@@ -322,6 +324,10 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     },
     restack,
     tabFocused,
+    focusUi: () => {
+      humanFocus = win.webContents;
+      setImmediate(() => { if (!win.isDestroyed()) win.webContents.focus(); }); // 키 이벤트 안에서 바로 옮기면 먹히지 않는다(ADR-0009 3-1)
+    },
     attention: (sessionId) => { if (follow && sessions.has(sessionId)) setViewing(sessionId); },
     showSession: (sessionId) => { if (sessions.has(sessionId)) setViewing(sessionId); },
   };

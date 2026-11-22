@@ -5,6 +5,7 @@ import { CONTENT_AREA, createHumanWindow, type HumanWindow } from './humanWindow
 import { createAgentSession, type AgentSession } from './agentSession';
 import { DOWNLOADS_FLAG, HIDDEN_FLAG, SHARED_PARTITION, USER_DATA_FLAG } from '../shared/constants';
 import { ApprovalQueue, approvalNotice, approvalTimeoutMs } from './gate/approvals';
+import { AgentInputGate, AGENT_INPUT_GRACE_MS } from './agentInput';
 import { installFormGate } from './gate/formGate';
 import { installDownloadGate } from './gate/downloadGate';
 import { join } from 'node:path';
@@ -28,6 +29,8 @@ const agents = new Map<string, AgentSession>();
  * 승인 요청(R12·R13). 새 요청이 오면 알리고(알림·Dock 배지), 따라 보기가 켜져 있으면 그 세션을 보인다.
  * 답이 없으면 정한 시간 뒤 거부로 끝난다(카드 20261122-approval-attention)
  */
+/** 에이전트 입력(CDP Input.*) 중인 세션. 그때만 그 세션 탭의 마우스를 통과시킨다(카드 20261122-agent-input-lock) */
+const agentInput = new AgentInputGate(AGENT_INPUT_GRACE_MS);
 let badge = 0;
 let notices = 0;
 /** 알림 대신 Dock을 튀긴 수, 알림이 표시되지 못한 수(P6. Electron 42부터 macOS 알림은 서명된 앱에서만 보이고 아니면 failed가 온다) */
@@ -108,6 +111,9 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
       return shownTab();
     case 'attention':
       return { type: 'attention', badge, notices, bounces, noticeFailures };
+    case 'agentInput':
+      if (m.on) agentInput.begin(m.sessionId, m.inputId); else agentInput.end(m.sessionId, m.inputId);
+      return { type: 'done' };
     case 'simulateHumanInput': {
       // 시험용: OS 입력과 같은 경로(sendInputEvent)로 사람 입력을 흉내 낸다. 에이전트(CDP)는 이 명령을 쓸 수 없다(런처 ipc 전용)
       const agent = agentOf(m.sessionId);
@@ -140,6 +146,7 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
         tabRemoved: (sessionId, targetId) => send({ type: 'tabRemoved', sessionId, targetId }),
         closed: (sessionId) => {
           agents.delete(sessionId);
+          agentInput.clear(sessionId);
           labels.delete(sessionId);
           host.removeSession(sessionId);
           send({ type: 'sessionClosed', sessionId }); // 사람이 패널에서 멈춘 경우도 런처가 세션을 끝낸다(R9)
@@ -147,6 +154,8 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
         },
         layoutChanged: () => host.restack(),
         tabFocused: (view) => host.tabFocused(view),
+        agentInputActive: (sessionId) => agentInput.allows(sessionId),
+        humanKeyBlocked: () => host.focusUi(),
       });
       agents.set(m.sessionId, agent);
       host.addSession(m.sessionId, agent.tabs);

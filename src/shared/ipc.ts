@@ -13,6 +13,8 @@ export type LauncherCommand =
   | { type: 'closeTab'; sessionId: string; targetId: string }
   | { type: 'activateTab'; sessionId: string; targetId: string }
   | { type: 'closeSession'; sessionId: string }
+  /** 에이전트의 CDP Input.* 명령을 보내기 전(on)과 응답을 받은 뒤(off). 그 사이에만 세션 탭의 마우스를 통과시킨다(카드 20261122-agent-input-lock) */
+  | { type: 'agentInput'; sessionId: string; inputId: number; on: boolean }
   /** 사람 창을 앞으로 가져온다(묶은 앱을 다시 열 때, ADR-0008) */
   | { type: 'focus' }
   /** 승인 요청 알림 상태(시험·진단용, 카드 20261122-approval-attention) */
