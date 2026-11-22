@@ -20,6 +20,7 @@ command -v gh && gh auth status   # 있으면 2-가를 명령으로, 없으면 �
 ```
 
 - `uname -m`이 `arm64`가 아니면 멈춘다. 이 앱은 Apple Silicon만 지원한다고 사람에게 알린다.
+- `sw_vers -productVersion`의 앞자리가 13보다 작으면 멈춘다. macOS 13(Ventura) 이상이 필요하다고 알린다(앱의 Electron 45가 그 아래를 지원하지 않는다).
 - `claude`가 없으면 멈춘다. Claude Code를 먼저 설치해야 한다고 알린다.
 - Node는 필요 없다.
 
