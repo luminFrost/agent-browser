@@ -1,4 +1,6 @@
 import { BrowserWindow, ipcMain, type WebContentsView } from 'electron';
+import { pathToFileURL } from 'node:url';
+import { isHumanUiUrl } from './humanUiGuard';
 import { join } from 'node:path';
 import { TabStrip } from './tabStrip';
 import { SHARED_PARTITION } from '../shared/constants';
@@ -70,6 +72,15 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     title: 'agent-browser',
     webPreferences: { preload: join(__dirname, 'preload', 'human.js'), sandbox: true, contextIsolation: true },
   });
+  /**
+   * 사람 창 UI 지키기(카드 20261122-human-ui-guard): 이 페이지는 승인·멈추기 명령을 보낼 수 있다.
+   * 페이지 스스로의 이동(스크립트, 링크·파일 끌어다 놓기)과 새 창을 막고, 명령은 UI 파일에서 온 것만 받는다
+   */
+  const uiPath = join(__dirname, 'renderer', 'human', 'index.html');
+  const uiUrl = pathToFileURL(uiPath).href;
+  win.webContents.on('will-navigate', (e) => e.preventDefault());
+  win.webContents.on('will-redirect', (e) => e.preventDefault());
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   /** 보기 대상 세션의 탭 묶음(세션 id → 묶음) */
   const sessions = new Map<string, TabStrip>();
   /** 왼쪽 영역에 보는 세션. null이면 내 탭 */
@@ -219,7 +230,8 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
   };
 
   const onCommand = (event: Electron.IpcMainEvent, c: HumanCommand) => {
-    if (event.sender !== win.webContents) return; // 사람 창 UI가 보낸 것만 받는다
+    // 사람 창 UI가 보낸 것만 받는다: 그 webContents이고, 보낸 프레임이 UI 파일이어야 한다
+    if (event.sender !== win.webContents || !isHumanUiUrl(event.senderFrame?.url, uiUrl)) return;
     switch (c.cmd) {
       case 'stopSession': return events.stopSession(c.sessionId);
       case 'decide': return events.decide(c.id, c.allow);
@@ -264,7 +276,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
   });
   win.on('closed', () => ipcMain.off('human:command', onCommand));
 
-  win.loadFile(join(__dirname, 'renderer', 'human', 'index.html')).catch(() => undefined);
+  win.loadFile(uiPath).catch(() => undefined);
   tabs.newTab();
   return {
     win,
