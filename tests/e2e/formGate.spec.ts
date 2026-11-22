@@ -126,7 +126,7 @@ test('R12: 브라우저가 보내는 CSP 위반 보고는 묻지 않는다 (ADR-
   expect(await approvals(app)).toEqual([]);
 });
 
-test('P1·P2·P4: 승인 요청이 오면 알림을 띄우고 배지에 기다리는 수를 보이며, 줄에 "자동 거부"까지 남은 시간이 보인다', async () => {
+test('P1·P2·P4·P6: 승인 요청이 오면 알림을 띄우고 Dock을 튀기고 배지에 기다리는 수를 보이며, 줄에 "자동 거부"까지 남은 시간이 보인다', async () => {
   await page.goto(`${server.base}/form`);
   await submit();
   const [req] = await waitFor(async () => { const l = await approvals(app); return l.length ? l : undefined; }, '승인 요청');
@@ -134,6 +134,8 @@ test('P1·P2·P4: 승인 요청이 오면 알림을 띄우고 배지에 기다�
   const attention = await app.request({ type: 'attention' }, 'attention');
   expect(attention.notices).toBe(1);
   expect(attention.badge).toBe(1);
+  expect(attention.bounces).toBe(1); // P6: 알림이 막혀도 Dock 아이콘이 튄다
+  expect(attention.noticeFailures).toBeGreaterThanOrEqual(0);
   await decide(app, req.id, 'deny');
   await waitFor(async () => (await app.request({ type: 'attention' }, 'attention')).badge === 0, '배지 지움');
 });

@@ -33,7 +33,7 @@ export type BrowserReply =
   /** view: 사람 탭을 보는 중이면 human, 세션을 보는 중이면 session(그 세션에 탭이 없으면 targetId 없음) */
   | { type: 'shownTab'; view: 'human' | 'session'; sessionId?: string; targetId?: string; exposed: Rect[]; content: { width: number; height: number }; focusedSession: string | null; focusedUi: boolean; windowFocused: boolean; offscreenFocusCount: number }
   /** badge: Dock 배지에 보인 기다리는 승인 수, notices: 띄운 승인 알림 수 */
-  | { type: 'attention'; badge: number; notices: number }
+  | { type: 'attention'; badge: number; notices: number; bounces: number; noticeFailures: number }
   | { type: 'sessionCreated'; sessionId: string; targetId: string }
   | { type: 'tabCreated'; targetId: string }
   | { type: 'done' }
