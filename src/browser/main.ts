@@ -108,6 +108,22 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
       return shownTab();
     case 'attention':
       return { type: 'attention', badge, notices, bounces, noticeFailures };
+    case 'simulateHumanInput': {
+      // 시험용: OS 입력과 같은 경로(sendInputEvent)로 사람 입력을 흉내 낸다. 에이전트(CDP)는 이 명령을 쓸 수 없다(런처 ipc 전용)
+      const agent = agentOf(m.sessionId);
+      const view = agent.tabs.shownView() ?? agent.tabs.parkedView();
+      if (!view) return { type: 'error', message: '이 세션에 보이거나 비켜 둔 탭이 없다' };
+      const c = view.webContents;
+      c.sendInputEvent({ type: 'mouseMove', x: m.x, y: m.y });
+      c.sendInputEvent({ type: 'mouseDown', x: m.x, y: m.y, button: 'left', clickCount: 1 });
+      c.sendInputEvent({ type: 'mouseUp', x: m.x, y: m.y, button: 'left', clickCount: 1 });
+      for (const ch of m.text) {
+        c.sendInputEvent({ type: 'keyDown', keyCode: ch });
+        c.sendInputEvent({ type: 'char', keyCode: ch });
+        c.sendInputEvent({ type: 'keyUp', keyCode: ch });
+      }
+      return { type: 'done' };
+    }
     case 'focus':
       bringHumanToFront();
       return { type: 'done' };

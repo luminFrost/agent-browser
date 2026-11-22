@@ -33,6 +33,8 @@ export async function startTestServer(): Promise<TestServer> {
         <input id="file" type="file">
         <p id="out"></p>
         <script>console.log('widgets ready')</script>`));
+      // 카드 20261122-agent-input-lock: 왼쪽 위(1px 점 자리)부터 덮는 입력 칸과 사건 기록
+      case '/input': return res.end(html('Input', '<input id="i" style="position:fixed;left:0;top:0;width:100%;height:120px;margin:0;border:0"><script>window.ev = []; for (const t of ["mousedown", "keydown"]) addEventListener(t, () => ev.push(t), true);</script>'));
       case '/a': return res.end(html('Page A', '<h1>A</h1><a id="to-b" href="/b">b</a>'));
       case '/b': return res.end(html('Page B', '<h1>B</h1>'));
       case '/slow': return setTimeout(() => res.end(html('Slow', 'done')), Number(url.searchParams.get('ms') ?? 1500));

@@ -16,7 +16,9 @@ export type LauncherCommand =
   /** 사람 창을 앞으로 가져온다(묶은 앱을 다시 열 때, ADR-0008) */
   | { type: 'focus' }
   /** 승인 요청 알림 상태(시험·진단용, 카드 20261122-approval-attention) */
-  | { type: 'attention' };
+  | { type: 'attention' }
+  /** 시험용: 세션의 활성 탭에 사람 입력(OS 입력 경로: 마우스 누르기·떼기, 글자 하나)을 보낸다(카드 20261122-agent-input-lock) */
+  | { type: 'simulateHumanInput'; sessionId: string; x: number; y: number; text: string };
 
 export type LauncherToBrowser = LauncherCommand & { rid?: number };
 
