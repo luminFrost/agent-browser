@@ -79,7 +79,7 @@ export const AGENT_BROWSER_GUIDE = [
   '- 보이는 탭은 이 세션 전용 탭뿐이다. 사람의 탭이나 다른 Claude 세션의 탭은 보이지 않고 다룰 수 없다.',
   '- 이 탭들은 사람의 회사 계정 로그인(쿠키)을 함께 쓴다. 사람이 오른쪽 패널에서 이 세션을 골라 지켜볼 수 있고, 여기서 한 행동은 실제 계정에서 일어난다.',
   '- 폼 제출(POST)과 다운로드는 사람이 사람 창에서 허용해야 진행된다. 그동안 도구가 기다리거나 시간이 걸릴 수 있다. 거부되면 다시 시도하지 말고 사람에게 알린다.',
-  '- 이 허용 창은 보조 장치다. 페이지 이동으로 일어나는 POST만 묻고, 페이지 스크립트의 fetch·XHR·sendBeacon 요청은 묻지 않는다. 실제 계정에 영향을 주는 행동(보내기, 결제, 삭제, 설정 변경)인지는 스스로 판단하고, 확실하지 않으면 먼저 사람에게 묻는다.',
+  '- 이 허용 창은 보조 장치다. 페이지 이동으로 일어나는 POST만 묻고, 페이지 스크립트의 fetch·XHR·sendBeacon 요청과 서비스 워커를 거친 요청은 묻지 않는다. 실제 계정에 영향을 주는 행동(보내기, 결제, 삭제, 설정 변경)인지는 스스로 판단하고, 확실하지 않으면 먼저 사람에게 묻는다.',
   '- 탭을 여러 개 쓸 수 있다. 여러 URL을 함께 다루거나 비교할 때는 한 탭에서 차례로 이동하지 말고 new_page로 URL마다 탭을 열고, select_page로 오가며, 다 쓴 탭은 close_page로 닫는다. 사람은 패널에서 이 탭들을 함께 본다.',
   '- 브라우저 전체에 닿는 도구는 막혀 있다: resize_page, 성능 트레이스, lighthouse, 힙 스냅샷, 화면 녹화. 화면 크기는 emulate로 바꾼다.',
   '- 도구가 연결 끊김 오류를 내면 사람이 패널에서 이 세션을 멈췄거나 앱이 꺼진 것이다. 사람에게 Claude Code에서 /mcp로 agent-browser를 다시 연결해 달라고 부탁한다.',
@@ -96,10 +96,11 @@ export function initializeId(line: string): number | string | undefined {
 }
 
 /** 서버가 보낸 줄이 initialize 응답이면 instructions 앞에 안내를 붙인다. 그 밖의 줄은 그대로 */
-export function withGuide(line: string, initIds: ReadonlySet<number | string>): string {
+export function withGuide(line: string, initIds: Set<number | string>): string {
   let m: { id?: number | string; result?: { instructions?: string } };
   try { m = JSON.parse(line) as typeof m; } catch { return line; }
   if (m.id === undefined || !initIds.has(m.id) || !m.result) return line;
+  initIds.delete(m.id); // 한 번만 붙인다. 같은 id를 다시 쓰는 다른 응답에 붙지 않게
   const original = m.result.instructions;
   m.result.instructions = original ? `${AGENT_BROWSER_GUIDE}\n\n${original}` : AGENT_BROWSER_GUIDE;
   return JSON.stringify(m);

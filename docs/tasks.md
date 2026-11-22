@@ -61,3 +61,15 @@ T0 결과에 따라 T4·T12·T13의 방식이 바뀔 수 있다. 완료 기준�
 | I1 | 실패하는 E2E: 창 하나·세션 보기·잠김·숨김 동작·종료·빈 상태 + 기존 "에이전트 창" 기대를 새 동작으로 갱신 | `tests/e2e/embedded.spec.ts`(새), `tests/e2e/control.spec.ts`, `tests/e2e/termination.spec.ts`, `tests/e2e/attach.spec.ts`, `tests/e2e/helpers.ts` | E1~E7 | `npm run build && npx playwright test tests/e2e/embedded.spec.ts` | [x] |
 | I2 | 세션 탭을 사람 창 안에 둔다(별도 창 없음), 보기 대상 전환, 보이지 않는 세션도 그려지게 활성 탭을 창 구석에 비켜 두기 | `src/browser/tabStrip.ts`, `src/browser/agentSession.ts`(agentWindow.ts 대체), `src/browser/humanWindow.ts`, `src/browser/main.ts`, `src/shared/ipc.ts`, `src/shared/tabState.ts`, `src/launcher/app.ts`(listSessions), 사람 창 렌더러·preload | E1~E7 | `npm test` | [x] |
 | I3 | 안내 문구·문서·결정 기록 | `src/attach/attach.ts`(+test), `README.md`, `docs/setup.md`, `docs/spec.md`(R1·R9·R11 가리킴), `docs/adr/0009-sessions-in-human-window.md`, `tests/dist/packaged.spec.ts`(창 수 기대) | E8 | `npx vitest run src/attach`, 원문 확인 | [x] |
+
+## 가벼운 경로 작업 (정본은 카드 `.aif/tasks/<ID>/card.md`, 기록은 `docs/aif/tasks/`)
+| 작업 | 내용 | PR | 상태 |
+|---|---|---|---|
+| 20261119-release-ci | GitHub Actions(macOS arm64)가 dmg를 만들어 Release에 올린다. README 빠른 시작을 dmg 설치로 | #2~#5 | 머지, v0.2.0·v0.2.1 |
+| 20261120-follow-agents | 따라 보기(기본 켬): 에이전트가 움직이면 그 세션을 보인다 | #6 | 머지 |
+| 20261120-session-labels | 세션 이름: 프로젝트 폴더 이름 자동, `AGENT_BROWSER_LABEL`, 패널 ✎ | #11 | 머지 |
+| 20261122-human-ui-guard | 사람 창 UI가 다른 페이지가 되거나 새 창을 열지 않게, 명령은 UI 파일 프레임에서만 | #12 | 검증 통과, 머지 대기 |
+| 20261122-pr-ci | PR마다 Linux(lint·build·E2E)와 macOS(lint·단위) | #13 | 검증 통과, 머지 대기 |
+| 20261122-approval-attention | 승인 요청 알림·Dock 배지·Dock 튀기기, 10분 뒤 자동 거부 | #14 | 2회차 검증, 머지 대기 |
+| 20261122-release-v022 | v0.2.2, 회사 PC 확인표 | #15 | 검증 통과, 머지 대기 |
+| 20261122-followups-1115 | 11/15 후속 7건 | #15 | 검증, 머지 대기 |

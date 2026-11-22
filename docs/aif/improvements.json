@@ -169,6 +169,15 @@
       "text": "aif task gate --evidence에 파일 경로가 아닌 글이 오면 경고한다. FAIL 게이트도 검증 보고 파일을 먼저 쓰고 그 경로를 넘기게 단계 스킬에 적는다(판정자가 증거 파일을 열 수 없었다)",
       "status": "approved",
       "decided": "2026-11-15T19:44:01.873+09:00"
+    },
+    {
+      "id": "I-018",
+      "created": "2026-11-22T20:46:59.673+09:00",
+      "task": "20261122-approval-attention",
+      "scope": "project",
+      "cause": "정보 부족",
+      "text": "OS 기능(알림·Dock·권한)을 쓰는 작업은 계획 때 Electron breaking-changes에서 그 API의 서명·권한 조건을 확인하고 완료 기준에 대체 신호를 넣는다(Electron 42+ macOS 알림은 서명된 앱만)",
+      "status": "proposed"
     }
   ]
 }

@@ -20,6 +20,7 @@ command -v gh && gh auth status   # 있으면 2-가를 명령으로, 없으면 �
 ```
 
 - `uname -m`이 `arm64`가 아니면 멈춘다. 이 앱은 Apple Silicon만 지원한다고 사람에게 알린다.
+- `sw_vers -productVersion`의 앞자리가 13보다 작으면 멈춘다. macOS 13(Ventura) 이상이 필요하다고 알린다(앱의 Electron 45가 그 아래를 지원하지 않는다).
 - `claude`가 없으면 멈춘다. Claude Code를 먼저 설치해야 한다고 알린다.
 - Node는 필요 없다.
 
@@ -93,6 +94,7 @@ gh release view --repo luminFrost/agent-browser --json tagName,publishedAt,body 
 - 설치된 버전과 최신 태그(`v` 뺀 값)가 같으면 "최신입니다"라고 알리고 끝낸다.
 - 최신이 더 높으면 Release 노트(바뀐 내용)를 짧게 보여 주고 2-가를 그대로 다시 한다. 앱은 덮어쓰고, 로그인 정보(프로필)는 그대로 남는다. MCP 경로가 같으므로 다시 등록해도 결과는 같다. 앱이 켜져 있으면 먼저 끄라고 사람에게 부탁한다. 끝나면 Claude Code에서 `/mcp`로 다시 연결하라고 알린다.
 - `gh`가 없으면 사람에게 https://github.com/luminFrost/agent-browser/releases/latest 의 버전을 봐 달라고 부탁한다.
+- 업데이트한 뒤 사람이 "확인표대로 확인하자"고 하면 [`verify/20261122-company-pc-check.md`](verify/20261122-company-pc-check.md)를 보여 주고, Claude Code가 시킬 일(세션 열기, 페이지 옮기기, 폼 제출)을 항목 순서대로 한다. 결과 칸은 사람이 본 것으로 채운다.
 
 ## Release 올리기 (CI가 한다)
 

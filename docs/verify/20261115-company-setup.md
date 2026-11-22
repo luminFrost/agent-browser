@@ -32,3 +32,14 @@ Critical·Major: 없음.
 | Low | 기존 앱 `rm -rf`가 권한으로 실패하면 "설치 실패:" 문구 없이 끝난다 | `scripts/install-mac.sh:61` |
 | Low | chrome-devtools-mcp 1.13.0은 instructions를 보내지 않아 "원래 안내 유지"는 단위 시험으로만 확인된다 | `tests/e2e/attach.spec.ts:93` |
 | Low | 커밋 작성자 이메일이 git 기록에 있다. 개인 경로가 든 커밋 4ffe25f는 `docs/install-guide` 브랜치에만 있다(push 범위 참고) | git 메타데이터 |
+
+## 후속 처리 (2026-11-22, 카드 20261122-followups-1115)
+| 후속 | 처리 |
+|---|---|
+| setup.md 1단계 실패 처리 | macOS 13 미만이면 멈춘다는 줄을 더했다(claude 없음은 이미 있었다). 설치 스크립트도 `sw_vers`로 같은 확인을 한다(Electron 44부터 macOS 13 이상). 시험 `install-mac.test.ts` "U1"(macOS CI에서 돈다) |
+| release-docs가 설치 줄 오타를 못 잡음 | `release-docs.test.ts` "U2": 설치 줄의 폴더가 받은 폴더와 같은지, `--pattern`이 실제 자산 이름에 맞는지 본다. 폴더·패턴·dmg 이름 오타 변이 4건을 잡았다 |
+| MCP 안내에 서비스 워커 예외 없음 | 안내의 "묻지 않는다" 줄에 서비스 워커를 거친 요청을 더했다(ADR-0007). 시험 `attach.test.ts` "U3" |
+| `initIds`를 비우지 않음 | 안내를 붙인 뒤 그 id를 지운다. 시험 "U4" |
+| 기존 앱 `rm -rf` 실패 문구 없음 | `설치 실패: 기존 앱을 지우지 못했다…`로 끝난다 |
+| chrome-devtools-mcp가 instructions를 보내지 않음 | 고칠 것 없음. 원래 안내가 없으면 우리 안내만 들어가고(단위 "원래 안내가 없어도…"), 보내게 되면 뒤에 남는다(단위 "…원래 안내는 남긴다") |
+| git 작성자 이메일·옛 브랜치 | 원격에 `docs/install-guide` 브랜치와 커밋 4ffe25f가 없다(`gh api` 422). 저장소는 공개(public)라 기존 커밋의 작성자 이메일(저장소 주인 계정)은 누구나 볼 수 있다. 앞으로 숨기려면 git 이메일을 GitHub noreply 주소로 바꾸고, 지난 기록까지 고치려면 강제 push가 필요하다. 둘 다 사람이 정한다. 머지가 끝난 원격 브랜치 정리도 사람이 정한다 |

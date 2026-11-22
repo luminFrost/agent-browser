@@ -2,13 +2,14 @@
 # Agent Browser를 이 Mac에 설치하고 Claude Code에 MCP로 등록한다(spec-company-setup, 절차는 docs/setup.md).
 #   scripts/install-mac.sh                     소스로 빌드해서 설치(Node 22 이상 필요)
 #   scripts/install-mac.sh --from-dmg <파일>    Release dmg로 설치(Node 필요 없음)
-# 시험용 환경 변수: AB_INSTALL_DIR(설치 폴더), AB_REPO_DIR(저장소), AB_ARCH(CPU 이름)
+# 시험용 환경 변수: AB_INSTALL_DIR(설치 폴더), AB_REPO_DIR(저장소), AB_ARCH(CPU 이름), AB_MACOS(macOS 버전)
 set -euo pipefail
 
 APP_NAME="Agent Browser.app"
 ATTACH_REL="Contents/Resources/agent-browser-mcp"
 MCP_NAME="agent-browser"
 MIN_NODE_MAJOR=22
+MIN_MACOS_MAJOR=13 # Electron 44부터 macOS 13(Ventura) 이상만 지원한다
 REPO_DIR="${AB_REPO_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 
 fail() { echo "설치 실패: $*" >&2; exit 1; }
@@ -26,6 +27,8 @@ done
 [ "$(uname -s)" = "Darwin" ] || fail "macOS에서만 설치할 수 있다"
 ARCH="${AB_ARCH:-$(uname -m)}"
 [ "$ARCH" = "arm64" ] || fail "Apple Silicon(arm64) Mac만 지원한다(지금: $ARCH)"
+MACOS="${AB_MACOS:-$(sw_vers -productVersion)}"
+[ "${MACOS%%.*}" -ge "$MIN_MACOS_MAJOR" ] 2>/dev/null || fail "macOS $MIN_MACOS_MAJOR(Ventura) 이상이 필요하다(지금: $MACOS). 이 앱의 Electron이 그 아래 버전을 지원하지 않는다"
 command -v claude >/dev/null 2>&1 || fail "Claude Code(claude 명령)가 없다. Claude Code를 먼저 설치한다"
 if [ -n "$DMG" ]; then
   [ -f "$DMG" ] || fail "dmg 파일이 없다: $DMG"
@@ -56,7 +59,7 @@ elif [ -w /Applications ]; then DEST_DIR="/Applications"
 else DEST_DIR="$HOME/Applications"; mkdir -p "$DEST_DIR"
 fi
 DEST="$DEST_DIR/$APP_NAME"
-rm -rf "$DEST"
+rm -rf "$DEST" || fail "기존 앱을 지우지 못했다: $DEST. 앱을 끄고 권한을 확인한 뒤 다시 한다"
 ditto "$SRC" "$DEST" || fail "앱을 $DEST_DIR에 복사하지 못했다"
 
 # 4. Claude Code에 등록(같은 이름이 있으면 지우고 다시)

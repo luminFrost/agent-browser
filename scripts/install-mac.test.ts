@@ -114,6 +114,14 @@ describe('설치 스크립트: 사전 확인 실패 (B4)', () => {
     nothingInstalled(w);
   });
 
+  it('U1: macOS 13 미만이면 이유를 쓰고 실패한다', () => {
+    const w = setup();
+    const r = w.run([], { AB_MACOS: '12.7.4' });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/macOS 13/);
+    nothingInstalled(w);
+  });
+
   it('claude가 없으면 이유를 쓰고 실패한다', () => {
     const w = setup({ claude: false });
     const r = w.run([]);
