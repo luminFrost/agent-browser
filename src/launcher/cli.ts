@@ -33,27 +33,31 @@ async function main(): Promise<void> {
   });
   recordLauncher(heldLock, process.pid);
 
-  const app = await startApp({
+  // 끄는 신호는 시작하기 전부터 받는다. 준비 전에 받으면 다 뜬 뒤 끈다(기본 동작으로 죽으면 브라우저가 남는다, 카드 20261122-start-signal)
+  const startup = startApp({
     userDataDir: options.profile,
     controlPort: options.controlPort,
     hidden: options.hidden,
     onBlocked: options.logBlocked ? (e) => console.error(`agent-browser: 막음 [세션 ${e.sessionId}] ${e.method} — ${e.reason}`) : undefined,
   });
-  started.app = app;
-  console.log(`agent-browser 실행 중. 제어 파일(포트·토큰): ${app.controlFile}`);
-
-  const running = app;
   const stop = async () => {
     if (stopping) return;
     stopping = true;
     // 끄는 중에 앱을 다시 열면 시작 프로세스가 이 표시를 보고 끝나기를 기다렸다가 새로 띄운다(spec-cleanup-five C1)
     try { markStopping(heldLock, process.pid); } catch { /* 표시 실패는 끄기를 막지 않는다 */ }
+    // 시작이 실패했으면 startApp이 이미 정리했다(아래 main().catch가 1로 끝낸다)
+    const running = await startup.catch(() => undefined);
+    if (!running) return;
     await running.stop();
     process.exit(0);
   };
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
-  running.exited.then(stop); // 사람이 사람 창을 닫아 브라우저가 끝나면 런처도 끝낸다
+  const app = await startup;
+  started.app = app;
+  if (stopping) return; // 준비 중에 끄라는 신호를 받았다: stop이 마무리한다
+  console.log(`agent-browser 실행 중. 제어 파일(포트·토큰): ${app.controlFile}`);
+  app.exited.then(stop); // 사람이 사람 창을 닫아 브라우저가 끝나면 런처도 끝낸다
 }
 
 main().catch((e: unknown) => {

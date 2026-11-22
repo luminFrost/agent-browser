@@ -203,7 +203,8 @@ process.on('message', (m: LauncherToBrowser) => {
   );
 });
 // 런처가 죽으면 같이 끝난다. 에이전트가 붙을 길이 없는 브라우저를 남기지 않는다.
-process.on('disconnect', () => app.quit());
+// 준비 전에는 app.quit()이 듣지 않아(카드 20261122-start-signal) 바로 끝낸다
+process.on('disconnect', () => (app.isReady() ? app.quit() : app.exit(0)));
 
 // 사람 창을 닫으면 앱을 끝낸다. 지켜보기·관문이 사람 창에 있으므로 사람 창 없이 에이전트만 돌게 두지 않는다.
 app.on('window-all-closed', () => app.quit());
