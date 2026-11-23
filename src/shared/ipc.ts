@@ -50,7 +50,7 @@ export type BrowserReply =
   | { type: 'menu'; roles: string[] }
   /** source: nativeTheme.themeSource, dark: 지금 어두운 색을 쓰는지, menuChecked: 메뉴 "보기 > 모양"에서 체크된 모드 */
   | { type: 'theme'; source: 'system' | 'light' | 'dark'; dark: boolean; menuChecked: string | null }
-  /** state: none | available | downloading | installing | failed (src/browser/update.ts UpdateState) */
+  /** state: none | latest | checkFailed | available | downloading | installing | failed (src/browser/update.ts UpdateState) */
   | { type: 'update'; state: string; version?: string; reason?: string }
   | { type: 'sessionCreated'; sessionId: string; targetId: string }
   | { type: 'tabCreated'; targetId: string }

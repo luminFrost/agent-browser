@@ -61,8 +61,8 @@ describe('묻기', () => {
     expect(await checkForUpdate('http://x', '0.2.4', async () => new Response('<html>', { status: 200 }))).toBeUndefined();
     expect(await checkForUpdate('http://x', '0.2.4', async () => { throw new Error('ECONNREFUSED'); })).toBeUndefined();
   });
-  it('다시 묻는 간격은 6시간', () => {
-    expect(UPDATE_CHECK_INTERVAL_MS).toBe(6 * 60 * 60 * 1000);
+  it('다시 묻는 간격은 1시간(카드 20261123-update-check-now C2)', () => {
+    expect(UPDATE_CHECK_INTERVAL_MS).toBe(60 * 60 * 1000);
   });
 });
 

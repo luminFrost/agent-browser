@@ -7,7 +7,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import {
-  appBundlePath, checkForUpdate, latestReleaseApi, UPDATE_CHECK_INTERVAL_MS, UPDATE_DOWNLOAD_DIR, UPDATE_FIRST_CHECK_DELAY_MS,
+  appBundlePath, checkForUpdate, latestReleaseApi, queryUpdate, UPDATE_CHECK_INTERVAL_MS, UPDATE_DOWNLOAD_DIR, UPDATE_FIRST_CHECK_DELAY_MS, UPDATE_NOTICE_MS,
   type UpdateInfo, type UpdateState,
 } from './update';
 
@@ -32,10 +32,12 @@ export interface Updater {
   state(): UpdateState;
   /** 사람이 업데이트를 눌렀다 */
   install(): void;
+  /** 사람이 메뉴 "업데이트 확인…"을 눌렀다: 자동 묻기 설정과 상관없이 바로 묻고 결과를 패널에 보인다 */
+  check(): void;
 }
 
 /**
- * 묶은 앱이면(또는 시험이 AGENT_BROWSER_UPDATE_URL을 주면) 켜진 뒤 잠시 있다가, 그 뒤 6시간마다 묻는다.
+ * 묶은 앱이면(또는 시험이 AGENT_BROWSER_UPDATE_URL을 주면) 켜진 뒤 잠시 있다가, 그 뒤 1시간마다 묻는다.
  * settings.json "updateCheck": false(enabled)나 AGENT_BROWSER_UPDATE_CHECK=off면 묻지 않는다. 상태가 바뀔 때마다 show로 패널에 알린다
  */
 export function startUpdater(enabled: boolean, show: (s: UpdateState) => void, quit: () => void): Updater {
@@ -59,6 +61,19 @@ export function startUpdater(enabled: boolean, show: (s: UpdateState) => void, q
     setTimeout(() => void check(), UPDATE_FIRST_CHECK_DELAY_MS);
     setInterval(() => void check(), UPDATE_CHECK_INTERVAL_MS);
   }
+
+  let noticeTimer: NodeJS.Timeout | undefined;
+  const checkNow = async () => {
+    if (busy()) return;
+    const q = url && version ? await queryUpdate(url, version, (u, init) => net.fetch(u, init)) : { result: 'failed' as const };
+    if (busy()) return;
+    if (q.result === 'new') { info = q.info; set({ state: 'available', version: q.info.version }); return; }
+    // 이미 새 버전을 알리고 있으면 그대로 둔다(잠깐의 실패로 업데이트 버튼을 감추지 않는다)
+    if (current.state === 'available' || current.state === 'failed') return;
+    set(q.result === 'latest' && version ? { state: 'latest', version } : { state: 'checkFailed' });
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => { if (current.state === 'latest' || current.state === 'checkFailed') set({ state: 'none' }); }, UPDATE_NOTICE_MS);
+  };
 
   const install = async () => {
     if (!info || busy()) return;
@@ -87,5 +102,5 @@ export function startUpdater(enabled: boolean, show: (s: UpdateState) => void, q
       set({ state: 'failed', version: target.version, reason: e instanceof Error ? e.message : String(e) });
     }
   };
-  return { state: () => current, install: () => void install() };
+  return { state: () => current, install: () => void install(), check: () => void checkNow() };
 }

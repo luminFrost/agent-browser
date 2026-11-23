@@ -8,12 +8,17 @@ export const themeMenuId = (mode: ThemeMode) => `theme-${mode}`;
 
 /** 메뉴의 화면 모드: 지금 값과 고를 때 부를 곳 */
 export interface ThemeMenu { current: ThemeMode; pick(mode: ThemeMode): void }
+/** 메뉴 "업데이트 확인…"을 누를 때 부를 곳(카드 20261123-update-check-now) */
+export interface UpdateMenu { check(): void }
+/** 메뉴 "업데이트 확인…" 항목 id */
+export const UPDATE_CHECK_MENU_ID = 'update-check';
 
 /**
  * 앱 메뉴(카드 20261123-qa-followups Q5, DOC-03-UI UI-F6). 정하지 않으면 Electron 기본 메뉴가 붙어
  * 다시 로드·개발자 도구로 사람 창 UI를 다시 불러오거나 열 수 있다. 종료·편집(복사·붙여넣기 단축키)·보기(화면 모드)·창만 둔다.
  */
-export function appMenuTemplate(platform: NodeJS.Platform, appName: string, theme: ThemeMenu): MenuItemConstructorOptions[] {
+export function appMenuTemplate(platform: NodeJS.Platform, appName: string, theme: ThemeMenu, update: UpdateMenu): MenuItemConstructorOptions[] {
+  const checkUpdate: MenuItemConstructorOptions = { id: UPDATE_CHECK_MENU_ID, label: '업데이트 확인…', click: () => update.check() };
   const edit: MenuItemConstructorOptions = {
     label: '편집',
     submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }],
@@ -29,14 +34,14 @@ export function appMenuTemplate(platform: NodeJS.Platform, appName: string, them
   };
   if (platform === 'darwin') {
     return [
-      { label: appName, submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] },
+      { label: appName, submenu: [{ role: 'about' }, checkUpdate, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] },
       edit,
       view,
       { label: '창', submenu: [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'close' }] },
     ];
   }
   return [
-    { label: '파일', submenu: [{ role: 'quit' }] },
+    { label: '파일', submenu: [checkUpdate, { type: 'separator' }, { role: 'quit' }] },
     edit,
     view,
     { label: '창', submenu: [{ role: 'minimize' }, { role: 'close' }] },
