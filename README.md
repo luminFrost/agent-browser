@@ -198,11 +198,14 @@ flowchart LR
 
 ```sh
 npm install
-npm test            # build → Vitest → Playwright E2E
+npm test            # build → Vitest → Playwright E2E (단위가 실패해도 E2E까지 돈다)
+npm run test:e2e    # build → Playwright E2E만
 npm run lint        # eslint + tsc
 npm run dist        # release/Agent-Browser-<버전>-arm64.dmg
 npm run test:dist   # 묶은 앱 확인(실제 창이 뜬다)
 ```
+
+Linux에서는 macOS 전용 단위 시험(설치 스크립트 등)이 실패하는 것이 정상이다. 화면이 필요한 E2E는 `xvfb-run`과 `AB_TEST_SHOW=1`로 창을 띄워 돌린다(CI와 같다).
 
 **릴리스:** `package.json`(과 lock)의 버전을 올려 main에 합친 뒤 `git tag v<버전> && git push origin v<버전>`. GitHub Actions(macOS arm64)가 시험을 통과하면 dmg와 `install-mac.sh`를 Release에 올린다([`.github/workflows/release.yml`](.github/workflows/release.yml)). Actions 화면의 Run workflow로도 된다.
 
