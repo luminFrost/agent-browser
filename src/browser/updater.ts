@@ -20,11 +20,11 @@ const INSTALLER_NAME = 'update-mac.sh';
  * package.json: 묶은 앱은 Resources/app/package.json, 개발은 저장소 맨 위. 둘 다 dist/browser에서 두 단계 위다.
  * app.getVersion()은 개발 실행에서 Electron 버전을 돌려주므로 쓰지 않는다
  */
-function readPackage(): { version: string; repository?: unknown } {
+function readPackage(): { version?: string; repository?: unknown } {
   try {
-    return JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')) as { version: string; repository?: unknown };
+    return JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')) as { version?: string; repository?: unknown };
   } catch {
-    return { version: '0.0.0' };
+    return {};
   }
 }
 
@@ -40,15 +40,17 @@ export interface Updater {
  */
 export function startUpdater(show: (s: UpdateState) => void, quit: () => void): Updater {
   const pkg = readPackage();
-  const url = process.env.AGENT_BROWSER_UPDATE_URL ?? (app.isPackaged ? latestReleaseApi(pkg.repository) : undefined);
+  // 지금 버전을 모르면 묻지 않는다(모든 Release를 새 버전으로 보게 되므로)
+  const version = typeof pkg.version === 'string' ? pkg.version : undefined;
+  const url = version && (process.env.AGENT_BROWSER_UPDATE_URL ?? (app.isPackaged ? latestReleaseApi(pkg.repository) : undefined));
   let current: UpdateState = { state: 'none' };
   let info: UpdateInfo | undefined;
   const set = (s: UpdateState) => { current = s; show(s); };
   const busy = () => current.state === 'downloading' || current.state === 'installing';
 
   const check = async () => {
-    if (!url || busy()) return;
-    const found = await checkForUpdate(url, pkg.version, (u, init) => net.fetch(u, init));
+    if (!url || !version || busy()) return;
+    const found = await checkForUpdate(url, version, (u, init) => net.fetch(u, init));
     if (!found || busy()) return;
     info = found;
     set({ state: 'available', version: found.version });

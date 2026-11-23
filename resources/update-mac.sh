@@ -5,20 +5,30 @@
 set -uo pipefail
 
 dmg="$1"; app="$2"; pid="$3"
+# 앱이 끝나길 기다리는 간격(초)과 횟수: 0.2초 × 150 = 30초. 시험은 횟수를 줄인다
+WAIT_STEP_S=0.2
+WAIT_TRIES="${AGENT_BROWSER_UPDATE_WAIT_TRIES:-150}"
 profile="${AGENT_BROWSER_PROFILE:-$HOME/Library/Application Support/agent-browser}"
 mkdir -p "$profile" 2>/dev/null
 log="$profile/update.log"
 say() { echo "$(date '+%F %T') $*" >> "$log" 2>/dev/null || true; }
-fail() { say "업데이트 실패: $*"; exit 1; }
+# 앱이 끝난 뒤의 실패면 원래 앱을 다시 열어 사람이 앱 없이 남지 않게 한다
+reopen=0
+fail() {
+  say "업데이트 실패: $*"
+  if [ "$reopen" = 1 ] && [ -e "$app" ]; then open "$app" || say "원래 앱을 다시 열지 못했다"; fi
+  exit 1
+}
 
 say "업데이트 시작: $dmg → $app (pid $pid)"
 
-# 앱(브라우저)이 끝나길 기다린다: 0.2초 간격, 최대 30초
-for _ in $(seq 1 150); do
+# 앱(브라우저)이 끝나길 기다린다
+for _ in $(seq 1 "$WAIT_TRIES"); do
   kill -0 "$pid" 2>/dev/null || break
-  sleep 0.2
+  sleep "$WAIT_STEP_S"
 done
-kill -0 "$pid" 2>/dev/null && fail "앱이 30초 안에 끝나지 않았다(pid $pid)"
+kill -0 "$pid" 2>/dev/null && fail "앱이 끝나지 않았다(pid $pid). 앱을 끄고 다시 업데이트한다"
+reopen=1
 
 mnt="$(mktemp -d "${TMPDIR:-/tmp}/agent-browser-mount.XXXXXX")" || fail "임시 폴더를 만들지 못했다"
 detach() { hdiutil detach "$mnt" -quiet >/dev/null 2>&1 || hdiutil detach "$mnt" -force -quiet >/dev/null 2>&1 || true; rmdir "$mnt" 2>/dev/null || true; }
@@ -33,7 +43,10 @@ rm -rf "$old"
 if [ -e "$app" ]; then mv "$app" "$old" || fail "기존 앱을 옮기지 못했다"; fi
 if ! ditto "$src" "$app"; then
   rm -rf "$app"
-  [ -e "$old" ] && mv "$old" "$app"
+  if [ -e "$old" ] && ! mv "$old" "$app"; then
+    reopen=0
+    fail "새 앱을 복사하지 못했고 원래 앱도 되돌리지 못했다. 원래 앱: $old"
+  fi
   fail "새 앱을 복사하지 못해 원래 앱을 되돌렸다"
 fi
 rm -rf "$old"

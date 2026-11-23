@@ -7,6 +7,9 @@ import { join } from 'node:path';
 import { test, expect } from '@playwright/test';
 import { launch, humanUi, evaluate, waitFor, tempDir } from './helpers';
 import type { RunningApp } from '../../src/launcher/app';
+import { UPDATE_FIRST_CHECK_DELAY_MS, appBundlePath } from '../../src/browser/update';
+// 개발 실행의 브라우저 실행 파일(electron 패키지가 경로 문자열을 내보낸다)
+import electronPath from 'electron';
 
 const CURRENT = (JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')) as { version: string }).version;
 const DMG_BODY = 'fake dmg bytes 9.9.9';
@@ -18,14 +21,16 @@ let hits: string[];
 /** 시험 서버가 /latest에 줄 응답 */
 let latest: { status: number; body: string };
 let dmgStatus = 200;
+/** dmg 응답을 늦추는 시간(받는 중 문구를 보기 위해) */
+let dmgDelayMs = 0;
 const saved = { ...process.env };
 
 test.beforeEach(async () => {
-  hits = []; dmgStatus = 200;
+  hits = []; dmgStatus = 200; dmgDelayMs = 0;
   server = createServer((req, res) => {
     hits.push(`${req.method} ${req.url}`);
     if (req.url === '/latest') { res.statusCode = latest.status; res.setHeader('content-type', 'application/json'); return res.end(latest.body); }
-    if (req.url === '/dmg') { res.statusCode = dmgStatus; return res.end(dmgStatus === 200 ? DMG_BODY : 'nope'); }
+    if (req.url === '/dmg') { res.statusCode = dmgStatus; setTimeout(() => res.end(dmgStatus === 200 ? DMG_BODY : 'nope'), dmgDelayMs); return; }
     res.statusCode = 404; res.end();
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
@@ -89,7 +94,8 @@ for (const [name, resp] of [
 test('U1: AGENT_BROWSER_UPDATE_CHECK=off면 묻지 않는다', async () => {
   latest = { status: 200, body: release('v9.9.9') };
   await start({ AGENT_BROWSER_UPDATE_CHECK: 'off' });
-  await new Promise((r) => setTimeout(r, 2000));
+  // 첫 묻기 시각을 넉넉히 넘겨 기다린다(off가 아니면 이 사이에 /latest를 묻는다: 위 U1 시험들)
+  await new Promise((r) => setTimeout(r, UPDATE_FIRST_CHECK_DELAY_MS + 2000));
   expect(hits).toEqual([]);
   expect((await banner()).hidden).toBe(true);
 });
@@ -100,12 +106,14 @@ test('U2: 업데이트를 누르면 dmg를 받아 설치 스크립트에 넘기�
   await start({ AGENT_BROWSER_UPDATE_INSTALLER: inst.path });
   await waitFor(async () => !(await banner()).hidden, '업데이트 줄');
   const pid = app!.browserPid;
+  dmgDelayMs = 1500;
   await ui(`document.querySelector('#update-install').click()`);
+  await waitFor(async () => (await banner()).text.includes('새 버전 9.9.9 받는 중'), '받는 중 문구');
   await Promise.race([app!.exited, new Promise((_, no) => setTimeout(() => no(new Error('앱이 끝나지 않음')), 20_000))]);
   await waitFor(async () => existsSync(inst.out) && readFileSync(inst.out, 'utf8').includes(DMG_BODY), '설치 스크립트 실행');
   const [dmg, appPath, gotPid] = readFileSync(inst.out, 'utf8').split('\n');
   expect(dmg).toMatch(/Agent-Browser-9\.9\.9-arm64\.dmg$/);
-  expect(appPath.length).toBeGreaterThan(0);
+  expect(appPath).toBe(appBundlePath(electronPath as unknown as string));
   expect(Number(gotPid)).toBe(pid);
   expect(hits).toContain('GET /dmg');
   app = undefined; // 이미 끝났다

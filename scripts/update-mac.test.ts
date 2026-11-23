@@ -8,12 +8,12 @@ import { describe, expect, it } from 'vitest';
 const SCRIPT = resolve(__dirname, '..', 'resources', 'update-mac.sh');
 
 /** 가짜 명령: 받은 인자를 log에 적는다. hdiutil attach는 -mountpoint 자리에 새 .app을 만든다 */
-function setup(opts: { dittoFails?: boolean } = {}) {
+function setup(opts: { dittoFails?: boolean; attachFails?: boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'ab-update-'));
   const bin = join(dir, 'bin'); mkdirSync(bin);
   const log = join(dir, 'calls.log');
   const stub = (name: string, body: string) => { writeFileSync(join(bin, name), `#!/bin/bash\necho "${name} $*" >> "${log}"\n${body}\n`); chmodSync(join(bin, name), 0o755); };
-  stub('hdiutil', 'if [ "$1" = attach ]; then mp=""; while [ $# -gt 0 ]; do [ "$1" = -mountpoint ] && mp="$2"; shift; done; mkdir -p "$mp/Agent Browser.app/Contents"; echo new > "$mp/Agent Browser.app/Contents/version"; fi');
+  stub('hdiutil', `if [ "$1" = attach ]; then ${opts.attachFails ? 'exit 1' : 'mp=""; while [ $# -gt 0 ]; do [ "$1" = -mountpoint ] && mp="$2"; shift; done; mkdir -p "$mp/Agent Browser.app/Contents"; echo new > "$mp/Agent Browser.app/Contents/version"'}; fi; if [ "$1" = detach ]; then rm -rf "$2"/*; fi`);
   stub('ditto', opts.dittoFails ? 'exit 1' : 'mkdir -p "$2" && cp -R "$1/." "$2/"');
   stub('open', '');
   const app = join(dir, 'Applications', 'Agent Browser.app');
@@ -23,8 +23,8 @@ function setup(opts: { dittoFails?: boolean } = {}) {
   const profile = join(dir, 'profile'); mkdirSync(profile);
   return { dir, bin, log, app, dmg, profile };
 }
-const run = (s: ReturnType<typeof setup>, pid: number) => spawnSync('bash', [SCRIPT, s.dmg, s.app, String(pid)], {
-  env: { ...process.env, PATH: `${s.bin}:${process.env.PATH}`, AGENT_BROWSER_PROFILE: s.profile }, encoding: 'utf8', timeout: 20_000,
+const run = (s: ReturnType<typeof setup>, pid: number, env: Record<string, string> = {}) => spawnSync('bash', [SCRIPT, s.dmg, s.app, String(pid)], {
+  env: { ...process.env, PATH: `${s.bin}:${process.env.PATH}`, AGENT_BROWSER_PROFILE: s.profile, ...env }, encoding: 'utf8', timeout: 20_000,
 });
 const deadPid = () => { const p = spawnSync('true'); return p.pid ?? 999999; };
 
@@ -53,14 +53,35 @@ describe('update-mac.sh (U3)', () => {
     expect(Date.now() - t0).toBeGreaterThanOrEqual(1000);
   });
 
-  it('복사가 실패하면 원래 앱을 되돌리고 0이 아닌 코드, dmg는 뗀다, 새 앱을 열지 않는다', () => {
+  it('복사가 실패하면 원래 앱을 되돌려 다시 열고 0이 아닌 코드, dmg는 뗀다', () => {
     const s = setup({ dittoFails: true });
     const r = run(s, deadPid());
     expect(r.status).not.toBe(0);
     expect(readFileSync(join(s.app, 'Contents', 'version'), 'utf8').trim()).toBe('old');
+    expect(existsSync(`${s.app}.old`)).toBe(false);
     const calls = readFileSync(s.log, 'utf8');
     expect(calls).toMatch(/^hdiutil detach /m);
-    expect(calls).not.toMatch(/^open /m);
+    expect(calls).toContain(`open ${s.app}`);
     expect(readFileSync(join(s.profile, 'update.log'), 'utf8')).toContain('업데이트 실패');
+  });
+
+  it('dmg를 열지 못하면 원래 앱을 그대로 다시 열고 0이 아닌 코드', () => {
+    const s = setup({ attachFails: true });
+    const r = run(s, deadPid());
+    expect(r.status).not.toBe(0);
+    expect(readFileSync(join(s.app, 'Contents', 'version'), 'utf8').trim()).toBe('old');
+    expect(readFileSync(s.log, 'utf8')).toContain(`open ${s.app}`);
+    expect(readFileSync(join(s.profile, 'update.log'), 'utf8')).toContain('dmg를 열지 못했다');
+  });
+
+  it('앱이 끝나지 않으면 아무것도 바꾸지 않고 0이 아닌 코드(다시 열지 않는다: 앱이 아직 떠 있다)', () => {
+    const s = setup();
+    const sleeper = execFileSync('bash', ['-c', 'sleep 5 </dev/null >/dev/null 2>&1 & echo $!'], { encoding: 'utf8' }).trim();
+    const r = run(s, Number(sleeper), { AGENT_BROWSER_UPDATE_WAIT_TRIES: '3' });
+    expect(r.status).not.toBe(0);
+    expect(readFileSync(join(s.app, 'Contents', 'version'), 'utf8').trim()).toBe('old');
+    expect(existsSync(s.log) ? readFileSync(s.log, 'utf8') : '').not.toMatch(/^(hdiutil|open) /m);
+    expect(readFileSync(join(s.profile, 'update.log'), 'utf8')).toContain('앱이 끝나지 않았다');
+    spawnSync('kill', [sleeper]);
   });
 });
