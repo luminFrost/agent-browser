@@ -8,7 +8,7 @@
 
 ## 결정
 1. **묻기:** 묶은 앱(`app.isPackaged`)만 켜질 때와 6시간마다 `https://api.github.com/repos/<owner>/<repo>/releases/latest`를 GET한다. 주소는 `package.json` `repository`에서 만든다. 요청에 앱 데이터는 없다(버전 조회만, 쿠키 없는 별도 요청). 실패는 조용히 넘긴다(회사망이 막아도 앱은 그대로).
-   - P-10과의 관계: P-10이 막는 것은 사용 데이터를 밖으로 보내는 것이다. 버전 조회 GET은 IP·User-Agent 말고 보내는 것이 없고, 설치(`gh release download`)도 이미 GitHub에서 받는다. 그래도 막아야 하는 PC를 위해 `AGENT_BROWSER_UPDATE_CHECK=off`로 끈다.
+   - P-10과의 관계: P-10이 막는 것은 사용 데이터를 밖으로 보내는 것이다. 버전 조회 GET은 IP·User-Agent 말고 보내는 것이 없고, 설치(`gh release download`)도 이미 GitHub에서 받는다. 그래도 막아야 하는 PC를 위해 끄는 법을 둔다: 프로필의 `settings.json`에 `"updateCheck": false`(Dock·Finder로 켠 앱은 셸 환경 변수를 받지 않으므로 이것이 기본, 검증 2회차 지적), 또는 앱을 켜는 프로세스의 환경 변수 `AGENT_BROWSER_UPDATE_CHECK=off`(Claude Code가 켤 때는 `claude mcp add --env`).
 2. **알리기:** 새 버전이고 그 버전의 dmg 자산(`Agent-Browser-<버전>-arm64.dmg`)이 있을 때만 패널 맨 위에 알림 줄을 보인다. 저절로 깔지 않는다: 바꾸면 앱이 다시 켜져 에이전트 세션이 끊기므로 사람이 때를 고른다.
 3. **바꾸기:** **업데이트**를 누르면 브라우저 main이 dmg를 임시 폴더에 받고, `Resources/update-mac.sh <dmg> <앱 경로> <pid>`를 떨어진 프로세스(`detached`, 표준 입출력 없음)로 띄운 뒤 앱을 끈다. 스크립트는 앱이 끝나길 기다렸다가 dmg 안의 `.app`을 같은 자리에 바꿔 넣고(`ditto`, 실패하면 원래 앱 되돌림) 새 앱을 연다.
    - 앱 경로는 실행 파일 경로(`…/X.app/Contents/MacOS/…`)에서 얻는다. `/Applications`든 `~/Applications`든 깔린 자리 그대로 바꾼다.

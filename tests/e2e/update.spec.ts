@@ -100,6 +100,17 @@ test('U1: AGENT_BROWSER_UPDATE_CHECK=off면 묻지 않는다', async () => {
   expect((await banner()).hidden).toBe(true);
 });
 
+test('U1: settings.json에 "updateCheck": false면 묻지 않는다(Dock·Finder로 켠 앱은 환경 변수를 받지 않는다, 검증 2회차)', async () => {
+  latest = { status: 200, body: release('v9.9.9') };
+  const profile = tempDir();
+  writeFileSync(join(profile, 'settings.json'), JSON.stringify({ updateCheck: false }));
+  Object.assign(process.env, { AGENT_BROWSER_UPDATE_URL: `${base}/latest` });
+  app = await launch({ userDataDir: profile });
+  await new Promise((r) => setTimeout(r, UPDATE_FIRST_CHECK_DELAY_MS + 2000));
+  expect(hits).toEqual([]);
+  expect((await banner()).hidden).toBe(true);
+});
+
 test('U2: 업데이트를 누르면 dmg를 받아 설치 스크립트에 넘기고 앱이 끝난다', async () => {
   latest = { status: 200, body: release('v9.9.9') };
   const inst = fakeInstaller();
@@ -127,6 +138,7 @@ test('U2: dmg 받기가 실패하면 실패 문구와 다시 누를 버튼이 �
   await waitFor(async () => !(await banner()).hidden, '업데이트 줄');
   await ui(`document.querySelector('#update-install').click()`);
   await waitFor(async () => (await banner()).text.includes('업데이트 실패'), '실패 문구');
+  expect((await banner()).text).toContain('HTTP 404');
   expect(await ui<boolean>(`!document.querySelector('#update-install').hidden && !document.querySelector('#update-install').disabled`)).toBe(true);
   expect(existsSync(inst.out)).toBe(false);
   expect((await app!.request({ type: 'listWindows' }, 'windows')).windows.length).toBe(1);

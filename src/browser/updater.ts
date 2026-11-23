@@ -1,7 +1,7 @@
 // 앱 안 업데이트의 Electron 쪽(카드 20261123-update-notice, ADR-0010): 언제 묻고, 받고, 설치 스크립트를 띄우는가
 import { app, net } from 'electron';
 import { spawn } from 'node:child_process';
-import { createWriteStream, mkdirSync, readFileSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -36,9 +36,9 @@ export interface Updater {
 
 /**
  * 묶은 앱이면(또는 시험이 AGENT_BROWSER_UPDATE_URL을 주면) 켜진 뒤 잠시 있다가, 그 뒤 6시간마다 묻는다.
- * AGENT_BROWSER_UPDATE_CHECK=off면 묻지 않는다. 상태가 바뀔 때마다 show로 패널에 알린다
+ * settings.json "updateCheck": false(enabled)나 AGENT_BROWSER_UPDATE_CHECK=off면 묻지 않는다. 상태가 바뀔 때마다 show로 패널에 알린다
  */
-export function startUpdater(show: (s: UpdateState) => void, quit: () => void): Updater {
+export function startUpdater(enabled: boolean, show: (s: UpdateState) => void, quit: () => void): Updater {
   const pkg = readPackage();
   // 지금 버전을 모르면 묻지 않는다(모든 Release를 새 버전으로 보게 되므로)
   const version = typeof pkg.version === 'string' ? pkg.version : undefined;
@@ -55,7 +55,7 @@ export function startUpdater(show: (s: UpdateState) => void, quit: () => void): 
     info = found;
     set({ state: 'available', version: found.version });
   };
-  if (url && process.env.AGENT_BROWSER_UPDATE_CHECK !== 'off') {
+  if (url && enabled && process.env.AGENT_BROWSER_UPDATE_CHECK !== 'off') {
     setTimeout(() => void check(), UPDATE_FIRST_CHECK_DELAY_MS);
     setInterval(() => void check(), UPDATE_CHECK_INTERVAL_MS);
   }
@@ -65,14 +65,18 @@ export function startUpdater(show: (s: UpdateState) => void, quit: () => void): 
     const target = info;
     set({ state: 'downloading', version: target.version });
     try {
+      const installer = process.env.AGENT_BROWSER_UPDATE_INSTALLER ?? join(process.resourcesPath, INSTALLER_NAME);
+      // 설치 스크립트가 없으면 앱을 끄지 않는다(끄면 아무것도 다시 열리지 않는다)
+      if (!existsSync(installer)) throw new Error(`설치 스크립트가 없다: ${installer}`);
       const dir = join(app.getPath('temp'), UPDATE_DOWNLOAD_DIR);
+      // 지난 업데이트에서 받은 dmg는 지운다(버전마다 약 120MB가 쌓이지 않게)
+      rmSync(dir, { recursive: true, force: true });
       mkdirSync(dir, { recursive: true });
       const file = join(dir, target.dmgName);
       const res = await net.fetch(target.dmgUrl, { signal: AbortSignal.timeout(UPDATE_DOWNLOAD_TIMEOUT_MS) });
       if (!res.ok || !res.body) throw new Error(`dmg를 받지 못했다(HTTP ${res.status})`);
       await pipeline(Readable.fromWeb(res.body as WebReadableStream<Uint8Array>), createWriteStream(file));
       set({ state: 'installing', version: target.version });
-      const installer = process.env.AGENT_BROWSER_UPDATE_INSTALLER ?? join(process.resourcesPath, INSTALLER_NAME);
       const child = spawn('/bin/bash', [installer, file, appBundlePath(process.execPath), String(process.pid)], {
         detached: true, stdio: 'ignore', env: { ...process.env, AGENT_BROWSER_PROFILE: app.getPath('userData') },
       });

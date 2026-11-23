@@ -1,6 +1,6 @@
 // 카드 20261123-update-notice U1: 최신 Release 해석과 버전 비교
 import { describe, expect, it } from 'vitest';
-import { compareVersions, latestReleaseApi, parseRelease, checkForUpdate, UPDATE_CHECK_INTERVAL_MS, dmgAssetName } from './update';
+import { compareVersions, latestReleaseApi, parseRelease, checkForUpdate, UPDATE_CHECK_INTERVAL_MS, dmgAssetName, appBundlePath } from './update';
 
 const release = (tag: string, assets: string[]) => ({
   tag_name: tag,
@@ -63,5 +63,15 @@ describe('묻기', () => {
   });
   it('다시 묻는 간격은 6시간', () => {
     expect(UPDATE_CHECK_INTERVAL_MS).toBe(6 * 60 * 60 * 1000);
+  });
+});
+
+describe('앱 묶음 경로 (U2: 설치 스크립트에 넘기는 자리)', () => {
+  it('실행 파일 경로에서 .app 묶음을 얻는다(공백·~/Applications 포함)', () => {
+    expect(appBundlePath('/Applications/Agent Browser.app/Contents/MacOS/Agent Browser')).toBe('/Applications/Agent Browser.app');
+    expect(appBundlePath('/Users/a/Applications/Agent Browser.app/Contents/MacOS/Agent Browser')).toBe('/Users/a/Applications/Agent Browser.app');
+  });
+  it('묶음 안이 아니면 그대로', () => {
+    expect(appBundlePath('/usr/lib/electron/electron')).toBe('/usr/lib/electron/electron');
   });
 });

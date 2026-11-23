@@ -296,7 +296,7 @@ app.whenReady().then(() => {
   });
   human.showTheme(theme);
   // 업데이트를 누르면 설치 스크립트를 띄운 뒤 끝난다. 끝내기 전에 쿠키를 디스크에 쓴다(quit 명령과 같다)
-  updater = startUpdater((s) => human?.showUpdate(s), () => {
+  updater = startUpdater(readSettings(app.getPath('userData')).updateCheck, (s) => human?.showUpdate(s), () => {
     void session.fromPartition(SHARED_PARTITION).cookies.flushStore().catch(() => undefined).then(() => app.quit());
   });
   human.win.on('closed', () => {
