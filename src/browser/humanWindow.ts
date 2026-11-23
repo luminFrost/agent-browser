@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, type WebContentsView } from 'electron';
+import { BrowserWindow, ipcMain, nativeTheme, type WebContentsView } from 'electron';
 import { pathToFileURL } from 'node:url';
 import { isHumanUiUrl } from './humanUiGuard';
 import { join } from 'node:path';
@@ -8,6 +8,10 @@ import type { HumanCommand, HumanToolbarState, SessionView } from '../shared/tab
 import type { ApprovalView } from '../shared/approval';
 import type { ContentArea } from './agentSession';
 import type { Rect } from '../shared/ipc';
+import { isThemeMode, type ThemeMode } from './settings';
+
+/** 어두운 모드 탭 막대 색(Chrome Google Grey 900). human.css의 --frame 어두운 값과 같다 */
+export const DARK_FRAME_COLOR = '#202124';
 
 /** 주소창 + 탭 막대 높이(px). renderer/human/human.css의 --toolbar-height와 같아야 한다 */
 const TOOLBAR_HEIGHT = 76;
@@ -56,6 +60,8 @@ export interface HumanWindow {
   tabFocused(view: WebContentsView): void;
   /** 키보드 포커스를 창 UI로 돌린다(에이전트 탭이 사람 키를 막았을 때) */
   focusUi(): void;
+  /** 패널의 "모양" 선택에 지금 화면 모드를 보인다(카드 20261123-theme-mode) */
+  showTheme(mode: ThemeMode): void;
 }
 
 export interface HumanWindowEvents {
@@ -65,6 +71,8 @@ export interface HumanWindowEvents {
   decide(id: string, allow: boolean): void;
   /** 사람이 패널에서 세션 이름을 바꿨다 */
   renameSession(sessionId: string, label: string): void;
+  /** 사람이 패널에서 화면 모드를 골랐다 */
+  setTheme(mode: ThemeMode): void;
 }
 
 /** 따라 보기 설정을 읽고 남기는 곳(프로필의 settings.json) */
@@ -76,6 +84,8 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     height: 860,
     show,
     title: 'agent-browser',
+    // 창이 처음 그려질 때 흰 바탕이 번쩍이지 않게 UI 바탕색을 맞춘다(어두운 모드 탭 막대 = Chrome grey-900)
+    ...(nativeTheme.shouldUseDarkColors ? { backgroundColor: DARK_FRAME_COLOR } : {}),
     webPreferences: { preload: join(__dirname, 'preload', 'human.js'), sandbox: true, contextIsolation: true },
   });
   /**
@@ -248,6 +258,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
       case 'relayout': return relayoutAll();
       case 'follow': return setFollow(c.on);
       case 'rename': return events.renameSession(c.sessionId, c.label);
+      case 'theme': return isThemeMode(c.mode) ? events.setTheme(c.mode) : undefined;
     }
     if (viewing !== null) {
       // 세션을 보는 중에는 읽기 전용이다(E3). 탭 막대에서 보는 탭을 고르는 것만 된다. 주인의 활성 탭은 바꾸지 않는다.
@@ -277,10 +288,16 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     lastApprovals = approvals;
     if (!win.isDestroyed()) win.webContents.send('human:approvals', approvals);
   };
+  let lastTheme: ThemeMode | undefined;
+  const showTheme = (mode: ThemeMode) => {
+    lastTheme = mode;
+    if (!win.isDestroyed()) win.webContents.send('human:theme', mode);
+  };
   win.webContents.on('did-finish-load', () => {
     sendToolbar();
     sendSessions();
     win.webContents.send('human:approvals', lastApprovals);
+    if (lastTheme) win.webContents.send('human:theme', lastTheme);
   });
   win.on('closed', () => ipcMain.off('human:command', onCommand));
 
@@ -291,6 +308,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     tabs,
     showSessions,
     showApprovals,
+    showTheme,
     addSession: (sessionId, strip) => {
       sessions.set(sessionId, strip);
       lastMove.set(sessionId, moveOf(strip));
