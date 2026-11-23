@@ -15,10 +15,15 @@ export interface Settings {
   followAgents: boolean;
   /** 화면 모드. 기본은 기기(지금까지의 동작과 같다) */
   theme: ThemeMode;
+  /**
+   * 앱 안 업데이트 확인(카드 20261123-update-notice, ADR-0010). false면 GitHub에 묻지 않는다.
+   * Dock·Finder로 켠 앱은 환경 변수를 받지 않으므로 끄는 법은 이 값이 기본이다
+   */
+  updateCheck: boolean;
 }
 
 export const SETTINGS_FILE_NAME = 'settings.json';
-export const DEFAULT_SETTINGS: Settings = { followAgents: true, theme: 'system' };
+export const DEFAULT_SETTINGS: Settings = { followAgents: true, theme: 'system', updateCheck: true };
 
 /** 없거나 읽을 수 없으면 기본값. 모르는 키·잘못된 값은 무시한다 */
 export function readSettings(profileDir: string): Settings {
@@ -27,6 +32,7 @@ export function readSettings(profileDir: string): Settings {
     return {
       followAgents: typeof raw.followAgents === 'boolean' ? raw.followAgents : DEFAULT_SETTINGS.followAgents,
       theme: isThemeMode(raw.theme) ? raw.theme : DEFAULT_SETTINGS.theme,
+      updateCheck: typeof raw.updateCheck === 'boolean' ? raw.updateCheck : DEFAULT_SETTINGS.updateCheck,
     };
   } catch {
     return { ...DEFAULT_SETTINGS };

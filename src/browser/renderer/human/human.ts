@@ -12,6 +12,7 @@ interface Window {
     onSessions(listener: (s: { sessions: HumanSessionView[]; viewing: string | null; follow: boolean }) => void): void;
     onApprovals(listener: (a: HumanApprovalView[]) => void): void;
     onTheme(listener: (mode: string) => void): void;
+    onUpdate(listener: (s: { state: string; version?: string; reason?: string }) => void): void;
   };
 }
 
@@ -91,6 +92,23 @@ interface Window {
   const themeEl = byId<HTMLSelectElement>('theme');
   themeEl.addEventListener('change', () => api.command({ cmd: 'theme', mode: themeEl.value }));
   api.onTheme((mode) => { themeEl.value = mode; });
+  // 앱 안 업데이트(카드 20261123-update-notice). 새 버전이 있을 때만 패널 맨 위에 보인다
+  const updateEl = byId<HTMLElement>('update');
+  const updateText = byId<HTMLElement>('update-text');
+  const updateNote = byId<HTMLElement>('update-note');
+  const updateBtn = byId<HTMLButtonElement>('update-install');
+  updateBtn.addEventListener('click', () => { updateBtn.disabled = true; api.command({ cmd: 'update' }); });
+  api.onUpdate((s) => {
+    updateEl.hidden = s.state === 'none';
+    const v = s.version ?? '';
+    updateText.textContent = s.state === 'available' ? `새 버전 ${v}`
+      : s.state === 'downloading' ? `새 버전 ${v} 받는 중…`
+      : s.state === 'installing' ? `새 버전 ${v} 설치 중… 앱이 다시 켜집니다`
+      : s.state === 'failed' ? `업데이트 실패: ${s.reason ?? ''}` : '';
+    updateBtn.hidden = !(s.state === 'available' || s.state === 'failed');
+    updateBtn.disabled = false;
+    updateNote.hidden = !(s.state === 'available' || s.state === 'failed');
+  });
   /**
    * 세션 이름 고치기(카드 20261120-session-labels). 패널은 에이전트가 움직일 때마다 다시 그려지므로
    * 고치는 중인 세션과 글자를 따로 쥐고, 다시 그린 뒤 입력칸과 커서를 되살린다

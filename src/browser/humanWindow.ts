@@ -9,6 +9,7 @@ import type { ApprovalView } from '../shared/approval';
 import type { ContentArea } from './agentSession';
 import type { Rect } from '../shared/ipc';
 import { isThemeMode, type ThemeMode } from './settings';
+import type { UpdateState } from './update';
 
 /** 어두운 모드 탭 막대 색(Chrome Google Grey 900). human.css의 --frame 어두운 값과 같다 */
 export const DARK_FRAME_COLOR = '#202124';
@@ -62,6 +63,8 @@ export interface HumanWindow {
   focusUi(): void;
   /** 패널의 "모양" 선택에 지금 화면 모드를 보인다(카드 20261123-theme-mode) */
   showTheme(mode: ThemeMode): void;
+  /** 패널 맨 위 업데이트 줄(카드 20261123-update-notice) */
+  showUpdate(state: UpdateState): void;
 }
 
 export interface HumanWindowEvents {
@@ -73,6 +76,8 @@ export interface HumanWindowEvents {
   renameSession(sessionId: string, label: string): void;
   /** 사람이 패널에서 화면 모드를 골랐다 */
   setTheme(mode: ThemeMode): void;
+  /** 사람이 업데이트를 눌렀다 */
+  installUpdate(): void;
 }
 
 /** 따라 보기 설정을 읽고 남기는 곳(프로필의 settings.json) */
@@ -259,6 +264,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
       case 'follow': return setFollow(c.on);
       case 'rename': return events.renameSession(c.sessionId, c.label);
       case 'theme': return isThemeMode(c.mode) ? events.setTheme(c.mode) : undefined;
+      case 'update': return events.installUpdate();
     }
     if (viewing !== null) {
       // 세션을 보는 중에는 읽기 전용이다(E3). 탭 막대에서 보는 탭을 고르는 것만 된다. 주인의 활성 탭은 바꾸지 않는다.
@@ -289,6 +295,11 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     if (!win.isDestroyed()) win.webContents.send('human:approvals', approvals);
   };
   let lastTheme: ThemeMode | undefined;
+  let lastUpdate: UpdateState = { state: 'none' };
+  const showUpdate = (s: UpdateState) => {
+    lastUpdate = s;
+    if (!win.isDestroyed()) win.webContents.send('human:update', s);
+  };
   const showTheme = (mode: ThemeMode) => {
     lastTheme = mode;
     if (!win.isDestroyed()) win.webContents.send('human:theme', mode);
@@ -298,6 +309,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     sendSessions();
     win.webContents.send('human:approvals', lastApprovals);
     if (lastTheme) win.webContents.send('human:theme', lastTheme);
+    win.webContents.send('human:update', lastUpdate);
   });
   win.on('closed', () => ipcMain.off('human:command', onCommand));
 
@@ -309,6 +321,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     showSessions,
     showApprovals,
     showTheme,
+    showUpdate,
     addSession: (sessionId, strip) => {
       sessions.set(sessionId, strip);
       lastMove.set(sessionId, moveOf(strip));

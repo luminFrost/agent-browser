@@ -32,7 +32,9 @@ export type HumanCommand =
   /** 세션 이름을 바꾼다(카드 20261120-session-labels). 빈 이름이면 바꾸지 않는다 */
   | { cmd: 'rename'; sessionId: string; label: string }
   /** 화면 모드를 바꾼다(카드 20261123-theme-mode). 모르는 값이면 무시한다 */
-  | { cmd: 'theme'; mode: string };
+  | { cmd: 'theme'; mode: string }
+  /** 앱 안 업데이트: 새 버전을 받아 바꿔 깔고 앱을 다시 켠다(카드 20261123-update-notice) */
+  | { cmd: 'update' };
 
 /** 사람 창 머리(탭 막대·주소창)에 보일 상태. viewing이 있으면 그 세션의 탭을 보는 중이다(읽기 전용) */
 export interface HumanToolbarState extends TabStripState {

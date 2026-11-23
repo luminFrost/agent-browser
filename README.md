@@ -80,8 +80,10 @@ defaults read "/Applications/Agent Browser.app/Contents/Info" CFBundleShortVersi
 2. 새 Release의 dmg로 2번을 다시 한다(덮어쓰기). 로그인 정보는 그대로 남는다.
 3. MCP는 다시 등록하지 않아도 된다(경로가 같다). Claude Code에서 `/mcp`로 다시 연결한다.
 
-> 업데이트한 뒤 Mac에서만 볼 수 있는 동작(최소화·Cmd+H, 다른 앱 포커스, 승인 알림)은 [`docs/verify/20261123-company-pc-check.md`](docs/verify/20261123-company-pc-check.md) 확인표로 확인한다.
+> 업데이트한 뒤 Mac에서만 볼 수 있는 동작(최소화·Cmd+H, 다른 앱 포커스, 승인 알림)은 [`docs/verify/20261123-company-pc-check-0.2.4.md`](docs/verify/20261123-company-pc-check-0.2.4.md) 확인표로 확인한다.
 
+> **v0.2.4부터는 앱이 알려 준다.** 앱을 켤 때와 6시간마다 최신 Release를 확인해, 새 버전이면 패널 맨 위에 "새 버전 x.y.z"와 **업데이트** 버튼을 보인다. 누르면 dmg를 받아 같은 자리의 앱을 바꾸고 다시 켠다(에이전트 세션은 끊기니 Claude Code에서 `/mcp`로 다시 연결). 회사망이 GitHub를 막으면 줄이 안 보일 뿐 앱은 그대로다. 끄려면 앱을 끄고 `~/Library/Application Support/agent-browser/settings.json`에 `"updateCheck": false`를 넣는다(ADR-0010).
+>
 > Claude Code에게 "agent-browser 업데이트 확인해 줘"라고 해도 된다. [`docs/setup.md`](docs/setup.md)의 "업데이트" 절차대로 버전을 비교하고, 새 버전이면 설치까지 한다.
 
 <details>

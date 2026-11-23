@@ -98,6 +98,12 @@ test('P1 묶기: arm64 dmg와 app이 있고 이름에 버전이 있다', () => {
   expect(arch).toBe('arm64');
 });
 
+test('U3 묶기: 앱 안 업데이트 설치 스크립트가 Resources에 들어 있다(앱이 /bin/bash로 띄운다, 카드 20261123-update-notice)', () => {
+  const installer = join(APP, 'Contents', 'Resources', 'update-mac.sh');
+  expect(existsSync(installer)).toBe(true);
+  expect(readFileSync(installer, 'utf8')).toMatch(/^#!\/bin\/bash\n/);
+});
+
 test.describe('한 번 띄운 앱', () => {
   const profile = mkdtempSync(join(tmpdir(), 'ab-dist-'));
   let browserPid = 0;
