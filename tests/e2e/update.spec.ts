@@ -143,3 +143,38 @@ test('U2: dmg 받기가 실패하면 실패 문구와 다시 누를 버튼이 �
   expect(existsSync(inst.out)).toBe(false);
   expect((await app!.request({ type: 'listWindows' }, 'windows')).windows.length).toBe(1);
 });
+
+// 카드 20261123-update-check-now C1: 켜져 있는 동안 나온 새 버전을 메뉴로 바로 확인한다
+const clickCheck = () => app!.request({ type: 'clickMenu', id: 'update-check' }, 'done');
+
+test('C1: 메뉴 "업데이트 확인…" — 같으면 최신 문구, 그 사이 새 버전이 나오면 바로 알림 줄', async () => {
+  latest = { status: 200, body: release(`v${CURRENT}`) };
+  await start({});
+  await waitFor(async () => hits.includes('GET /latest'), '켤 때 물음');
+  await clickCheck();
+  await waitFor(async () => (await banner()).text.includes(`최신 버전입니다 (${CURRENT})`), '최신 문구');
+  expect(await ui<boolean>(`document.querySelector('#update-install').hidden`)).toBe(true);
+  // 최신 문구는 잠시 뒤 사라진다
+  await waitFor(async () => (await banner()).hidden, '최신 문구 사라짐', 15_000);
+  // 앱이 켜져 있는 동안 새 Release가 나왔다
+  latest = { status: 200, body: release('v9.9.9') };
+  await clickCheck();
+  await waitFor(async () => (await banner()).text.includes('새 버전 9.9.9'), '알림 줄');
+  expect(await ui<boolean>(`!document.querySelector('#update-install').hidden`)).toBe(true);
+});
+
+test('C1: 메뉴로 묻기가 실패하면 "업데이트를 확인하지 못했습니다"', async () => {
+  latest = { status: 500, body: '{}' };
+  await start({});
+  await waitFor(async () => hits.includes('GET /latest'), '켤 때 물음');
+  await clickCheck();
+  await waitFor(async () => (await banner()).text.includes('업데이트를 확인하지 못했습니다'), '실패 문구');
+});
+
+test('C1: 자동 묻기를 꺼도 메뉴로 누르면 묻는다', async () => {
+  latest = { status: 200, body: release('v9.9.9') };
+  await start({ AGENT_BROWSER_UPDATE_CHECK: 'off' });
+  await clickCheck();
+  await waitFor(async () => (await banner()).text.includes('새 버전 9.9.9'), '알림 줄');
+  expect(hits).toEqual(['GET /latest']);
+});

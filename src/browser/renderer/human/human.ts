@@ -108,7 +108,9 @@ interface Window {
     updateText.textContent = s.state === 'available' ? `새 버전 ${v}`
       : s.state === 'downloading' ? `새 버전 ${v} 받는 중…`
       : s.state === 'installing' ? `새 버전 ${v} 설치 중… 앱이 다시 켜집니다`
-      : s.state === 'failed' ? `업데이트 실패: ${s.reason ?? ''}` : '';
+      : s.state === 'failed' ? `업데이트 실패: ${s.reason ?? ''}`
+      : s.state === 'latest' ? `최신 버전입니다 (${v})`
+      : s.state === 'checkFailed' ? '업데이트를 확인하지 못했습니다' : '';
     updateBtn.hidden = !(s.state === 'available' || s.state === 'failed');
     updateBtn.disabled = false;
     updateNote.hidden = !(s.state === 'available' || s.state === 'failed');

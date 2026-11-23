@@ -1,8 +1,10 @@
 // 앱 안 업데이트 알림(카드 20261123-update-notice, ADR-0010).
 // 묶은 앱이 GitHub 최신 Release를 묻고, 새 버전이면 패널에 알린다. 사람이 누르면 dmg를 받아 설치 스크립트에 넘긴다.
 
-/** 다시 묻는 간격: 6시간(GitHub 인증 없는 한도 시간당 60회에 한참 못 미친다) */
-export const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+/** 다시 묻는 간격: 1시간(GitHub 인증 없는 한도 시간당 60회의 1/60. 카드 20261123-update-check-now C2) */
+export const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+/** 메뉴 "업데이트 확인…"의 최신·실패 문구를 보이는 시간 */
+export const UPDATE_NOTICE_MS = 5_000;
 /** 켜진 뒤 처음 묻기까지 기다림: 창·세션이 먼저 뜨게 */
 export const UPDATE_FIRST_CHECK_DELAY_MS = 3_000;
 /** 묻기·받기 응답을 기다리는 한도 */
@@ -16,6 +18,10 @@ export interface UpdateInfo { version: string; dmgName: string; dmgUrl: string; 
 /** 패널과 진단에 보이는 상태 */
 export type UpdateState =
   | { state: 'none' }
+  /** 메뉴로 물었더니 지금이 최신(잠시 보이고 사라진다) */
+  | { state: 'latest'; version: string }
+  /** 메뉴로 묻기가 실패(잠시 보이고 사라진다) */
+  | { state: 'checkFailed' }
   | { state: 'available'; version: string }
   | { state: 'downloading'; version: string }
   | { state: 'installing'; version: string }
@@ -56,15 +62,25 @@ export function parseRelease(body: unknown, current: string): UpdateInfo | undef
 
 type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
 
-/** 최신 Release를 묻는다. 실패(연결·HTTP·형식)는 조용히 undefined(회사망이 막아도 앱은 그대로, ADR-0010 1) */
-export async function checkForUpdate(url: string, current: string, fetchFn: Fetch): Promise<UpdateInfo | undefined> {
+/** 묻기 결과: 새 버전 / 새로 깔 것 없음 / 묻기 실패(연결·HTTP·JSON 아님) */
+export type UpdateQuery = { result: 'new'; info: UpdateInfo } | { result: 'latest' } | { result: 'failed' };
+
+/** 최신 Release를 묻는다. 실패는 던지지 않고 결과로 돌려준다(메뉴 "업데이트 확인…"이 실패를 알린다) */
+export async function queryUpdate(url: string, current: string, fetchFn: Fetch): Promise<UpdateQuery> {
   try {
     const res = await fetchFn(url, { headers: { accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(UPDATE_FETCH_TIMEOUT_MS) });
-    if (!res.ok) return undefined;
-    return parseRelease(await res.json(), current);
+    if (!res.ok) return { result: 'failed' };
+    const info = parseRelease(await res.json(), current);
+    return info ? { result: 'new', info } : { result: 'latest' };
   } catch {
-    return undefined;
+    return { result: 'failed' };
   }
+}
+
+/** 최신 Release를 묻는다. 실패(연결·HTTP·형식)는 조용히 undefined(회사망이 막아도 앱은 그대로, ADR-0010 1) */
+export async function checkForUpdate(url: string, current: string, fetchFn: Fetch): Promise<UpdateInfo | undefined> {
+  const q = await queryUpdate(url, current, fetchFn);
+  return q.result === 'new' ? q.info : undefined;
 }
 
 /** 실행 파일 경로(…/X.app/Contents/MacOS/X)에서 앱 묶음 경로. 묶음 안이 아니면 실행 파일 경로 그대로 */

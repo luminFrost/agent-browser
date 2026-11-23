@@ -108,7 +108,7 @@ let theme: ThemeMode = 'system';
 const applyTheme = (mode: ThemeMode) => {
   theme = mode;
   nativeTheme.themeSource = mode;
-  Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(process.platform, app.getName(), { current: mode, pick: setTheme })));
+  Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(process.platform, app.getName(), { current: mode, pick: setTheme }, { check: () => updater?.check() })));
   human?.showTheme(mode);
 };
 /** 사람이 패널이나 메뉴에서 모드를 골랐다. 바로 바꾸고 settings.json에 남긴다 */
