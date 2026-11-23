@@ -16,4 +16,8 @@ if (isHumanUi) contextBridge.exposeInMainWorld('humanApi', {
   onApprovals: (listener: (a: ApprovalView[]) => void) => {
     ipcRenderer.on('human:approvals', (_e, a: ApprovalView[]) => listener(a));
   },
+  /** 지금 화면 모드(카드 20261123-theme-mode) */
+  onTheme: (listener: (mode: string) => void) => {
+    ipcRenderer.on('human:theme', (_e, mode: string) => listener(mode));
+  },
 });

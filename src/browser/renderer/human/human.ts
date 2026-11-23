@@ -11,6 +11,7 @@ interface Window {
     onState(listener: (s: HumanState) => void): void;
     onSessions(listener: (s: { sessions: HumanSessionView[]; viewing: string | null; follow: boolean }) => void): void;
     onApprovals(listener: (a: HumanApprovalView[]) => void): void;
+    onTheme(listener: (mode: string) => void): void;
   };
 }
 
@@ -86,6 +87,10 @@ interface Window {
   // 에이전트 따라 보기 스위치(카드 20261120-follow-agents). 값은 main이 가지고 남긴다
   const followEl = byId<HTMLInputElement>('follow');
   followEl.addEventListener('change', () => api.command({ cmd: 'follow', on: followEl.checked }));
+  // 화면 모드(카드 20261123-theme-mode). 값은 main이 가지고 남기며, 메뉴에서 바꿔도 여기로 온다
+  const themeEl = byId<HTMLSelectElement>('theme');
+  themeEl.addEventListener('change', () => api.command({ cmd: 'theme', mode: themeEl.value }));
+  api.onTheme((mode) => { themeEl.value = mode; });
   /**
    * 세션 이름 고치기(카드 20261120-session-labels). 패널은 에이전트가 움직일 때마다 다시 그려지므로
    * 고치는 중인 세션과 글자를 따로 쥐고, 다시 그린 뒤 입력칸과 커서를 되살린다

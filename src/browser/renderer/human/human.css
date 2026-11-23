@@ -1,39 +1,102 @@
 :root { --toolbar-height: 76px; --panel-width: 280px; color-scheme: light dark; font: 13px -apple-system, system-ui, sans-serif; }
-body { margin: 0; height: 100vh; overflow: hidden; background: Canvas; }
+
+/*
+ * 화면 모드 색(카드 20261123-theme-mode). 모드는 main이 nativeTheme.themeSource로 정하고 여기서는 prefers-color-scheme으로 받는다.
+ * 밝은 값은 이 카드 전의 식 그대로다(흐린 글자만 대비 때문에 조금 진해졌다). 어두운 값은 Chrome(Chromium Google Grey 팔레트)과 같게 둔다.
+ */
+:root {
+  --text: CanvasText;
+  /* 흐린 글자: OS GrayText(#808080)는 밝은 바탕에서 대비 4.5:1이 안 돼 Chrome 밝은 모드의 grey-700을 쓴다 */
+  --muted: #5f6368;
+  --bg: Canvas;
+  --frame: color-mix(in srgb, CanvasText 8%, Canvas);
+  --toolbar: Canvas;
+  --tab-active: Canvas;
+  --line: color-mix(in srgb, CanvasText 15%, Canvas);
+  --field: Field;
+  --field-text: FieldText;
+  --field-line: color-mix(in srgb, CanvasText 20%, Canvas);
+  --field-readonly: color-mix(in srgb, CanvasText 5%, Canvas);
+  --panel: color-mix(in srgb, CanvasText 4%, Canvas);
+  --card: Canvas;
+  --button-line: color-mix(in srgb, CanvasText 30%, Canvas);
+  /* 의미 색: 세션(보라)·멈추기·거부(빨강)·허용(초록)·승인(노랑) */
+  --session: #5b3cc4;
+  --on-session: Canvas;
+  --session-line: color-mix(in srgb, #5b3cc4 40%, Canvas);
+  --session-tint: color-mix(in srgb, #5b3cc4 18%, Canvas);
+  --session-wash: color-mix(in srgb, #5b3cc4 8%, Canvas);
+  --danger: #c4373c;
+  --ok: #2f7d32;
+  --warn: #e0a800;
+  --warn-tint: color-mix(in srgb, #e0a800 18%, Canvas);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #e8eaed;          /* grey-200 */
+    --muted: #9aa0a6;         /* grey-500 */
+    --bg: #35363a;            /* 도구 막대와 같은 바탕 */
+    --frame: #202124;         /* grey-900: 탭 막대 */
+    --toolbar: #35363a;       /* 도구 막대·활성 탭 */
+    --tab-active: #35363a;
+    --line: #3c4043;          /* grey-800 */
+    --field: #202124;         /* 주소창 */
+    --field-text: #e8eaed;
+    --field-line: #5f6368;    /* grey-700 */
+    --field-readonly: #292a2d;
+    --panel: #292a2d;         /* grey-900 + 흰색 4% */
+    --card: #35363a;
+    --button-line: #5f6368;
+    --session: #c58af9;       /* purple 300 */
+    --on-session: #202124;
+    --session-line: color-mix(in srgb, #c58af9 45%, #35363a);
+    --session-tint: color-mix(in srgb, #c58af9 12%, #202124);
+    --session-wash: color-mix(in srgb, #c58af9 10%, #202124);
+    --danger: #f28b82;        /* red 300 */
+    --ok: #81c995;            /* green 300 */
+    --warn: #fdd663;          /* yellow 300 */
+    --warn-tint: color-mix(in srgb, #fdd663 12%, #292a2d);
+  }
+}
+
+body { margin: 0; height: 100vh; overflow: hidden; background: var(--bg); color: var(--text); }
 #tabbar, #nav { margin-right: var(--panel-width); }
-#tabbar { display: flex; align-items: flex-end; gap: 2px; height: 34px; padding: 0 8px; background: color-mix(in srgb, CanvasText 8%, Canvas); }
+#tabbar { display: flex; align-items: flex-end; gap: 2px; height: 34px; padding: 0 8px; background: var(--frame); }
 #tabs { display: flex; gap: 2px; min-width: 0; }
 .tab { display: flex; align-items: center; gap: 6px; max-width: 200px; padding: 6px 10px; border-radius: 6px 6px 0 0; cursor: default; white-space: nowrap; }
-.tab.active { background: Canvas; }
+.tab.active { background: var(--tab-active); }
 .tab .title { overflow: hidden; text-overflow: ellipsis; }
 .tab .close { border: 0; background: none; padding: 0 2px; color: inherit; opacity: .6; }
 #new-tab { margin-bottom: 4px; border: 0; background: none; font-size: 16px; color: inherit; }
-#nav { display: flex; align-items: center; gap: 6px; height: 42px; padding: 0 8px; border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, Canvas); }
+#nav { display: flex; align-items: center; gap: 6px; height: 42px; padding: 0 8px; border-bottom: 1px solid var(--line); background: var(--toolbar); }
 #nav button { border: 0; background: none; font-size: 15px; color: inherit; }
 #nav button:disabled { opacity: .3; }
-#address { flex: 1; padding: 5px 10px; border: 1px solid color-mix(in srgb, CanvasText 20%, Canvas); border-radius: 6px; font: inherit; }
-#loading { color: GrayText; }
-#address:read-only { color: GrayText; background: color-mix(in srgb, CanvasText 5%, Canvas); }
+#address { flex: 1; padding: 5px 10px; border: 1px solid var(--field-line); border-radius: 6px; font: inherit; background: var(--field); color: var(--field-text); }
+#loading { color: var(--muted); }
+#address:read-only { color: var(--muted); background: var(--field-readonly); }
 
 /* 세션 보는 중(spec-embedded-sessions E2): 머리에 표시하고, 세션 색으로 테두리를 둔다 */
-#viewing { display: flex; align-items: center; gap: 8px; margin: 0 0 4px auto; padding: 3px 4px 3px 10px; border-radius: 6px; background: color-mix(in srgb, #5b3cc4 18%, Canvas); color: #5b3cc4; font-weight: 600; white-space: nowrap; }
+#viewing { display: flex; align-items: center; gap: 8px; margin: 0 0 4px auto; padding: 3px 4px 3px 10px; border-radius: 6px; background: var(--session-tint); color: var(--session); font-weight: 600; white-space: nowrap; }
 #viewing[hidden] { display: none; }
-#viewing .back-to-own { border: 1px solid #5b3cc4; border-radius: 4px; background: Canvas; color: #5b3cc4; font: inherit; font-weight: 400; padding: 2px 8px; }
-body.viewing #tabbar, body.viewing #nav { background: color-mix(in srgb, #5b3cc4 8%, Canvas); }
+#viewing .back-to-own { border: 1px solid var(--session); border-radius: 4px; background: var(--card); color: var(--session); font: inherit; font-weight: 400; padding: 2px 8px; }
+body.viewing #tabbar, body.viewing #nav { background: var(--session-wash); }
 body.viewing .tab .close { display: none; }
 #new-tab:disabled { opacity: .3; }
-#view-empty { position: fixed; top: var(--toolbar-height); left: 0; right: var(--panel-width); margin: 0; padding-top: 40px; text-align: center; color: GrayText; }
+#view-empty { position: fixed; top: var(--toolbar-height); left: 0; right: var(--panel-width); margin: 0; padding-top: 40px; text-align: center; color: var(--muted); }
 
-#panel { position: fixed; top: 0; right: 0; bottom: 0; width: var(--panel-width); box-sizing: border-box; padding: 10px 12px; overflow-y: auto; border-left: 1px solid color-mix(in srgb, CanvasText 15%, Canvas); background: color-mix(in srgb, CanvasText 4%, Canvas); }
+#panel { position: fixed; top: 0; right: 0; bottom: 0; width: var(--panel-width); box-sizing: border-box; padding: 10px 12px; overflow-y: auto; border-left: 1px solid var(--line); background: var(--panel); }
 #panel h2 { margin: 0 0 8px; font-size: 13px; }
 #panel .sessions-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 #panel .follow { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap; }
-#sessions-empty { color: GrayText; }
+#panel .appearance { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; }
+#panel .appearance label { display: inline-flex; align-items: center; gap: 6px; }
+#theme { font: inherit; }
+#sessions-empty { color: var(--muted); }
 #sessions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.session { padding: 8px; border-radius: 6px; background: Canvas; border: 1px solid color-mix(in srgb, #5b3cc4 40%, Canvas); }
-.session.viewing { outline: 2px solid #5b3cc4; }
-.session .view { border: 1px solid #5b3cc4; color: #5b3cc4; background: none; border-radius: 4px; padding: 2px 8px; font: inherit; }
-.session.viewing .view { background: #5b3cc4; color: Canvas; }
+.session { padding: 8px; border-radius: 6px; background: var(--card); border: 1px solid var(--session-line); }
+.session.viewing { outline: 2px solid var(--session); }
+.session .view { border: 1px solid var(--session); color: var(--session); background: none; border-radius: 4px; padding: 2px 8px; font: inherit; }
+.session.viewing .view { background: var(--session); color: var(--on-session); }
 .session .buttons { display: flex; gap: 4px; }
 .session header { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
 .session .name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 4px; min-width: 0; flex: 1; }
@@ -43,17 +106,17 @@ body.viewing .tab .close { display: none; }
 .session .label-edit { font: inherit; font-size: 13px; width: 100%; box-sizing: border-box; padding: 2px 4px; }
 .session .id { font-family: ui-monospace, monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
 .session .key { flex-basis: 100%; opacity: .6; font-size: 10px; }
-.session .stop { border: 1px solid #c4373c; color: #c4373c; background: none; border-radius: 4px; padding: 2px 8px; font: inherit; }
+.session .stop { border: 1px solid var(--danger); color: var(--danger); background: none; border-radius: 4px; padding: 2px 8px; font: inherit; }
 .session ul { list-style: none; margin: 0; padding: 0; }
-.tab-url { font-size: 11px; color: GrayText; word-break: break-all; }
-.tab-url.active { color: CanvasText; }
+.tab-url { font-size: 11px; color: var(--muted); word-break: break-all; }
+.tab-url.active { color: var(--text); }
 #approvals-section { margin-bottom: 14px; }
 #approvals { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.approval { padding: 8px; border-radius: 6px; background: color-mix(in srgb, #e0a800 18%, Canvas); border: 1px solid #e0a800; }
+.approval { padding: 8px; border-radius: 6px; background: var(--warn-tint); border: 1px solid var(--warn); }
 .approval .what { margin-bottom: 6px; word-break: break-all; }
 .approval .buttons { display: flex; gap: 6px; }
-.approval button { flex: 1; padding: 3px 0; border-radius: 4px; font: inherit; border: 1px solid color-mix(in srgb, CanvasText 30%, Canvas); background: Canvas; color: inherit; }
-.approval .allow { border-color: #2f7d32; color: #2f7d32; }
-.approval .deny { border-color: #c4373c; color: #c4373c; }
+.approval button { flex: 1; padding: 3px 0; border-radius: 4px; font: inherit; border: 1px solid var(--button-line); background: var(--card); color: inherit; }
+.approval .allow { border-color: var(--ok); color: var(--ok); }
+.approval .deny { border-color: var(--danger); color: var(--danger); }
 
 .approval .expires { font-size: 11px; opacity: .7; margin: 2px 0 4px; }

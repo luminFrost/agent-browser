@@ -30,7 +30,9 @@ export type HumanCommand =
   /** 에이전트 따라 보기를 켜거나 끈다(카드 20261120-follow-agents) */
   | { cmd: 'follow'; on: boolean }
   /** 세션 이름을 바꾼다(카드 20261120-session-labels). 빈 이름이면 바꾸지 않는다 */
-  | { cmd: 'rename'; sessionId: string; label: string };
+  | { cmd: 'rename'; sessionId: string; label: string }
+  /** 화면 모드를 바꾼다(카드 20261123-theme-mode). 모르는 값이면 무시한다 */
+  | { cmd: 'theme'; mode: string };
 
 /** 사람 창 머리(탭 막대·주소창)에 보일 상태. viewing이 있으면 그 세션의 탭을 보는 중이다(읽기 전용) */
 export interface HumanToolbarState extends TabStripState {

@@ -21,6 +21,10 @@ export type LauncherCommand =
   | { type: 'attention' }
   /** 앱 메뉴 항목의 역할(시험·진단용, 카드 20261123-qa-followups Q5) */
   | { type: 'menu' }
+  /** 화면 모드 상태(시험·진단용, 카드 20261123-theme-mode) */
+  | { type: 'theme' }
+  /** 시험용: 앱 메뉴 항목을 사람이 누른 것처럼 누른다(id가 있는 항목만, 카드 20261123-theme-mode) */
+  | { type: 'clickMenu'; id: string }
   /** 시험용: 세션의 활성 탭에 사람 입력(OS 입력 경로: 마우스 누르기·떼기, 글자 하나)을 보낸다(카드 20261122-agent-input-lock) */
   | { type: 'simulateHumanInput'; sessionId: string; x: number; y: number; text: string };
 
@@ -42,6 +46,8 @@ export type BrowserReply =
   | { type: 'attention'; badge: number; notices: number; bounces: number; noticeFailures: number }
   /** roles: 앱 메뉴 항목 역할(소문자) */
   | { type: 'menu'; roles: string[] }
+  /** source: nativeTheme.themeSource, dark: 지금 어두운 색을 쓰는지, menuChecked: 메뉴 "보기 > 모양"에서 체크된 모드 */
+  | { type: 'theme'; source: 'system' | 'light' | 'dark'; dark: boolean; menuChecked: string | null }
   | { type: 'sessionCreated'; sessionId: string; targetId: string }
   | { type: 'tabCreated'; targetId: string }
   | { type: 'done' }

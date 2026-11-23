@@ -1,6 +1,6 @@
-import { app, BrowserWindow, Menu, Notification, session, type MenuItem } from 'electron';
-import { appMenuTemplate } from './appMenu';
-import { readSettings, writeSettings } from './settings';
+import { app, BrowserWindow, Menu, nativeTheme, Notification, session, type MenuItem } from 'electron';
+import { appMenuTemplate, themeMenuId } from './appMenu';
+import { readSettings, writeSettings, THEME_MODES, type ThemeMode } from './settings';
 import { cleanLabel } from '../shared/label';
 import { CONTENT_AREA, createHumanWindow, type HumanWindow } from './humanWindow';
 import { createAgentSession, type AgentSession } from './agentSession';
@@ -97,6 +97,25 @@ const agentOf = (sessionId: string): AgentSession => {
   return agent;
 };
 
+/**
+ * 화면 모드(카드 20261123-theme-mode). nativeTheme.themeSource가 사람 창 UI와 탭 안 웹 페이지의 prefers-color-scheme을
+ * 함께 정한다(Chrome의 기기·밝게·어둡게와 같다). 메뉴의 체크와 패널 선택을 같은 값으로 다시 그린다
+ */
+let theme: ThemeMode = 'system';
+const applyTheme = (mode: ThemeMode) => {
+  theme = mode;
+  nativeTheme.themeSource = mode;
+  Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(process.platform, app.getName(), { current: mode, pick: setTheme })));
+  human?.showTheme(mode);
+};
+/** 사람이 패널이나 메뉴에서 모드를 골랐다. 바로 바꾸고 settings.json에 남긴다 */
+const setTheme = (mode: ThemeMode) => {
+  if (mode === theme) return;
+  applyTheme(mode);
+  const dir = app.getPath('userData');
+  writeSettings(dir, { ...readSettings(dir), theme: mode });
+};
+
 const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> => {
   switch (m.type) {
     case 'quit':
@@ -118,6 +137,17 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
       const walk = (items: MenuItem[]) => { for (const i of items) { if (i.role) roles.push(String(i.role).toLowerCase()); if (i.submenu) walk(i.submenu.items); } };
       walk(Menu.getApplicationMenu()?.items ?? []);
       return { type: 'menu', roles };
+    }
+    case 'theme': {
+      const menu = Menu.getApplicationMenu();
+      const menuChecked = THEME_MODES.find((mode) => menu?.getMenuItemById(themeMenuId(mode))?.checked) ?? null;
+      return { type: 'theme', source: nativeTheme.themeSource, dark: nativeTheme.shouldUseDarkColors, menuChecked };
+    }
+    case 'clickMenu': {
+      const item = Menu.getApplicationMenu()?.getMenuItemById(m.id);
+      if (!item) return { type: 'error', message: `없는 메뉴 항목: ${m.id}` };
+      item.click();
+      return { type: 'done' };
     }
     case 'agentInput':
       if (m.on) agentInput.begin(m.sessionId, m.inputId); else agentInput.end(m.sessionId, m.inputId);
@@ -227,7 +257,7 @@ const bringHumanToFront = () => {
 app.on('activate', bringHumanToFront);
 
 app.whenReady().then(() => {
-  Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(process.platform, app.getName())));
+  applyTheme(readSettings(app.getPath('userData')).theme);
   const shared = session.fromPartition(SHARED_PARTITION);
   // 사이트의 권한 요청(카메라·위치·알림 등)은 기본적으로 거부한다(spec 제약).
   shared.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
@@ -251,10 +281,12 @@ app.whenReady().then(() => {
       send({ type: 'sessionLabel', sessionId, label });
       refreshPanel();
     },
+    setTheme,
   }, {
     initial: readSettings(app.getPath('userData')).followAgents,
     save: (on) => writeSettings(app.getPath('userData'), { ...readSettings(app.getPath('userData')), followAgents: on }),
   });
+  human.showTheme(theme);
   human.win.on('closed', () => {
     human = undefined;
     app.quit();
