@@ -76,3 +76,10 @@ test('사이트의 권한 요청(알림·위치·카메라)은 거부된다', as
   expect(await run(`navigator.permissions.query({ name: 'geolocation' }).then(s => s.state)`)).toBe('denied');
   expect(await run(`new Promise(r => { navigator.geolocation.getCurrentPosition(() => r('granted'), e => r('error:' + e.code)); setTimeout(() => r('no-position'), 3000); })`)).not.toBe('granted');
 });
+
+// 카드 20261123-qa-followups Q5 (DOC-03-UI UI-F6): 기본 메뉴의 다시 로드·개발자 도구로 사람 창 UI를 다시 불러오거나 열지 않게 앱 메뉴를 정한다
+test('Q5: 앱 메뉴에 다시 로드·개발자 도구가 없고, 편집(복사·붙여넣기)과 종료는 있다', async () => {
+  const { roles } = await app.request({ type: 'menu' }, 'menu');
+  for (const r of ['reload', 'forcereload', 'toggledevtools']) expect(roles).not.toContain(r);
+  for (const r of ['copy', 'paste', 'cut', 'selectall', 'undo', 'quit']) expect(roles).toContain(r);
+});

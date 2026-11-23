@@ -277,3 +277,19 @@ test('E7: 세션이 없으면 "에이전트 세션 없음"만 있고, 보는 세
     expect([s.view, s.sessionId, s.targetId ?? null]).toEqual(['session', a.id, null]);
   } finally { cdp.close(); }
 });
+
+// 카드 20261123-qa-followups Q3 (DOC-03-UI UI-F3): chrome-devtools-mcp select_page(bringToFront)로 고른 탭이 사람이 보는 화면에 보인다
+test('Q3: 에이전트가 Page.bringToFront로 탭을 고르면 그 세션의 활성 탭이 바뀌어, 보는 중인 화면에 그 탭이 보인다', async () => {
+  const a = await createSession(app);
+  const browser = await connect(a);
+  const first = browser.contexts()[0].pages()[0];
+  await first.goto(`${server.base}/a`);
+  const firstId = await firstTargetId(a);
+  const second = await browser.contexts()[0].newPage();
+  await second.goto(`${server.base}/b`);
+  await view(a);
+  await waitFor(async () => { const s = await shown(app); return s.sessionId === a.id && s.targetId !== undefined && s.targetId !== firstId; }, '나중 탭을 보는 중');
+  await first.bringToFront();
+  await waitFor(async () => (await shown(app)).targetId === firstId, 'bringToFront한 탭이 보임');
+  await waitFor(async () => (await toolbar()).address === `${server.base}/a`, '주소창도 그 탭');
+});

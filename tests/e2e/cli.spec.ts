@@ -3,7 +3,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { once } from 'node:events';
-import { tempDir, waitFor } from './helpers';
+import { tempDir, waitFor, CdpClient } from './helpers';
 import { LAUNCHER_LOCK_NAME, USER_DATA_FLAG } from '../../src/shared/constants';
 
 /** 이 프로필로 도는 브라우저 main 프로세스(도우미 제외) */
@@ -61,5 +61,30 @@ test('S2: 준비 전에 런처가 강제로 죽어도 브라우저가 끝난다'
     await waitFor(async () => browsersOf(profile).length === 0, '브라우저가 끝남', 10_000);
   } finally {
     for (const pid of browsersOf(profile)) process.kill(pid, 'SIGKILL');
+  }
+});
+
+// 카드 20261123-qa-followups Q8 (DOC-06-QA G-01): --log-blocked로 켜면 막힌 명령을 한 줄로 stderr에 남긴다
+test('Q8: --log-blocked면 막힌 명령을 "agent-browser: 막음 [세션 <id>] <메서드> — <이유>"로 stderr에 쓴다', async () => {
+  const profile = join(tempDir(), 'profile');
+  const proc = spawn(process.execPath, ['dist/launcher/cli.js', '--profile', profile, '--hidden', '--log-blocked'], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let stderr = '';
+  proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
+  const controlFile = join(profile, 'control.json');
+  try {
+    await waitFor(async () => existsSync(controlFile), '제어 파일', 30_000);
+    const { port, token } = JSON.parse(readFileSync(controlFile, 'utf8')) as { port: number; token: string };
+    const s = (await (await fetch(`http://127.0.0.1:${port}/sessions`, { method: 'POST', headers: { authorization: `Bearer ${token}` } })).json()) as { id: string; browserUrl: string };
+    const { webSocketDebuggerUrl } = (await (await fetch(`${s.browserUrl}json/version`)).json()) as { webSocketDebuggerUrl: string };
+    const cdp = await CdpClient.connect(webSocketDebuggerUrl);
+    try {
+      expect((await cdp.call('Browser.close')).error?.message).toContain('agent-browser:');
+    } finally {
+      cdp.close();
+    }
+    await waitFor(async () => stderr.includes(`agent-browser: 막음 [세션 ${s.id}] Browser.close — 허용하지 않는 브라우저 수준 명령: Browser.close`), '막음 줄', 5000);
+  } finally {
+    proc.kill('SIGINT');
+    await once(proc, 'exit');
   }
 });

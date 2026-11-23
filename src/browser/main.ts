@@ -1,4 +1,5 @@
-import { app, BrowserWindow, Notification, session } from 'electron';
+import { app, BrowserWindow, Menu, Notification, session, type MenuItem } from 'electron';
+import { appMenuTemplate } from './appMenu';
 import { readSettings, writeSettings } from './settings';
 import { cleanLabel } from '../shared/label';
 import { CONTENT_AREA, createHumanWindow, type HumanWindow } from './humanWindow';
@@ -111,6 +112,13 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
       return shownTab();
     case 'attention':
       return { type: 'attention', badge, notices, bounces, noticeFailures };
+    case 'menu': {
+      // 앱 메뉴에 든 항목의 역할(시험·진단용, 카드 20261123-qa-followups Q5)
+      const roles: string[] = [];
+      const walk = (items: MenuItem[]) => { for (const i of items) { if (i.role) roles.push(String(i.role).toLowerCase()); if (i.submenu) walk(i.submenu.items); } };
+      walk(Menu.getApplicationMenu()?.items ?? []);
+      return { type: 'menu', roles };
+    }
     case 'agentInput':
       if (m.on) agentInput.begin(m.sessionId, m.inputId); else agentInput.end(m.sessionId, m.inputId);
       return { type: 'done' };
@@ -219,6 +227,7 @@ const bringHumanToFront = () => {
 app.on('activate', bringHumanToFront);
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(process.platform, app.getName())));
   const shared = session.fromPartition(SHARED_PARTITION);
   // 사이트의 권한 요청(카메라·위치·알림 등)은 기본적으로 거부한다(spec 제약).
   shared.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));

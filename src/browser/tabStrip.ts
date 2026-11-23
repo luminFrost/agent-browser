@@ -16,6 +16,8 @@ interface Tab {
   contentsId: number;
   /** 마지막으로 불러오기에 실패한 주소. 오류 페이지를 보이는 동안 주소창에 쓴다 */
   failedUrl?: string;
+  /** 오류 페이지를 보이는 동안 탭 제목(차단됨 / 페이지를 열 수 없음) */
+  failedTitle?: string;
 }
 
 export interface TabStripOptions {
@@ -47,12 +49,13 @@ export interface TabStripOptions {
   onTabFocus?(view: WebContentsView): void;
 }
 
-/** 오류 페이지 문구. 앱이 막은 경우(관문 거부) 다른 문구를 쓴다 */
+/** 오류 페이지 문구와 탭 제목. 앱이 막은 경우(관문 거부) 다른 문구를 쓴다(탭 제목도 본문과 맞춘다, 카드 20261123-qa-followups Q4) */
 const ERR_BLOCKED_BY_CLIENT = -20;
+const FAILED_TITLE = '페이지를 열 수 없음';
 const describeFailure = (code: number, description: string) =>
   code === ERR_BLOCKED_BY_CLIENT
-    ? { heading: '차단되었습니다', error: '사람이 폼 제출을 거부했습니다' }
-    : { heading: '페이지를 열 수 없습니다', error: description };
+    ? { heading: '차단되었습니다', error: '사람이 폼 제출을 거부했습니다', title: '차단됨' }
+    : { heading: '페이지를 열 수 없습니다', error: description, title: FAILED_TITLE };
 
 let nextTabId = 1;
 
@@ -198,7 +201,7 @@ export class TabStrip {
     return {
       tabs: this.tabs.map((t) => ({
         id: t.id,
-        title: this.isErrorPage(t) ? '페이지를 열 수 없음' : t.view.webContents.getTitle(),
+        title: this.isErrorPage(t) ? (t.failedTitle ?? FAILED_TITLE) : t.view.webContents.getTitle(),
         url: this.displayUrl(t),
         loading: t.view.webContents.isLoading(),
       })),
@@ -269,12 +272,14 @@ export class TabStrip {
     wc.on('did-navigate', update);
     wc.on('did-navigate-in-page', update);
     wc.on('did-start-navigation', (details) => {
-      if (details.isMainFrame && !details.url.startsWith(ERROR_PAGE_URL)) tab.failedUrl = undefined;
+      if (details.isMainFrame && !details.url.startsWith(ERROR_PAGE_URL)) { tab.failedUrl = undefined; tab.failedTitle = undefined; }
     });
     wc.on('did-fail-load', (_e, code, description, validatedURL, isMainFrame) => {
       if (!isMainFrame || code === ERR_ABORTED || validatedURL.startsWith(ERROR_PAGE_URL)) return;
+      const failure = describeFailure(code, description);
       tab.failedUrl = validatedURL;
-      wc.loadFile(ERROR_PAGE, { query: { url: validatedURL, ...describeFailure(code, description) } }).catch(() => undefined);
+      tab.failedTitle = failure.title;
+      wc.loadFile(ERROR_PAGE, { query: { url: validatedURL, ...failure } }).catch(() => undefined);
       update();
     });
   }

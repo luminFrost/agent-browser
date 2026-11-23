@@ -154,3 +154,38 @@ test('P3: 따라 보기가 켜져 있으면 승인 요청이 온 세션을 왼�
   await new Promise((r) => setTimeout(r, 500));
   expect((await shown(app)).sessionId).toBe(a.id);
 });
+
+// 카드 20261123-qa-followups Q2 (DOC-03-UI UI-F2, 사람 결정 추천안): 답할 화면을 빼앗지 않는다. 새 요청은 승인 줄·알림으로 알린다
+test('Q2: 승인을 기다리는 A를 보는 중에 B가 새 승인 요청을 내도 화면은 A에 남고, 승인 줄은 둘 다 보인다', async () => {
+  await page.goto(`${server.base}/form`);
+  await setFollow(app, true);
+  const b = await createSession(app);
+  await waitFor(async () => (await shown(app)).sessionId === b.id, 'B를 보는 중');
+  await submit();
+  await waitFor(async () => (await shown(app)).sessionId === a.id, '승인 요청이 온 A를 보임');
+  const browserB = await chromium.connectOverCDP(b.browserUrl);
+  try {
+    const pageB = browserB.contexts()[0].pages()[0];
+    await pageB.goto(`${server.base}/a`);
+    await pageB.evaluate(() => { setTimeout(() => { location.href = '/file'; }, 0); });
+    await waitFor(async () => (await approvals(app)).length === 2, 'B의 다운로드 승인 요청');
+    await new Promise((r) => setTimeout(r, 500));
+    expect((await shown(app)).sessionId).toBe(a.id);
+    expect((await approvals(app)).map((x) => x.kind).sort()).toEqual(['download', 'form']);
+  } finally {
+    await browserB.close().catch(() => undefined);
+  }
+});
+
+// 카드 20261123-qa-followups Q4 (DOC-03-UI UI-F4): 차단 페이지의 탭 제목이 본문(차단되었습니다)과 맞는다
+test('Q4: 폼 제출을 거부해 생긴 차단 페이지의 탭 제목은 "차단됨"이다', async () => {
+  await page.goto(`${server.base}/form`);
+  await submit();
+  const [req] = await waitFor(async () => { const l = await approvals(app); return l.length ? l : undefined; }, '승인 요청');
+  await decide(app, req.id, 'deny');
+  await waitFor(async () => (await page.textContent('body').catch(() => ''))?.includes('차단') ?? false, '차단 오류 페이지');
+  const ui = (await humanUi(app)).targetId;
+  await evaluate(app, ui, `document.querySelector('#sessions .session[data-session-id="${a.id}"] .view').click()`);
+  await waitFor(async () => (await shown(app)).sessionId === a.id, 'A를 보는 중');
+  await waitFor(async () => (await evaluate<string[]>(app, ui, `[...document.querySelectorAll('#tabs .tab')].map(t => t.dataset.title)`)).includes('차단됨'), '탭 제목 차단됨');
+});
