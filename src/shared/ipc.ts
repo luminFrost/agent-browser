@@ -19,6 +19,8 @@ export type LauncherCommand =
   | { type: 'focus' }
   /** 승인 요청 알림 상태(시험·진단용, 카드 20261122-approval-attention) */
   | { type: 'attention' }
+  /** 앱 메뉴 항목의 역할(시험·진단용, 카드 20261123-qa-followups Q5) */
+  | { type: 'menu' }
   /** 시험용: 세션의 활성 탭에 사람 입력(OS 입력 경로: 마우스 누르기·떼기, 글자 하나)을 보낸다(카드 20261122-agent-input-lock) */
   | { type: 'simulateHumanInput'; sessionId: string; x: number; y: number; text: string };
 
@@ -38,6 +40,8 @@ export type BrowserReply =
   | { type: 'shownTab'; view: 'human' | 'session'; sessionId?: string; targetId?: string; exposed: Rect[]; content: { width: number; height: number }; focusedSession: string | null; focusedUi: boolean; windowFocused: boolean; offscreenFocusCount: number }
   /** badge: Dock 배지에 보인 기다리는 승인 수, notices: 띄운 승인 알림 수 */
   | { type: 'attention'; badge: number; notices: number; bounces: number; noticeFailures: number }
+  /** roles: 앱 메뉴 항목 역할(소문자) */
+  | { type: 'menu'; roles: string[] }
   | { type: 'sessionCreated'; sessionId: string; targetId: string }
   | { type: 'tabCreated'; targetId: string }
   | { type: 'done' }

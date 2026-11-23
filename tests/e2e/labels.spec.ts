@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { launch, humanUi, evaluate, shown, waitFor } from './helpers';
+import { LABEL_MAX } from '../../src/shared/label';
 import type { RunningApp } from '../../src/launcher/app';
 
 let app: RunningApp;
@@ -49,4 +50,12 @@ test('L5: ✎로 이름을 바꾼다(Enter 저장, Esc 취소), 패널이 다시
   await ui(`document.querySelector('${sel} input.label-edit').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
   await waitFor(async () => (await panel(a.id)).label === '결제 점검', 'Enter 저장(정리된 이름)');
   await waitFor(async () => (await listed()).some((s) => s.id === a.id && s.label === '결제 점검'), 'GET /sessions에 바뀐 이름');
+});
+
+// 카드 20261123-qa-followups Q1 (DOC-03-UI UI-F1): 입력칸이 받는 글자 수와 저장 한도가 같아야 친 이름이 말없이 잘리지 않는다
+test('Q1: 이름 입력칸의 최대 글자 수는 저장 한도(LABEL_MAX)와 같다', async () => {
+  const a = await make('이름');
+  await waitFor(async () => (await panel(a.id)).label === '이름', '패널');
+  await ui(`document.querySelector('#sessions .session[data-session-id="${a.id}"] .rename').click()`);
+  expect(await ui<number>(`document.querySelector('#sessions input.label-edit').maxLength`)).toBe(LABEL_MAX);
 });

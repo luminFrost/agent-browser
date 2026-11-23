@@ -328,7 +328,9 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
       humanFocus = win.webContents;
       setImmediate(() => { if (!win.isDestroyed()) win.webContents.focus(); }); // 키 이벤트 안에서 바로 옮기면 먹히지 않는다(ADR-0009 3-1)
     },
-    attention: (sessionId) => { if (follow && sessions.has(sessionId)) setViewing(sessionId); },
+    // 지금 보는 세션이 승인을 기다리면 다른 세션의 새 요청으로 화면을 옮기지 않는다(답할 화면을 빼앗지 않게, 카드 20261123-qa-followups Q2).
+    // 새 요청은 승인 줄·알림·Dock으로 알린다
+    attention: (sessionId) => { if (follow && sessions.has(sessionId) && (viewing === sessionId || !holdForApproval())) setViewing(sessionId); },
     showSession: (sessionId) => { if (sessions.has(sessionId)) setViewing(sessionId); },
   };
 }

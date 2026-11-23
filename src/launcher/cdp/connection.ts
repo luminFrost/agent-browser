@@ -151,6 +151,15 @@ export class Connection {
     if (this.router.ownerOf(req.sessionId as string) !== this) return this.refuse(req, '이 연결의 세션이 아니다');
     const reason = sessionLevelBlockReason(req.method, req.params);
     if (reason) return this.refuse(req, reason);
+    if (req.method === 'Page.bringToFront') {
+      // 앱 안의 탭 묶음은 Chromium의 탭 전환을 모른다. 그 탭을 세션의 활성 탭으로 먼저 바꿔, 사람이 보는 화면·따라 보기·패널이
+      // 에이전트가 고른 탭을 가리키게 한다(chrome-devtools-mcp select_page, 카드 20261123-qa-followups Q3). 원래 명령은 그대로 넘긴다
+      const target = this.router.targetOfSession(req.sessionId as string);
+      if (target && this.scope.owns(target)) {
+        return this.scope.actions.activateTab(target).catch(() => undefined).then(() => { if (!this.closed) this.router.forward(this, req); });
+      }
+      return this.router.forward(this, req);
+    }
     const notify = this.scope.actions.agentInput?.bind(this.scope.actions);
     if (!req.method.startsWith('Input.') || !notify) return this.router.forward(this, req);
     // 에이전트 입력: 브라우저가 이 세션 탭의 마우스를 통과시킨 뒤 보내고, 응답이 오면 다시 막게 한다(카드 20261122-agent-input-lock)

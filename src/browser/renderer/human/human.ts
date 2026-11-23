@@ -91,6 +91,8 @@ interface Window {
    * 고치는 중인 세션과 글자를 따로 쥐고, 다시 그린 뒤 입력칸과 커서를 되살린다
    */
   let editing: { sessionId: string; value: string } | null = null;
+  /** 세션 이름 최대 글자 수. src/shared/label.ts의 LABEL_MAX와 같아야 한다(저장할 때 이 길이로 자른다, labels.spec Q1) */
+  const LABEL_MAX = 40;
   let lastSessions: { sessions: HumanSessionView[]; viewing: string | null; follow: boolean } | null = null;
   const renderSessions = () => {
     if (!lastSessions) return;
@@ -110,7 +112,7 @@ interface Window {
         const input = document.createElement('input');
         input.className = 'label-edit';
         input.value = editing.value;
-        input.maxLength = 80;
+        input.maxLength = LABEL_MAX;
         input.setAttribute('aria-label', '세션 이름');
         input.addEventListener('input', () => { if (editing) editing.value = input.value; });
         input.addEventListener('keydown', (e) => {

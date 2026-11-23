@@ -3,6 +3,8 @@
   const q = new URLSearchParams(location.search);
   const heading = q.get('heading');
   if (heading) (document.getElementById('heading') as HTMLElement).textContent = heading;
+  const title = q.get('title');
+  if (title) document.title = title;
   (document.getElementById('url') as HTMLElement).textContent = q.get('url') ?? '';
   (document.getElementById('reason') as HTMLElement).textContent = q.get('error') ?? '';
 }

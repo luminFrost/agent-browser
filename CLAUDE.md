@@ -19,7 +19,9 @@
 
 # 확인 명령
 - 설치: `npm install`
-- 테스트 전체: `npm test` (build → Vitest 단위 → Playwright E2E)
+- 테스트 전체: `npm test` (build → Vitest 단위 → Playwright E2E, 단위가 실패해도 E2E까지 돌고 하나라도 실패하면 실패)
+- E2E만: `npm run test:e2e` (build → Playwright E2E)
+- OS별: macOS에서는 `npm test`가 모두 통과해야 한다. Linux에서는 macOS 전용 단위가 실패하는 것이 정상이다: 설치 스크립트 8건, 기본 프로필 경로 1건, 그리고 파일 시각이 거친 파일 시스템에서 자물쇠 신호 받음 1건(통과할 때도 있다). 그 밖의 단위와 E2E가 통과하면 된다(CI도 Linux는 E2E, macOS는 단위로 나눠 돈다)
 - 테스트 하나: `npx vitest run <파일>` / `npm run build && npx playwright test <파일> -g <이름>`
 - 타입/린트: `npm run lint`
 - Mac 앱 묶기: `npm run dist` → `release/Agent-Browser-<버전>-arm64.dmg` / 묶은 앱 확인: `npm run test:dist` (실제 창을 띄운다)

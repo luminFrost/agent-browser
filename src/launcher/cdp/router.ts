@@ -25,6 +25,8 @@ export class Router {
   private nextId = 1;
   private readonly pending = new Map<number, Pending>();
   private readonly sessionOwners = new Map<string, Connection>();
+  /** CDP sessionId → 그 세션이 붙은 대상(targetId). Page.bringToFront를 활성 탭 바꾸기로 잇는 데 쓴다(카드 20261123-qa-followups Q3) */
+  private readonly sessionTargets = new Map<string, string>();
   /** attach 응답·이벤트보다 먼저 온 attach 요청들(targetId별, 먼저 온 순서) */
   private readonly pendingAttach = new Map<string, Connection[]>();
   readonly targetInfos = new Map<string, TargetInfo>();
@@ -165,10 +167,14 @@ export class Router {
 
   ownerOf(sessionId: string): Connection | undefined { return this.sessionOwners.get(sessionId); }
 
+  /** CDP 세션이 붙은 대상의 targetId */
+  targetOfSession(sessionId: string): string | undefined { return this.sessionTargets.get(sessionId); }
+
   /** 연결이 끊겼다: 그 연결의 세션을 떼고 기록을 지운다 */
   release(conn: Connection): void {
     for (const sessionId of conn.sessions) {
       this.sessionOwners.delete(sessionId);
+      this.sessionTargets.delete(sessionId);
       this.pipe.send('Target.detachFromTarget', { sessionId }).catch(() => undefined);
     }
     conn.sessions.clear();
@@ -205,6 +211,7 @@ export class Router {
     this.pending.delete(m.id as number);
     // attach 응답: 이벤트가 먼저 와서 주인이 정해지지 않았다면 여기서 정한다
     const attached = m.result?.sessionId;
+    if (typeof attached === 'string' && p.attachTarget) this.sessionTargets.set(attached, p.attachTarget);
     if (typeof attached === 'string' && !this.sessionOwners.has(attached)) {
       if (p.attachTarget) this.takeAttach(p.attachTarget, p.conn); // 이 요청의 대기 항목만 지운다
       this.own(attached, p.conn);
@@ -227,9 +234,14 @@ export class Router {
     const owner = this.sessionOwners.get(m.sessionId as string);
     if (!owner) return;
     // 자식 세션(iframe·worker)은 부모 세션의 주인 것이다
-    if (m.method === 'Target.attachedToTarget' && typeof m.params?.sessionId === 'string') this.own(m.params.sessionId, owner);
+    if (m.method === 'Target.attachedToTarget' && typeof m.params?.sessionId === 'string') {
+      this.own(m.params.sessionId, owner);
+      const child = (m.params.targetInfo as TargetInfo | undefined)?.targetId;
+      if (child) this.sessionTargets.set(m.params.sessionId, child);
+    }
     if (m.method === 'Target.detachedFromTarget' && typeof m.params?.sessionId === 'string') {
       this.sessionOwners.delete(m.params.sessionId);
+      this.sessionTargets.delete(m.params.sessionId);
       owner.sessions.delete(m.params.sessionId);
     }
     owner.deliverEvent(m);
@@ -254,6 +266,7 @@ export class Router {
       case 'Target.attachedToTarget': {
         const sessionId = params.sessionId as string;
         const targetId = (params.targetInfo as TargetInfo).targetId;
+        this.sessionTargets.set(sessionId, targetId);
         let owner = this.sessionOwners.get(sessionId);
         if (!owner) {
           owner = this.takeAttach(targetId);
@@ -266,6 +279,7 @@ export class Router {
         const sessionId = params.sessionId as string;
         const owner = this.sessionOwners.get(sessionId);
         this.sessionOwners.delete(sessionId);
+        this.sessionTargets.delete(sessionId);
         owner?.sessions.delete(sessionId);
         owner?.deliverEvent(m);
         return;
