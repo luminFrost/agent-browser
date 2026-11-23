@@ -8,13 +8,13 @@ const ROOT = resolve(__dirname, '..');
 const read = (...p: string[]) => readFileSync(join(ROOT, ...p), 'utf8');
 const pkg = JSON.parse(read('package.json')) as { version: string; build: { dmg: { artifactName: string } } };
 const lock = JSON.parse(read('package-lock.json')) as { version: string; packages: { '': { version: string } } };
-const CHECK = join('docs', 'verify', '20261123-company-pc-check-0.2.4.md');
+const CHECK = join('docs', 'verify', '20261123-company-pc-check-0.2.5.md');
 const check = read(CHECK);
 const ui = read('src', 'browser', 'renderer', 'human', 'index.html') + read('src', 'browser', 'renderer', 'human', 'human.ts');
 
 describe('회사 PC 확인표 (R1~R4)', () => {
   it('R1 package.json과 lock의 버전이 같고, 확인표가 그 버전을 확인한다', () => {
-    expect(pkg.version).toBe('0.2.4');
+    expect(pkg.version).toBe('0.2.5');
     expect(lock.version).toBe(pkg.version);
     expect(lock.packages[''].version).toBe(pkg.version);
     expect(check).toContain(`\`${pkg.version}\``);
@@ -45,6 +45,6 @@ describe('회사 PC 확인표 (R1~R4)', () => {
 
   it('R4 README와 setup.md가 확인표를 가리킨다', () => {
     expect(read('README.md')).toContain(CHECK.replaceAll('\\', '/'));
-    expect(read('docs', 'setup.md')).toContain('verify/20261123-company-pc-check-0.2.4.md');
+    expect(read('docs', 'setup.md')).toContain('verify/20261123-company-pc-check-0.2.5.md');
   });
 });

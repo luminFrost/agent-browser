@@ -33,7 +33,7 @@ test('T1: 처음엔 기기 모드이고, 패널·메뉴에서 고르면 바로 �
   expect(await selected()).toBe('system');
   expect(await theme()).toMatchObject({ source: 'system', menuChecked: 'system' });
   expect([...await ui<string[]>(`[...document.querySelectorAll('#theme option')].map(o => o.value + ':' + o.textContent)`)])
-    .toEqual(['system:기기', 'light:밝게', 'dark:어둡게']);
+    .toEqual(['system:시스템 설정', 'light:라이트', 'dark:다크']);
 
   await pick('dark');
   await waitFor(async () => (await theme()).source === 'dark', '패널에서 어둡게');
@@ -50,6 +50,25 @@ test('T1: 처음엔 기기 모드이고, 패널·메뉴에서 고르면 바로 �
   app = await launch({ userDataDir: profile });
   expect(await selected()).toBe('light');
   expect(await theme()).toMatchObject({ source: 'light', menuChecked: 'light' });
+});
+
+test('H1: 테마 선택은 주소창 줄 오른쪽 끝의 버튼(30×30 이상, 지금 모드 아이콘)이고 패널에는 없다', async () => {
+  app = await launch();
+  const box = await ui<{ inNav: boolean; inPanel: boolean; last: boolean; w: number; h: number; selW: number; selH: number; title: string }>(`(() => {
+    const b = document.querySelector('#theme-button'); const s = document.querySelector('#theme');
+    const r = b.getBoundingClientRect(); const q = s.getBoundingClientRect(); const nav = document.querySelector('#nav');
+    const items = [...nav.children].filter((e) => !e.hidden && getComputedStyle(e).display !== 'none');
+    return { inNav: nav.contains(s), inPanel: document.querySelector('#panel').contains(s), last: items[items.length - 1] === b,
+      w: r.width, h: r.height, selW: q.width, selH: q.height, title: b.title };
+  })()`);
+  expect(box).toMatchObject({ inNav: true, inPanel: false, last: true, title: '테마' });
+  expect(box.w).toBeGreaterThanOrEqual(30); expect(box.h).toBeGreaterThanOrEqual(30);
+  // 누르는 자리 전체가 선택 목록(OS 목록이 열린다)
+  expect(box.selW).toBeGreaterThanOrEqual(box.w - 1); expect(box.selH).toBeGreaterThanOrEqual(box.h - 1);
+  const icon = () => ui<string>(`document.querySelector('#theme-button .icon').textContent`);
+  expect(await icon()).toBe('◐');
+  await pick('dark'); await waitFor(async () => (await icon()) === '☾', '다크 아이콘');
+  await pick('light'); await waitFor(async () => (await icon()) === '☀', '라이트 아이콘');
 });
 
 test('T2: 어둡게면 사람 창이 Chrome 어두운 색이고 웹 페이지도 dark를 받는다. 밝게면 지금 밝은 모양 그대로다', async () => {

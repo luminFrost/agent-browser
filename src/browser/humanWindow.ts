@@ -61,7 +61,7 @@ export interface HumanWindow {
   tabFocused(view: WebContentsView): void;
   /** 키보드 포커스를 창 UI로 돌린다(에이전트 탭이 사람 키를 막았을 때) */
   focusUi(): void;
-  /** 패널의 "모양" 선택에 지금 화면 모드를 보인다(카드 20261123-theme-mode) */
+  /** 주소창 줄 테마 버튼에 지금 화면 모드를 보인다(카드 20261123-theme-mode) */
   showTheme(mode: ThemeMode): void;
   /** 패널 맨 위 업데이트 줄(카드 20261123-update-notice) */
   showUpdate(state: UpdateState): void;
