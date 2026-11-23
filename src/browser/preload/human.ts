@@ -16,6 +16,10 @@ if (isHumanUi) contextBridge.exposeInMainWorld('humanApi', {
   onApprovals: (listener: (a: ApprovalView[]) => void) => {
     ipcRenderer.on('human:approvals', (_e, a: ApprovalView[]) => listener(a));
   },
+  /** 앱 안 업데이트 상태(카드 20261123-update-notice) */
+  onUpdate: (listener: (s: { state: string; version?: string; reason?: string }) => void) => {
+    ipcRenderer.on('human:update', (_e, s: { state: string; version?: string; reason?: string }) => listener(s));
+  },
   /** 지금 화면 모드(카드 20261123-theme-mode) */
   onTheme: (listener: (mode: string) => void) => {
     ipcRenderer.on('human:theme', (_e, mode: string) => listener(mode));

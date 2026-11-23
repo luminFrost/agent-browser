@@ -21,6 +21,11 @@
   </form>
   <p id="view-empty" hidden>이 세션에 열린 탭이 없습니다</p>
   <aside id="panel" aria-label="에이전트 세션">
+    <section id="update" hidden aria-live="polite">
+      <div class="what"><span id="update-text"></span></div>
+      <div class="note" id="update-note">누르면 앱이 다시 켜진다. 에이전트 세션은 끊기니 Claude Code에서 /mcp로 다시 연결한다</div>
+      <button id="update-install">업데이트</button>
+    </section>
     <section id="approvals-section" hidden>
       <h2>승인 요청</h2>
       <ul id="approvals"></ul>

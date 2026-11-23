@@ -9,6 +9,7 @@ import { ApprovalQueue, approvalNotice, approvalTimeoutMs } from './gate/approva
 import { AgentInputGate, AGENT_INPUT_GRACE_MS } from './agentInput';
 import { installFormGate } from './gate/formGate';
 import { installDownloadGate } from './gate/downloadGate';
+import { startUpdater, type Updater } from './updater';
 import { join } from 'node:path';
 import type { BrowserReply, LauncherToBrowser, WindowInfo } from '../shared/ipc';
 
@@ -25,6 +26,8 @@ const showWindows = !process.argv.includes(HIDDEN_FLAG);
 
 const send = (m: BrowserReply, rid?: number) => process.send?.({ ...m, rid });
 let human: HumanWindow | undefined;
+/** 앱 안 업데이트(카드 20261123-update-notice). 사람 창이 생긴 뒤 시작한다 */
+let updater: Updater | undefined;
 const agents = new Map<string, AgentSession>();
 /**
  * 승인 요청(R12·R13). 새 요청이 오면 알리고(알림·Dock 배지), 따라 보기가 켜져 있으면 그 세션을 보인다.
@@ -142,6 +145,10 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
       const menu = Menu.getApplicationMenu();
       const menuChecked = THEME_MODES.find((mode) => menu?.getMenuItemById(themeMenuId(mode))?.checked) ?? null;
       return { type: 'theme', source: nativeTheme.themeSource, dark: nativeTheme.shouldUseDarkColors, menuChecked };
+    }
+    case 'update': {
+      const s = updater?.state() ?? { state: 'none' };
+      return { type: 'update', ...s };
     }
     case 'clickMenu': {
       const item = Menu.getApplicationMenu()?.getMenuItemById(m.id);
@@ -282,11 +289,16 @@ app.whenReady().then(() => {
       refreshPanel();
     },
     setTheme,
+    installUpdate: () => updater?.install(),
   }, {
     initial: readSettings(app.getPath('userData')).followAgents,
     save: (on) => writeSettings(app.getPath('userData'), { ...readSettings(app.getPath('userData')), followAgents: on }),
   });
   human.showTheme(theme);
+  // 업데이트를 누르면 설치 스크립트를 띄운 뒤 끝난다. 끝내기 전에 쿠키를 디스크에 쓴다(quit 명령과 같다)
+  updater = startUpdater((s) => human?.showUpdate(s), () => {
+    void session.fromPartition(SHARED_PARTITION).cookies.flushStore().catch(() => undefined).then(() => app.quit());
+  });
   human.win.on('closed', () => {
     human = undefined;
     app.quit();
