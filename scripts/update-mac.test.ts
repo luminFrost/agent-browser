@@ -44,8 +44,10 @@ describe('update-mac.sh (U3)', () => {
 
   it('앱이 아직 돌면 끝날 때까지 기다린다', () => {
     const s = setup();
-    const sleeper = execFileSync('bash', ['-c', 'sleep 1.5 & echo $!'], { encoding: 'utf8' }).trim();
+    // 앱 대신 1.5초 사는 프로세스. 입출력을 끊어 두어야 execFileSync가 기다리지 않고, bash가 끝나 고아가 되어야 좀비로 남지 않는다
     const t0 = Date.now();
+    const sleeper = execFileSync('bash', ['-c', 'sleep 1.5 </dev/null >/dev/null 2>&1 & echo $!'], { encoding: 'utf8' }).trim();
+    expect(Date.now() - t0).toBeLessThan(1000);
     const r = run(s, Number(sleeper));
     expect(r.status, r.stderr).toBe(0);
     expect(Date.now() - t0).toBeGreaterThanOrEqual(1000);
