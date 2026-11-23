@@ -1,9 +1,9 @@
 import type { MenuItemConstructorOptions } from 'electron';
 import { THEME_MODES, type ThemeMode } from './settings';
 
-/** 화면 모드 이름(카드 20261123-theme-mode). 패널의 "모양" 선택과 같은 글자 */
-export const THEME_LABELS: Record<ThemeMode, string> = { system: '기기', light: '밝게', dark: '어둡게' };
-/** 메뉴 "보기 > 모양"의 모드 항목 id */
+/** 화면 모드 이름(카드 20261123-theme-mode). 주소창 줄 테마 버튼(선택 목록)과 같은 글자 */
+export const THEME_LABELS: Record<ThemeMode, string> = { system: '시스템 설정', light: '라이트', dark: '다크' };
+/** 메뉴 "보기 > 테마"의 모드 항목 id */
 export const themeMenuId = (mode: ThemeMode) => `theme-${mode}`;
 
 /** 메뉴의 화면 모드: 지금 값과 고를 때 부를 곳 */
@@ -21,7 +21,7 @@ export function appMenuTemplate(platform: NodeJS.Platform, appName: string, them
   const view: MenuItemConstructorOptions = {
     label: '보기',
     submenu: [{
-      label: '모양',
+      label: '테마',
       submenu: THEME_MODES.map((mode) => ({
         id: themeMenuId(mode), label: THEME_LABELS[mode], type: 'radio' as const, checked: theme.current === mode, click: () => theme.pick(mode),
       })),

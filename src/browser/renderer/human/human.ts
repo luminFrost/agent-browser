@@ -91,7 +91,11 @@ interface Window {
   // 화면 모드(카드 20261123-theme-mode). 값은 main이 가지고 남기며, 메뉴에서 바꿔도 여기로 온다
   const themeEl = byId<HTMLSelectElement>('theme');
   themeEl.addEventListener('change', () => api.command({ cmd: 'theme', mode: themeEl.value }));
-  api.onTheme((mode) => { themeEl.value = mode; });
+  const themeIcon = document.querySelector<HTMLElement>('#theme-button .icon');
+  const THEME_ICONS: Record<string, string> = { system: '◐', light: '☀', dark: '☾' };
+  const showThemeIcon = () => { if (themeIcon) themeIcon.textContent = THEME_ICONS[themeEl.value] ?? THEME_ICONS.system; };
+  themeEl.addEventListener('change', showThemeIcon);
+  api.onTheme((mode) => { themeEl.value = mode; showThemeIcon(); });
   // 앱 안 업데이트(카드 20261123-update-notice). 새 버전이 있을 때만 패널 맨 위에 보인다
   const updateEl = byId<HTMLElement>('update');
   const updateText = byId<HTMLElement>('update-text');

@@ -21,9 +21,9 @@ describe('앱 안 업데이트 문서 (U4)', () => {
   it('setup.md가 앱 안 업데이트를 가리킨다', () => {
     expect(read('docs', 'setup.md')).toContain('ADR-0010');
   });
-  it('회사 PC 확인표 v0.2.4에 12장(화면 모드·업데이트)이 있다', () => {
-    const check = read('docs', 'verify', '20261123-company-pc-check-0.2.4.md');
-    expect(check).toMatch(/^## 12\. v0\.2\.4에서 바뀐 것/m);
+  it('회사 PC 확인표 v0.2.5에 12장(테마·업데이트)이 있다', () => {
+    const check = read('docs', 'verify', '20261123-company-pc-check-0.2.5.md');
+    expect(check).toMatch(/^## 12\. v0\.2\.4·v0\.2\.5에서 바뀐 것/m);
     for (const id of ['12-1', '12-4', '12-5', '12-6']) expect(check).toMatch(new RegExp(`^\\| ${id} \\|`, 'm'));
   });
 });
