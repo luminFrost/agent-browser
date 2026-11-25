@@ -20,6 +20,10 @@ if (isHumanUi) contextBridge.exposeInMainWorld('humanApi', {
   onUpdate: (listener: (s: { state: string; version?: string; reason?: string }) => void) => {
     ipcRenderer.on('human:update', (_e, s: { state: string; version?: string; reason?: string }) => listener(s));
   },
+  /** ⌘L·새 탭: 주소창에 커서(카드 20261125-tab-usability) */
+  onFocusAddress: (listener: () => void) => {
+    ipcRenderer.on('human:focusAddress', () => listener());
+  },
   /** 지금 화면 모드(카드 20261123-theme-mode) */
   onTheme: (listener: (mode: string) => void) => {
     ipcRenderer.on('human:theme', (_e, mode: string) => listener(mode));

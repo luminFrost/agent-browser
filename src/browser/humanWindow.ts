@@ -10,12 +10,13 @@ import type { ContentArea } from './agentSession';
 import type { Rect } from '../shared/ipc';
 import { isThemeMode, type ThemeMode } from './settings';
 import type { UpdateState } from './update';
+import type { TabAction } from './appMenu';
 
 /** 어두운 모드 탭 막대 색(Chrome Google Grey 900). human.css의 --frame 어두운 값과 같다 */
 export const DARK_FRAME_COLOR = '#202124';
 
 /** 주소창 + 탭 막대 높이(px). renderer/human/human.css의 --toolbar-height와 같아야 한다 */
-const TOOLBAR_HEIGHT = 76;
+const TOOLBAR_HEIGHT = 84;
 /** 지켜보기 패널 너비(px). renderer/human/human.css의 --panel-width와 같아야 한다 */
 const PANEL_WIDTH = 280;
 /** 탭 내용이 들어가는 자리. 사람 탭과 세션 탭이 같은 자리를 쓴다 */
@@ -63,6 +64,8 @@ export interface HumanWindow {
   focusUi(): void;
   /** 주소창 줄 테마 버튼에 지금 화면 모드를 보인다(카드 20261123-theme-mode) */
   showTheme(mode: ThemeMode): void;
+  /** 메뉴·단축키의 탭 동작(카드 20261125-tab-usability K2) */
+  runTab(action: TabAction): void;
   /** 패널 맨 위 업데이트 줄(카드 20261123-update-notice) */
   showUpdate(state: UpdateState): void;
 }
@@ -276,12 +279,39 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
       case 'back': return tabs.back();
       case 'forward': return tabs.forward();
       case 'reload': return tabs.reload();
-      case 'newTab': return void tabs.newTab();
+      case 'newTab': return runTab('newTab'); // 새 탭이면 주소창에 커서(⌘T와 같다)
       case 'activate': return tabs.activate(c.id);
       case 'close': return tabs.close(c.id);
     }
   };
   ipcMain.on('human:command', onCommand);
+  /** 주소창에 커서를 두고 글자를 모두 고른다(⌘L, 새 탭) */
+  const focusAddress = () => {
+    if (win.isDestroyed()) return;
+    win.webContents.focus();
+    win.webContents.send('human:focusAddress');
+  };
+  const runTab = (a: TabAction) => {
+    // 새 탭·닫은 탭 다시 열기는 세션을 보는 중이어도 내 탭으로 돌아와서 한다(Chrome에서 새 탭은 언제나 된다)
+    if (a === 'newTab' || a === 'reopenTab') {
+      if (viewing !== null) { setFollow(false); setViewing(null); }
+      if (a === 'newTab') { tabs.newTab(); focusAddress(); } else tabs.reopenClosed();
+      return;
+    }
+    if (a === 'focusAddress') return focusAddress();
+    // 세션을 보는 중에는 읽기 전용이다(E3): 나머지 탭 동작은 내 탭에도 그 세션에도 하지 않는다
+    if (viewing !== null) return;
+    if (typeof a === 'object') return tabs.activateNth(a.selectTab);
+    switch (a) {
+      case 'duplicateTab': return void tabs.duplicate();
+      case 'closeTab': { const id = tabs.state().activeId; return id === null ? undefined : tabs.close(id); }
+      case 'reload': return tabs.reload();
+      case 'back': return tabs.back();
+      case 'forward': return tabs.forward();
+      case 'nextTab': return tabs.activateRelative(1);
+      case 'prevTab': return tabs.activateRelative(-1);
+    }
+  };
   const showSessions = (list: SessionView[]) => {
     lastSessions = list;
     sendSessions();
@@ -322,6 +352,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     showApprovals,
     showTheme,
     showUpdate,
+    runTab,
     addSession: (sessionId, strip) => {
       sessions.set(sessionId, strip);
       lastMove.set(sessionId, moveOf(strip));
