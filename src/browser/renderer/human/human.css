@@ -1,4 +1,4 @@
-:root { --toolbar-height: 84px; --panel-width: 280px; color-scheme: light dark; font: 13px -apple-system, system-ui, sans-serif; }
+:root { --toolbar-height: 114px; --panel-width: 280px; color-scheme: light dark; font: 13px -apple-system, system-ui, sans-serif; }
 
 /*
  * 화면 모드 색(카드 20261123-theme-mode). 모드는 main이 nativeTheme.themeSource로 정하고 여기서는 prefers-color-scheme으로 받는다.
@@ -60,7 +60,7 @@
 }
 
 body { margin: 0; height: 100vh; overflow: hidden; background: var(--bg); color: var(--text); }
-#tabbar, #nav { margin-right: var(--panel-width); }
+#tabbar, #nav, #bookmarks { margin-right: var(--panel-width); }
 #tabbar { display: flex; align-items: flex-end; gap: 2px; height: 40px; padding: 0 8px; background: var(--frame); }
 #tabs { display: flex; gap: 2px; min-width: 0; }
 /* 탭 크기(카드 20261125-tab-usability K1: 사람 후기 "탭·글자가 작다") */
@@ -92,6 +92,17 @@ body.viewing .tab .close { display: none; }
 #panel .sessions-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 #panel .follow { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap; }
 /* 테마 버튼(카드 20261123-theme-toolbar): 주소창 줄 오른쪽 끝. 투명한 선택 목록이 버튼 전체를 덮어 누르면 OS 목록이 열린다 */
+/* 북마크(카드 20261125-bookmarks). 막대는 늘 보인다(높이가 바뀌면 탭 배치가 흔들린다) */
+#nav #bookmark-star { flex: none; width: 32px; height: 32px; font-size: 19px; }
+#nav #bookmark-star[aria-pressed="true"] { color: var(--session); }
+#bookmarks { display: flex; align-items: center; gap: 2px; height: 30px; box-sizing: border-box; padding: 0 8px; overflow: hidden; border-bottom: 1px solid var(--line); background: var(--toolbar); }
+#bookmarks .bookmark { flex: none; max-width: 180px; height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; }
+#bookmarks .bookmark:hover { background: var(--line); }
+#bookmarks .bookmark.folder::before { content: '▸ '; opacity: .6; }
+#bookmarks-empty { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#bookmarks-empty[hidden] { display: none; }
+#toast { margin-bottom: 14px; padding: 8px; border-radius: 6px; background: var(--session-tint); border: 1px solid var(--session); color: var(--session); font-weight: 600; }
+#toast[hidden] { display: none; }
 #theme-button { position: relative; flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 6px; font-size: 18px; line-height: 1; cursor: pointer; }
 #theme-button:hover { background: var(--line); }
 #theme-button select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 14px; }

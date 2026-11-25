@@ -1,5 +1,5 @@
-import { app, BrowserWindow, Menu, nativeTheme, Notification, session, type MenuItem } from 'electron';
-import { appMenuTemplate, themeMenuId } from './appMenu';
+import { app, BrowserWindow, Menu, nativeTheme, Notification, session, type MenuItem, type MenuItemConstructorOptions } from 'electron';
+import { appMenuTemplate, bookmarkMenuItems, themeMenuId } from './appMenu';
 import { readSettings, writeSettings, THEME_MODES, type ThemeMode } from './settings';
 import { cleanLabel } from '../shared/label';
 import { CONTENT_AREA, createHumanWindow, type HumanWindow } from './humanWindow';
@@ -11,6 +11,11 @@ import { installFormGate } from './gate/formGate';
 import { installDownloadGate } from './gate/downloadGate';
 import { startUpdater, type Updater } from './updater';
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import {
+  addBookmark, chromeBookmarksPath, findById, findByUrl, importChrome, isFolder, readBookmarks, removeBookmark, writeBookmarks, type BookmarkNode,
+} from './bookmarks';
 import type { BrowserReply, LauncherToBrowser, WindowInfo } from '../shared/ipc';
 
 const QUARANTINE_DIR_NAME = 'quarantine';
@@ -105,11 +110,63 @@ const agentOf = (sessionId: string): AgentSession => {
  * 함께 정한다(Chrome의 기기·밝게·어둡게와 같다). 메뉴의 체크와 패널 선택을 같은 값으로 다시 그린다
  */
 let theme: ThemeMode = 'system';
+/** 북마크(카드 20261125-bookmarks). 사람 창이 생기기 전에 프로필에서 읽는다 */
+let bookmarks: BookmarkNode[] = [];
+/** 메뉴 막대를 다시 만든다(화면 모드·북마크 목록이 바뀔 때) */
+const rebuildMenu = () => {
+  Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(
+    process.platform, app.getName(), { current: theme, pick: setTheme }, { check: () => updater?.check() },
+    { run: (a) => (a === 'toggleBookmark' ? toggleBookmark() : a === 'importChromeBookmarks' ? importChromeBookmarks() : human?.runTab(a)) },
+    { nodes: bookmarks, open: (id) => openBookmark(id, false) },
+  )));
+};
 const applyTheme = (mode: ThemeMode) => {
   theme = mode;
   nativeTheme.themeSource = mode;
-  Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(process.platform, app.getName(), { current: mode, pick: setTheme }, { check: () => updater?.check() }, { run: (a) => human?.runTab(a) })));
+  rebuildMenu();
   human?.showTheme(mode);
+};
+/** 북마크를 바꾸고 남긴다. 메뉴·막대를 다시 그린다 */
+const setBookmarks = (nodes: BookmarkNode[]) => {
+  bookmarks = nodes;
+  writeBookmarks(app.getPath('userData'), nodes);
+  rebuildMenu();
+  human?.showBookmarks(nodes);
+};
+/** 지금 보는 내 탭을 북마크하거나, 이미 있으면 지운다(별표·⌘D) */
+const toggleBookmark = () => {
+  const page = human?.activePage();
+  if (!page) return;
+  const hit = findByUrl(bookmarks, page.url);
+  setBookmarks(hit ? removeBookmark(bookmarks, hit.id) : addBookmark(bookmarks, page));
+};
+const openBookmark = (id: string, newTab: boolean) => {
+  const b = findById(bookmarks, id);
+  if (b && !isFolder(b)) human?.openUrl(b.url, newTab);
+};
+/** 북마크 막대의 폴더를 누르거나 항목을 오른쪽 클릭했다: 그 자리에 메뉴를 띄운다 */
+const bookmarkPopup = (id: string, x: number, y: number) => {
+  const b = findById(bookmarks, id);
+  if (!b || !human) return;
+  const remove = () => setBookmarks(removeBookmark(bookmarks, id));
+  const items: MenuItemConstructorOptions[] = isFolder(b)
+    ? [...bookmarkMenuItems(b.children, (child) => openBookmark(child, false)), { type: 'separator' }, { label: '폴더 삭제', click: remove }]
+    : [{ label: '열기', click: () => openBookmark(id, false) }, { label: '새 탭에서 열기', click: () => openBookmark(id, true) }, { type: 'separator' }, { label: '삭제', click: remove }];
+  Menu.buildFromTemplate(items).popup({ window: human.win, x: Math.round(x), y: Math.round(y) });
+};
+/** Chrome 마지막 사용 프로필의 북마크를 가져온다. 결과는 패널 알림으로 */
+const importChromeBookmarks = () => {
+  const file = process.env.AGENT_BROWSER_CHROME_BOOKMARKS ?? chromeBookmarksPath(process.platform, homedir());
+  let chrome: unknown;
+  try {
+    chrome = JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    human?.toast('Chrome 북마크를 찾지 못했습니다');
+    return;
+  }
+  const r = importChrome(chrome, bookmarks);
+  if (r.added > 0) setBookmarks(r.nodes);
+  human?.toast(`${r.added}개를 가져왔습니다`);
 };
 /** 사람이 패널이나 메뉴에서 모드를 골랐다. 바로 바꾸고 settings.json에 남긴다 */
 const setTheme = (mode: ThemeMode) => {
@@ -264,6 +321,7 @@ const bringHumanToFront = () => {
 app.on('activate', bringHumanToFront);
 
 app.whenReady().then(() => {
+  bookmarks = readBookmarks(app.getPath('userData'));
   applyTheme(readSettings(app.getPath('userData')).theme);
   const shared = session.fromPartition(SHARED_PARTITION);
   // 사이트의 권한 요청(카메라·위치·알림 등)은 기본적으로 거부한다(spec 제약).
@@ -290,11 +348,15 @@ app.whenReady().then(() => {
     },
     setTheme,
     installUpdate: () => updater?.install(),
+    toggleBookmark,
+    openBookmark,
+    bookmarkPopup,
   }, {
     initial: readSettings(app.getPath('userData')).followAgents,
     save: (on) => writeSettings(app.getPath('userData'), { ...readSettings(app.getPath('userData')), followAgents: on }),
   });
   human.showTheme(theme);
+  human.showBookmarks(bookmarks);
   // 업데이트를 누르면 설치 스크립트를 띄운 뒤 끝난다. 끝내기 전에 쿠키를 디스크에 쓴다(quit 명령과 같다)
   updater = startUpdater(readSettings(app.getPath('userData')).updateCheck, (s) => human?.showUpdate(s), () => {
     void session.fromPartition(SHARED_PARTITION).cookies.flushStore().catch(() => undefined).then(() => app.quit());

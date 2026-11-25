@@ -27,14 +27,14 @@ test('K1: 탭 32px 이상·글자 14px, + 버튼 28×28 이상, 주소창 14px, 
     const r = (sel) => document.querySelector(sel).getBoundingClientRect();
     return { tabH: r('#tabs .tab').height, tabFont: getComputedStyle(document.querySelector('#tabs .tab .title')).fontSize,
       plusW: r('#new-tab').width, plusH: r('#new-tab').height, addrFont: getComputedStyle(document.querySelector('#address')).fontSize,
-      head: document.querySelector('#tabbar').offsetHeight + document.querySelector('#nav').offsetHeight, winH: innerHeight };
+      head: ['#tabbar', '#nav', '#bookmarks'].reduce((h, s) => h + (document.querySelector(s)?.offsetHeight ?? 0), 0), winH: innerHeight };
   })()`);
   expect(s.tabH).toBeGreaterThanOrEqual(32);
   expect(s.tabFont).toBe('14px');
   expect(s.plusW).toBeGreaterThanOrEqual(28);
   expect(s.plusH).toBeGreaterThanOrEqual(28);
   expect(s.addrFont).toBe('14px');
-  // 페이지 영역 높이 = 창 높이 - 머리 높이(Electron 쪽 TOOLBAR_HEIGHT와 CSS가 어긋나면 틈이나 겹침이 생긴다)
+  // 페이지 영역 높이 = 창 높이 - 머리 높이(탭 막대·주소창 줄·북마크 막대, 카드 20261125-bookmarks). Electron 쪽 TOOLBAR_HEIGHT와 CSS가 어긋나면 틈이나 겹침이 생긴다
   await go('/a');
   const page = (await targets(app)).find((t) => t.type === 'page' && t.url === `${server.base}/a`)!;
   expect(await evaluate<number>(app, page.targetId, 'innerHeight')).toBe(s.winH - s.head);
