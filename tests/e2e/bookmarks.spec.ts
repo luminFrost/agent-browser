@@ -1,5 +1,5 @@
 // 카드 20261125-bookmarks: 사람 후기 4번 "북마크 or 즐겨 찾기 없음"
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '@playwright/test';
 import { launch, humanUi, evaluate, targets, waitFor, tempDir } from './helpers';
@@ -8,8 +8,9 @@ import type { RunningApp } from '../../src/launcher/app';
 
 let app: RunningApp | undefined;
 let server: TestServer;
+const savedEnv = { ...process.env };
 test.beforeEach(async () => { server = await startTestServer(); });
-test.afterEach(async () => { await app?.stop(); app = undefined; await server.close(); });
+test.afterEach(async () => { await app?.stop(); app = undefined; process.env = { ...savedEnv }; await server.close(); });
 
 const ui = async <T>(expr: string) => evaluate<T>(app!, (await humanUi(app!)).targetId, expr);
 const menu = (id: string) => app!.request({ type: 'clickMenu', id }, 'done');
@@ -77,4 +78,58 @@ test('B3: Chrome 북마크 가져오기는 없다(11-25 사람 결정: 북마크
   const r = await app.request({ type: 'clickMenu', id: 'import-chrome-bookmarks' }, 'done').then(() => 'found', (e: Error) => e.message);
   expect(r).toContain('없는 메뉴 항목');
   expect(await ui<string>(`document.querySelector('#bookmarks-empty').textContent`)).not.toContain('Chrome');
+});
+
+// 카드 20261125-bookmark-file: 사람이 고른 북마크 HTML 파일로 가져오기·내보내기. 시험은 파일 고르기 창 대신 AGENT_BROWSER_BOOKMARK_FILE을 쓴다
+const toast = () => ui<string>(`document.querySelector('#toast').hidden ? '' : document.querySelector('#toast').textContent`);
+
+test('F1: 북마크 HTML 파일을 폴더째 가져오고, 다시 가져와도 겹치지 않으며, 읽을 수 없으면 알린다', async () => {
+  const file = join(tempDir(), 'bookmarks.html');
+  writeFileSync(file, `<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<DL><p>
+    <DT><H3 PERSONAL_TOOLBAR_FOLDER="true">북마크바</H3>
+    <DL><p>
+        <DT><A HREF="${server.base}/a">A</A>
+        <DT><A HREF="javascript:alert(1)">JS</A>
+        <DT><H3>일</H3>
+        <DL><p>
+            <DT><A HREF="${server.base}/b">B</A>
+        </DL><p>
+    </DL><p>
+    <DT><A HREF="${server.base}/widgets">W</A>
+</DL><p>
+`);
+  process.env.AGENT_BROWSER_BOOKMARK_FILE = file;
+  app = await launch();
+  await menu('import-bookmarks-file');
+  await waitFor(async () => (await toast()) === '3개를 가져왔습니다', '가져온 개수');
+  expect((await bar()).items).toEqual([{ title: 'A', folder: false }, { title: '일', folder: true }, { title: 'W', folder: false }]);
+  await waitFor(async () => (await toast()) === '', '알림 사라짐', 15_000);
+  await menu('import-bookmarks-file');
+  await waitFor(async () => (await toast()) === '0개를 가져왔습니다', '두 번째는 0개');
+  expect((await bar()).items).toHaveLength(3);
+  process.env.AGENT_BROWSER_BOOKMARK_FILE = join(tempDir(), 'none.html');
+  await app.stop();
+  app = await launch();
+  await menu('import-bookmarks-file');
+  await waitFor(async () => (await toast()) === '북마크 파일을 읽지 못했습니다', '읽을 수 없음');
+});
+
+test('F2: 파일로 내보내고, 그 파일을 다른 프로필에서 가져오면 같은 북마크가 된다', async () => {
+  const out = join(tempDir(), 'out.html');
+  process.env.AGENT_BROWSER_BOOKMARK_FILE = out;
+  app = await launch();
+  await go('/a');
+  await menu('toggle-bookmark');
+  await waitFor(async () => (await bar()).items.length === 1, '북마크 A');
+  await menu('export-bookmarks-file');
+  await waitFor(async () => (await toast()) === '1개를 내보냈습니다', '내보낸 개수');
+  expect(existsSync(out)).toBe(true);
+  expect(readFileSync(out, 'utf8')).toContain(`<A HREF="${server.base}/a">Page A</A>`);
+  await app.stop();
+  app = await launch({ userDataDir: tempDir() });
+  expect((await bar()).items).toEqual([]);
+  await menu('import-bookmarks-file');
+  await waitFor(async () => (await bar()).items.length === 1, '다른 프로필로 가져옴');
+  expect((await bar()).items).toEqual([{ title: 'Page A', folder: false }]);
 });

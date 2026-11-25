@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, nativeTheme, Notification, session, type MenuItem, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, dialog, Menu, nativeTheme, Notification, session, type MenuItem, type MenuItemConstructorOptions } from 'electron';
 import { appMenuTemplate, bookmarkMenuItems, themeMenuId } from './appMenu';
 import { readSettings, writeSettings, THEME_MODES, type ThemeMode } from './settings';
 import { cleanLabel } from '../shared/label';
@@ -11,6 +11,8 @@ import { installFormGate } from './gate/formGate';
 import { installDownloadGate } from './gate/downloadGate';
 import { startUpdater, type Updater } from './updater';
 import { join } from 'node:path';
+import { readFile, writeFile } from 'node:fs/promises';
+import { countLinks, mergeImported, parseBookmarkHtml, toBookmarkHtml } from './bookmarkFile';
 import {
   addBookmark, findById, findByUrl, isFolder, readBookmarks, removeBookmark, writeBookmarks, type BookmarkNode,
 } from './bookmarks';
@@ -114,7 +116,8 @@ let bookmarks: BookmarkNode[] = [];
 const rebuildMenu = () => {
   Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(
     process.platform, app.getName(), { current: theme, pick: setTheme }, { check: () => updater?.check() },
-    { run: (a) => (a === 'toggleBookmark' ? toggleBookmark() : human?.runTab(a)) },
+    { run: (a) => (a === 'toggleBookmark' ? toggleBookmark() : a === 'importBookmarksFile' ? void importBookmarksFile()
+      : a === 'exportBookmarksFile' ? void exportBookmarksFile() : human?.runTab(a)) },
     { nodes: bookmarks, open: (id) => openBookmark(id, false) },
   )));
 };
@@ -141,6 +144,45 @@ const toggleBookmark = () => {
 const openBookmark = (id: string, newTab: boolean) => {
   const b = findById(bookmarks, id);
   if (b && !isFolder(b)) human?.openUrl(b.url, newTab);
+};
+/** 북마크 파일 고르기 창의 형식(브라우저들의 "북마크 내보내기" 파일) */
+const BOOKMARK_FILE_FILTERS = [{ name: '북마크 HTML', extensions: ['html', 'htm'] }];
+/** 북마크 파일 경로: 사람이 창에서 고른 것. 시험은 창 대신 AGENT_BROWSER_BOOKMARK_FILE을 준다 */
+const pickBookmarkFile = async (save: boolean): Promise<string | undefined> => {
+  if (process.env.AGENT_BROWSER_BOOKMARK_FILE) return process.env.AGENT_BROWSER_BOOKMARK_FILE;
+  if (!human) return undefined;
+  if (save) {
+    const r = await dialog.showSaveDialog(human.win, { defaultPath: join(app.getPath('downloads'), 'bookmarks.html'), filters: BOOKMARK_FILE_FILTERS });
+    return r.canceled ? undefined : r.filePath;
+  }
+  const r = await dialog.showOpenDialog(human.win, { properties: ['openFile'], filters: BOOKMARK_FILE_FILTERS });
+  return r.canceled ? undefined : r.filePaths[0];
+};
+/** 사람이 고른 북마크 HTML 파일을 더한다(카드 20261125-bookmark-file F1) */
+const importBookmarksFile = async () => {
+  const file = await pickBookmarkFile(false);
+  if (!file) return;
+  let html: string;
+  try {
+    html = await readFile(file, 'utf8');
+  } catch {
+    human?.toast('북마크 파일을 읽지 못했습니다');
+    return;
+  }
+  const r = mergeImported(bookmarks, parseBookmarkHtml(html));
+  if (r.added > 0) setBookmarks(r.nodes);
+  human?.toast(`${r.added}개를 가져왔습니다`);
+};
+/** 북마크를 HTML 파일로 저장한다(F2) */
+const exportBookmarksFile = async () => {
+  const file = await pickBookmarkFile(true);
+  if (!file) return;
+  try {
+    await writeFile(file, toBookmarkHtml(bookmarks));
+    human?.toast(`${countLinks(bookmarks)}개를 내보냈습니다`);
+  } catch {
+    human?.toast('북마크 파일을 저장하지 못했습니다');
+  }
 };
 /** 북마크 막대의 폴더를 누르거나 항목을 오른쪽 클릭했다: 그 자리에 메뉴를 띄운다 */
 const bookmarkPopup = (id: string, x: number, y: number) => {

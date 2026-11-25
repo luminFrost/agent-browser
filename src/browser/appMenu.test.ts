@@ -71,7 +71,11 @@ describe('앱 메뉴 북마크', () => {
       const toggle = items.find((i) => i.id === 'toggle-bookmark');
       expect([toggle?.label, toggle?.accelerator]).toEqual(['이 페이지 북마크', 'CmdOrCtrl+D']);
       toggle?.click?.();
-      expect(ran).toEqual(['toggleBookmark']);
+      // 카드 20261125-bookmark-file: 파일로 가져오기·내보내기
+      const fileItems = items.filter((i) => i.id === 'import-bookmarks-file' || i.id === 'export-bookmarks-file');
+      expect(fileItems.map((i) => i.label)).toEqual(['파일에서 가져오기…', '파일로 내보내기…']);
+      fileItems.forEach((i) => i.click?.());
+      expect(ran).toEqual(['toggleBookmark', 'importBookmarksFile', 'exportBookmarksFile']);
       expect(items.some((i) => i.id === 'import-chrome-bookmarks' || String(i.label).includes('Chrome'))).toBe(false);
       items.find((i) => i.id === 'bookmark-a')?.click?.();
       const folder = items.find((i) => i.label === '일');

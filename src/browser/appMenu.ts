@@ -13,7 +13,7 @@ export interface ThemeMenu { current: ThemeMode; pick(mode: ThemeMode): void }
 export interface UpdateMenu { check(): void }
 /** 탭 단축키 동작(카드 20261125-tab-usability K2). selectTab은 1~8번째 또는 마지막 */
 export type TabAction = 'newTab' | 'reopenTab' | 'duplicateTab' | 'closeTab' | 'focusAddress' | 'reload' | 'back' | 'forward'
-  | 'nextTab' | 'prevTab' | 'toggleBookmark' | { selectTab: number | 'last' };
+  | 'nextTab' | 'prevTab' | 'toggleBookmark' | 'importBookmarksFile' | 'exportBookmarksFile' | { selectTab: number | 'last' };
 /** 메뉴의 탭 동작을 부를 곳(사람 창) */
 export interface TabMenu { run(action: TabAction): void }
 /** 메뉴 "북마크" 아래 목록과 고를 때 부를 곳(카드 20261125-bookmarks) */
@@ -63,6 +63,9 @@ export function appMenuTemplate(
     label: '북마크',
     submenu: [
       act('toggle-bookmark', '이 페이지 북마크', 'CmdOrCtrl+D', 'toggleBookmark'),
+      // 북마크 HTML 파일(브라우저 내보내기 형식, 카드 20261125-bookmark-file)
+      { id: 'import-bookmarks-file', label: '파일에서 가져오기…', click: () => tabs.run('importBookmarksFile') },
+      { id: 'export-bookmarks-file', label: '파일로 내보내기…', click: () => tabs.run('exportBookmarksFile') },
       ...(bookmarks.nodes.length ? [{ type: 'separator' as const }, ...bookmarkItems(bookmarks.nodes)] : []),
     ],
   };
