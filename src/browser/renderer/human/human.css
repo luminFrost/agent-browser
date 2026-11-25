@@ -1,4 +1,4 @@
-:root { --toolbar-height: 76px; --panel-width: 280px; color-scheme: light dark; font: 13px -apple-system, system-ui, sans-serif; }
+:root { --toolbar-height: 84px; --panel-width: 280px; color-scheme: light dark; font: 13px -apple-system, system-ui, sans-serif; }
 
 /*
  * 화면 모드 색(카드 20261123-theme-mode). 모드는 main이 nativeTheme.themeSource로 정하고 여기서는 prefers-color-scheme으로 받는다.
@@ -61,17 +61,20 @@
 
 body { margin: 0; height: 100vh; overflow: hidden; background: var(--bg); color: var(--text); }
 #tabbar, #nav { margin-right: var(--panel-width); }
-#tabbar { display: flex; align-items: flex-end; gap: 2px; height: 34px; padding: 0 8px; background: var(--frame); }
+#tabbar { display: flex; align-items: flex-end; gap: 2px; height: 40px; padding: 0 8px; background: var(--frame); }
 #tabs { display: flex; gap: 2px; min-width: 0; }
-.tab { display: flex; align-items: center; gap: 6px; max-width: 200px; padding: 6px 10px; border-radius: 6px 6px 0 0; cursor: default; white-space: nowrap; }
+/* 탭 크기(카드 20261125-tab-usability K1: 사람 후기 "탭·글자가 작다") */
+.tab { display: flex; align-items: center; gap: 6px; box-sizing: border-box; height: 34px; max-width: 240px; padding: 0 8px 0 12px; font-size: 14px; border-radius: 6px 6px 0 0; cursor: default; white-space: nowrap; }
 .tab.active { background: var(--tab-active); }
 .tab .title { overflow: hidden; text-overflow: ellipsis; }
-.tab .close { border: 0; background: none; padding: 0 2px; color: inherit; opacity: .6; }
-#new-tab { margin-bottom: 4px; border: 0; background: none; font-size: 16px; color: inherit; }
-#nav { display: flex; align-items: center; gap: 6px; height: 42px; padding: 0 8px; border-bottom: 1px solid var(--line); background: var(--toolbar); }
-#nav button { border: 0; background: none; font-size: 15px; color: inherit; }
+.tab .close { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 4px; background: none; padding: 0; font-size: 15px; color: inherit; opacity: .6; }
+.tab .close:hover { opacity: 1; background: var(--line); }
+#new-tab { flex: none; display: grid; place-items: center; width: 30px; height: 30px; margin: 0 0 2px 2px; border: 0; border-radius: 6px; background: none; font-size: 20px; line-height: 1; color: inherit; }
+#new-tab:hover:not(:disabled) { background: var(--line); }
+#nav { display: flex; align-items: center; gap: 6px; height: 44px; box-sizing: border-box; padding: 0 8px; border-bottom: 1px solid var(--line); background: var(--toolbar); }
+#nav button { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 6px; background: none; font-size: 17px; color: inherit; }
 #nav button:disabled { opacity: .3; }
-#address { flex: 1; padding: 5px 10px; border: 1px solid var(--field-line); border-radius: 6px; font: inherit; background: var(--field); color: var(--field-text); }
+#address { flex: 1; box-sizing: border-box; height: 32px; padding: 0 12px; border: 1px solid var(--field-line); border-radius: 6px; font: inherit; font-size: 14px; background: var(--field); color: var(--field-text); }
 #loading { color: var(--muted); }
 #address:read-only { color: var(--muted); background: var(--field-readonly); }
 

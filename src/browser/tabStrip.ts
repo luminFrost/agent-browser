@@ -58,6 +58,8 @@ const describeFailure = (code: number, description: string) =>
     : { heading: '페이지를 열 수 없습니다', error: description, title: FAILED_TITLE };
 
 let nextTabId = 1;
+/** 닫은 탭 다시 열기(⇧⌘T)로 되살릴 수 있는 최근 닫은 탭 주소 수 */
+const CLOSED_TABS_KEPT = 25;
 
 
 /**
@@ -71,6 +73,8 @@ export class TabStrip {
   private displayId: number | null = null;
   private shown: boolean;
   private readonly onResize = () => this.layout();
+  /** 최근 닫은 탭 주소(마지막이 가장 최근). 닫은 탭 다시 열기가 쓴다 */
+  private readonly closedUrls: string[] = [];
 
   constructor(private readonly win: BrowserWindow, private readonly options: TabStripOptions) {
     this.shown = options.shown ?? true;
@@ -125,11 +129,38 @@ export class TabStrip {
     return this.find(this.activeId)?.view;
   }
 
-  newTab(url?: string): number {
+  newTab(url?: string, at?: number): number {
     const view = new WebContentsView({ webPreferences: this.webPreferences() });
-    const id = this.adopt(view);
+    const id = this.adopt(view, at);
     if (url) this.navigate(url);
     return id;
+  }
+
+  /** 탭을 같은 주소로 하나 더 연다. 바로 옆에 둔다(⇧⌘K, 카드 20261125-tab-usability) */
+  duplicate(id = this.activeId): number | undefined {
+    const tab = id === null ? undefined : this.find(id);
+    if (!tab) return undefined;
+    return this.newTab(this.displayUrl(tab) || undefined, this.tabs.indexOf(tab) + 1);
+  }
+
+  /** 가장 최근에 닫은 탭을 다시 연다(⇧⌘T). 닫은 탭이 없으면 아무것도 하지 않는다 */
+  reopenClosed(): number | undefined {
+    const url = this.closedUrls.pop();
+    return url === undefined ? undefined : this.newTab(url);
+  }
+
+  /** 활성 탭에서 delta만큼 옆 탭을 고른다. 끝에서는 반대쪽 끝으로 돈다(⌃Tab·⌃⇧Tab) */
+  activateRelative(delta: number): void {
+    const i = this.tabs.findIndex((t) => t.id === this.activeId);
+    if (i < 0) return;
+    const n = this.tabs.length;
+    this.activate(this.tabs[(((i + delta) % n) + n) % n].id);
+  }
+
+  /** n번째(1부터) 탭이나 마지막 탭을 고른다(⌘1~⌘9). 없는 번호면 그대로 */
+  activateNth(n: number | 'last'): void {
+    const tab = n === 'last' ? this.tabs.at(-1) : this.tabs[n - 1];
+    if (tab) this.activate(tab.id);
   }
 
   /** 탭의 내용 webContents id로 찾기(런처 명령은 targetId → webContents id로 온다) */
@@ -141,9 +172,10 @@ export class TabStrip {
     return this.find(id)?.view.webContents;
   }
 
-  private adopt(view: WebContentsView): number {
+  private adopt(view: WebContentsView, at?: number): number {
     const tab: Tab = { id: nextTabId++, view, contentsId: view.webContents.id };
-    this.tabs.push(tab);
+    if (at === undefined) this.tabs.push(tab);
+    else this.tabs.splice(at, 0, tab);
     this.win.contentView.addChildView(view);
     this.watch(tab);
     this.options.onTabCreated?.(view.webContents);
@@ -163,6 +195,11 @@ export class TabStrip {
     const tab = this.find(id);
     if (!tab) return;
     const contents = tab.view.webContents;
+    const url = this.displayUrl(tab);
+    if (url && url !== 'about:blank') {
+      this.closedUrls.push(url);
+      if (this.closedUrls.length > CLOSED_TABS_KEPT) this.closedUrls.shift();
+    }
     this.forget(tab);
     if (contents && !contents.isDestroyed()) contents.close();
   }
@@ -171,9 +208,11 @@ export class TabStrip {
   private forget(tab: Tab): void {
     if (!this.tabs.includes(tab)) return;
     this.options.onTabClosing?.(tab.contentsId);
-    this.tabs.splice(this.tabs.indexOf(tab), 1);
+    const index = this.tabs.indexOf(tab);
+    this.tabs.splice(index, 1);
     if (!this.win.isDestroyed()) this.win.contentView.removeChildView(tab.view);
-    if (this.activeId === tab.id) this.activeId = this.tabs.at(-1)?.id ?? null;
+    // 활성 탭을 닫으면 그 자리의 오른쪽 탭, 마지막이었으면 왼쪽 탭(Chrome과 같다)
+    if (this.activeId === tab.id) this.activeId = this.tabs[Math.min(index, this.tabs.length - 1)]?.id ?? null;
     if (this.displayId === tab.id) this.displayId = null;
     this.layout();
     this.emit();

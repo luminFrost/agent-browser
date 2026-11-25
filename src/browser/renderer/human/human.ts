@@ -13,6 +13,7 @@ interface Window {
     onApprovals(listener: (a: HumanApprovalView[]) => void): void;
     onTheme(listener: (mode: string) => void): void;
     onUpdate(listener: (s: { state: string; version?: string; reason?: string }) => void): void;
+    onFocusAddress(listener: () => void): void;
   };
 }
 
@@ -40,6 +41,7 @@ interface Window {
   forward.addEventListener('click', () => api.command({ cmd: 'forward' }));
   reload.addEventListener('click', () => api.command({ cmd: 'reload' }));
   newTab.addEventListener('click', () => api.command({ cmd: 'newTab' }));
+  api.onFocusAddress(() => { if (address.readOnly) return; address.focus(); address.select(); });
   // 이 화면 크기 = 창 내용 크기. resize 이벤트 없이 바뀌는 때(Linux 메뉴 막대)가 있어 여기서 알린다(ADR-0009)
   window.addEventListener('resize', () => api.command({ cmd: 'relayout' }));
   api.command({ cmd: 'relayout' });
