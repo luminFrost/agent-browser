@@ -28,6 +28,10 @@ if (isHumanUi) contextBridge.exposeInMainWorld('humanApi', {
   onBookmarks: (listener: (nodes: unknown[]) => void) => {
     ipcRenderer.on('human:bookmarks', (_e, nodes: unknown[]) => listener(nodes));
   },
+  /** 잠시 보일 알림(카드 20261125-bookmark-file) */
+  onToast: (listener: (text: string) => void) => {
+    ipcRenderer.on('human:toast', (_e, text: string) => listener(text));
+  },
   /** 지금 화면 모드(카드 20261123-theme-mode) */
   onTheme: (listener: (mode: string) => void) => {
     ipcRenderer.on('human:theme', (_e, mode: string) => listener(mode));

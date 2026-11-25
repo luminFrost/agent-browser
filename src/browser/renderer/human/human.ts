@@ -17,6 +17,7 @@ interface Window {
     onUpdate(listener: (s: { state: string; version?: string; reason?: string }) => void): void;
     onFocusAddress(listener: () => void): void;
     onBookmarks(listener: (nodes: HumanBookmark[]) => void): void;
+    onToast(listener: (text: string) => void): void;
   };
 }
 
@@ -129,6 +130,16 @@ interface Window {
       return b;
     }));
     showStar();
+  });
+  // 패널 알림(북마크 파일 결과). 잠시 보이고 사라진다
+  const toastEl = byId<HTMLDivElement>('toast');
+  const TOAST_MS = 5000;
+  let toastTimer: number | undefined;
+  api.onToast((text) => {
+    toastEl.textContent = text;
+    toastEl.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => { toastEl.hidden = true; }, TOAST_MS);
   });
 
 
