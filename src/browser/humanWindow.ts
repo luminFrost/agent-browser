@@ -11,12 +11,13 @@ import type { Rect } from '../shared/ipc';
 import { isThemeMode, type ThemeMode } from './settings';
 import type { UpdateState } from './update';
 import type { TabAction } from './appMenu';
+import type { BookmarkNode } from './bookmarks';
 
 /** 어두운 모드 탭 막대 색(Chrome Google Grey 900). human.css의 --frame 어두운 값과 같다 */
 export const DARK_FRAME_COLOR = '#202124';
 
-/** 주소창 + 탭 막대 높이(px). renderer/human/human.css의 --toolbar-height와 같아야 한다 */
-const TOOLBAR_HEIGHT = 84;
+/** 탭 막대 + 주소창 줄 + 북마크 막대 높이(px). renderer/human/human.css의 --toolbar-height와 같아야 한다 */
+const TOOLBAR_HEIGHT = 114;
 /** 지켜보기 패널 너비(px). renderer/human/human.css의 --panel-width와 같아야 한다 */
 const PANEL_WIDTH = 280;
 /** 탭 내용이 들어가는 자리. 사람 탭과 세션 탭이 같은 자리를 쓴다 */
@@ -66,6 +67,14 @@ export interface HumanWindow {
   showTheme(mode: ThemeMode): void;
   /** 메뉴·단축키의 탭 동작(카드 20261125-tab-usability K2) */
   runTab(action: TabAction): void;
+  /** 북마크 막대를 다시 그린다(카드 20261125-bookmarks) */
+  showBookmarks(nodes: BookmarkNode[]): void;
+  /** 북마크할 지금 페이지(내 탭을 보는 중일 때만). 빈 탭이면 없다 */
+  activePage(): { url: string; title: string } | undefined;
+  /** 주소를 내 탭에 연다(세션을 보는 중이면 내 탭으로 돌아와서). newTab이면 새 탭 */
+  openUrl(url: string, newTab: boolean): void;
+  /** 패널에 잠시 알림을 보인다 */
+  toast(text: string): void;
   /** 패널 맨 위 업데이트 줄(카드 20261123-update-notice) */
   showUpdate(state: UpdateState): void;
 }
@@ -81,6 +90,12 @@ export interface HumanWindowEvents {
   setTheme(mode: ThemeMode): void;
   /** 사람이 업데이트를 눌렀다 */
   installUpdate(): void;
+  /** 북마크 별표를 눌렀다 */
+  toggleBookmark(): void;
+  /** 북마크 막대 항목을 눌렀다 */
+  openBookmark(id: string, newTab: boolean): void;
+  /** 북마크 막대 폴더를 눌렀거나 오른쪽 클릭했다 */
+  bookmarkPopup(id: string, x: number, y: number): void;
 }
 
 /** 따라 보기 설정을 읽고 남기는 곳(프로필의 settings.json) */
@@ -268,6 +283,9 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
       case 'rename': return events.renameSession(c.sessionId, c.label);
       case 'theme': return isThemeMode(c.mode) ? events.setTheme(c.mode) : undefined;
       case 'update': return events.installUpdate();
+      case 'toggleBookmark': return events.toggleBookmark();
+      case 'openBookmark': return events.openBookmark(c.id, c.newTab);
+      case 'bookmarkPopup': return events.bookmarkPopup(c.id, c.x, c.y);
     }
     if (viewing !== null) {
       // 세션을 보는 중에는 읽기 전용이다(E3). 탭 막대에서 보는 탭을 고르는 것만 된다. 주인의 활성 탭은 바꾸지 않는다.
@@ -291,6 +309,24 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     win.webContents.focus();
     win.webContents.send('human:focusAddress');
   };
+  let lastBookmarks: BookmarkNode[] = [];
+  const showBookmarks = (nodes: BookmarkNode[]) => {
+    lastBookmarks = nodes;
+    if (!win.isDestroyed()) win.webContents.send('human:bookmarks', nodes);
+  };
+  const activePage = () => {
+    if (viewing !== null) return undefined;
+    const s = tabs.state();
+    const t = s.tabs.find((x) => x.id === s.activeId);
+    if (!t || !t.url || t.url === 'about:blank') return undefined;
+    return { url: t.url, title: t.title };
+  };
+  const openUrl = (url: string, newTab: boolean) => {
+    if (viewing !== null) { setFollow(false); setViewing(null); }
+    if (newTab || tabs.state().activeId === null) tabs.newTab(url);
+    else tabs.navigate(url);
+  };
+  const toast = (text: string) => { if (!win.isDestroyed()) win.webContents.send('human:toast', text); };
   const runTab = (a: TabAction) => {
     // 새 탭·닫은 탭 다시 열기는 세션을 보는 중이어도 내 탭으로 돌아와서 한다(Chrome에서 새 탭은 언제나 된다)
     if (a === 'newTab' || a === 'reopenTab') {
@@ -340,6 +376,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     win.webContents.send('human:approvals', lastApprovals);
     if (lastTheme) win.webContents.send('human:theme', lastTheme);
     win.webContents.send('human:update', lastUpdate);
+    win.webContents.send('human:bookmarks', lastBookmarks);
   });
   win.on('closed', () => ipcMain.off('human:command', onCommand));
 
@@ -353,6 +390,10 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     showTheme,
     showUpdate,
     runTab,
+    showBookmarks,
+    activePage,
+    openUrl,
+    toast,
     addSession: (sessionId, strip) => {
       sessions.set(sessionId, strip);
       lastMove.set(sessionId, moveOf(strip));

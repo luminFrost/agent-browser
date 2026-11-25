@@ -3,6 +3,8 @@ interface HumanTabView { id: number; title: string; url: string; loading: boolea
 /** viewing이 있으면 그 세션의 탭을 보는 중이다(읽기 전용, spec-embedded-sessions) */
 interface HumanState { tabs: HumanTabView[]; activeId: number | null; canGoBack: boolean; canGoForward: boolean; viewing: string | null; viewingLabel?: string }
 interface HumanApprovalView { id: string; sessionId: string; host: string; kind: 'form' | 'download'; detail?: string; expiresAt: number }
+/** 북마크(카드 20261125-bookmarks): 링크는 url, 폴더는 children */
+interface HumanBookmark { id: string; title: string; url?: string; children?: HumanBookmark[] }
 interface HumanSessionView { sessionId: string; label?: string; tabs: HumanTabView[]; activeId: number | null }
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- 전역 Window 확장(preload가 연 humanApi)이라 선언만 있다
 interface Window {
@@ -14,6 +16,8 @@ interface Window {
     onTheme(listener: (mode: string) => void): void;
     onUpdate(listener: (s: { state: string; version?: string; reason?: string }) => void): void;
     onFocusAddress(listener: () => void): void;
+    onBookmarks(listener: (nodes: HumanBookmark[]) => void): void;
+    onToast(listener: (text: string) => void): void;
   };
 }
 
@@ -82,6 +86,60 @@ interface Window {
     loading.hidden = !active?.loading;
     back.disabled = !s.canGoBack;
     forward.disabled = !s.canGoForward;
+    activeUrl = viewing === null ? (active?.url ?? '') : '';
+    showStar();
+  });
+
+  // 북마크(카드 20261125-bookmarks): 별표는 지금 페이지가 북마크에 있는지, 막대는 맨 위 단계 항목
+  const star = byId<HTMLButtonElement>('bookmark-star');
+  const barEl = byId<HTMLDivElement>('bookmarks');
+  const barEmpty = byId<HTMLSpanElement>('bookmarks-empty');
+  let bookmarkList: HumanBookmark[] = [];
+  let activeUrl = '';
+  const hasUrl = (nodes: HumanBookmark[], url: string): boolean => nodes.some((n) => n.url === url || (n.children ? hasUrl(n.children, url) : false));
+  const showStar = () => {
+    const on = activeUrl !== '' && hasUrl(bookmarkList, activeUrl);
+    star.textContent = on ? '★' : '☆';
+    star.setAttribute('aria-pressed', String(on));
+    star.title = on ? '북마크 지우기 (⌘D)' : '이 페이지 북마크 (⌘D)';
+    star.disabled = activeUrl === '' || activeUrl === 'about:blank';
+  };
+  star.addEventListener('click', () => api.command({ cmd: 'toggleBookmark' }));
+  /** 폴더 메뉴·오른쪽 클릭 메뉴는 main이 그 자리에 띄운다(창 안 좌표) */
+  const popup = (id: string, el: HTMLElement, at?: MouseEvent) => {
+    const r = el.getBoundingClientRect();
+    api.command({ cmd: 'bookmarkPopup', id, x: at ? at.clientX : r.left, y: at ? at.clientY : r.bottom });
+  };
+  api.onBookmarks((nodes) => {
+    bookmarkList = nodes;
+    barEmpty.hidden = nodes.length > 0;
+    barEl.replaceChildren(barEmpty, ...nodes.map((n) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'bookmark' + (n.children ? ' folder' : '');
+      b.dataset.id = n.id;
+      b.textContent = n.title || n.url || '';
+      b.title = n.url ?? n.title;
+      if (n.children) b.addEventListener('click', () => popup(n.id, b));
+      else {
+        b.addEventListener('click', (e) => api.command({ cmd: 'openBookmark', id: n.id, newTab: e.metaKey || e.ctrlKey }));
+        // 가운데 클릭은 새 탭(Chrome과 같다)
+        b.addEventListener('auxclick', (e) => { if (e.button === 1) api.command({ cmd: 'openBookmark', id: n.id, newTab: true }); });
+      }
+      b.addEventListener('contextmenu', (e) => { e.preventDefault(); popup(n.id, b, e); });
+      return b;
+    }));
+    showStar();
+  });
+  const toastEl = byId<HTMLDivElement>('toast');
+  /** 알림을 보이는 시간 */
+  const TOAST_MS = 5000;
+  let toastTimer: number | undefined;
+  api.onToast((text) => {
+    toastEl.textContent = text;
+    toastEl.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => { toastEl.hidden = true; }, TOAST_MS);
   });
 
   // 지켜보기 패널(R11): 세션마다 탭 URL과 멈추기 버튼

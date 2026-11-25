@@ -95,7 +95,7 @@ gh release view --repo luminFrost/agent-browser --json tagName,publishedAt,body 
 - 최신이 더 높으면 Release 노트(바뀐 내용)를 짧게 보여 주고 2-가를 그대로 다시 한다. 앱은 덮어쓰고, 로그인 정보(프로필)는 그대로 남는다. MCP 경로가 같으므로 다시 등록해도 결과는 같다. 앱이 켜져 있으면 먼저 끄라고 사람에게 부탁한다. 끝나면 Claude Code에서 `/mcp`로 다시 연결하라고 알린다.
 - `gh`가 없으면 사람에게 https://github.com/luminFrost/agent-browser/releases/latest 의 버전을 봐 달라고 부탁한다.
 - v0.2.4부터는 앱이 새 버전을 알리고 패널의 **업데이트** 버튼으로 바꿔 깐다(ADR-0010). 사람이 그 버튼을 이미 눌렀으면 위 확인만 한다.
-- 업데이트한 뒤 사람이 "확인표대로 확인하자"고 하면 [`verify/20261125-company-pc-check-0.2.7.md`](verify/20261125-company-pc-check-0.2.7.md)를 보여 주고, Claude Code가 시킬 일(세션 열기, 페이지 옮기기, 폼 제출)을 항목 순서대로 한다. 결과 칸은 사람이 본 것으로 채운다.
+- 업데이트한 뒤 사람이 "확인표대로 확인하자"고 하면 [`verify/20261125-company-pc-check-0.2.8.md`](verify/20261125-company-pc-check-0.2.8.md)를 보여 주고, Claude Code가 시킬 일(세션 열기, 페이지 옮기기, 폼 제출)을 항목 순서대로 한다. 결과 칸은 사람이 본 것으로 채운다.
 
 ## Release 올리기 (CI가 한다)
 
