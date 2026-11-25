@@ -1,4 +1,4 @@
-:root { --toolbar-height: 114px; --panel-width: 280px; color-scheme: light dark; font: 13px -apple-system, system-ui, sans-serif; }
+:root { --toolbar-height: 118px; --panel-width: 280px; color-scheme: light dark; font: 13px -apple-system, system-ui, sans-serif; }
 
 /*
  * 화면 모드 색(카드 20261123-theme-mode). 모드는 main이 nativeTheme.themeSource로 정하고 여기서는 prefers-color-scheme으로 받는다.
@@ -61,12 +61,13 @@
 
 body { margin: 0; height: 100vh; overflow: hidden; background: var(--bg); color: var(--text); }
 #tabbar, #nav, #bookmarks { margin-right: var(--panel-width); }
-#tabbar { display: flex; align-items: flex-end; gap: 2px; height: 40px; padding: 0 8px; background: var(--frame); }
-#tabs { display: flex; gap: 2px; min-width: 0; }
+#tabbar { display: flex; align-items: flex-end; gap: 2px; height: 44px; padding: 0 8px; background: var(--frame); }
+#tabs { display: flex; flex: 0 1 auto; gap: 2px; min-width: 0; }
 /* 탭 크기(카드 20261125-tab-usability K1: 사람 후기 "탭·글자가 작다") */
-.tab { display: flex; align-items: center; gap: 6px; box-sizing: border-box; height: 34px; max-width: 240px; padding: 0 8px 0 12px; font-size: 14px; border-radius: 6px 6px 0 0; cursor: default; white-space: nowrap; }
+/* 11-25 14:39 후기 "새 탭이 가로·세로 다 작다": 제목 길이와 상관없이 Chrome처럼 넓게, 많으면 72px까지 줄어든다 */
+.tab { display: flex; align-items: center; gap: 6px; box-sizing: border-box; flex: 0 1 auto; width: 220px; min-width: 72px; height: 38px; padding: 0 8px 0 14px; font-size: 14px; border-radius: 6px 6px 0 0; cursor: default; white-space: nowrap; }
 .tab.active { background: var(--tab-active); }
-.tab .title { overflow: hidden; text-overflow: ellipsis; }
+.tab .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .tab .close { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 4px; background: none; padding: 0; font-size: 15px; color: inherit; opacity: .6; }
 .tab .close:hover { opacity: 1; background: var(--line); }
 #new-tab { flex: none; display: grid; place-items: center; width: 30px; height: 30px; margin: 0 0 2px 2px; border: 0; border-radius: 6px; background: none; font-size: 20px; line-height: 1; color: inherit; }
