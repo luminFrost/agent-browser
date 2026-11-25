@@ -17,7 +17,7 @@ import type { BookmarkNode } from './bookmarks';
 export const DARK_FRAME_COLOR = '#202124';
 
 /** 탭 막대 + 주소창 줄 + 북마크 막대 높이(px). renderer/human/human.css의 --toolbar-height와 같아야 한다 */
-const TOOLBAR_HEIGHT = 114;
+const TOOLBAR_HEIGHT = 118;
 /** 지켜보기 패널 너비(px). renderer/human/human.css의 --panel-width와 같아야 한다 */
 const PANEL_WIDTH = 280;
 /** 탭 내용이 들어가는 자리. 사람 탭과 세션 탭이 같은 자리를 쓴다 */

@@ -21,15 +21,17 @@ async function go(path: string) {
   await waitFor(async () => (await strip()).address === `${server.base}${path}`, `주소 ${path}`);
 }
 
-test('K1: 탭 32px 이상·글자 14px, + 버튼 28×28 이상, 주소창 14px, 페이지는 머리 바로 아래', async () => {
+test('K1: 탭 36px 이상·폭 200px 이상(새 탭도)·글자 14px, + 버튼 28×28 이상, 주소창 14px, 페이지는 머리 바로 아래', async () => {
   app = await launch();
-  const s = await ui<{ tabH: number; tabFont: string; plusW: number; plusH: number; addrFont: string; head: number; winH: number }>(`(() => {
+  const s = await ui<{ tabH: number; tabW: number; tabFont: string; plusW: number; plusH: number; addrFont: string; head: number; winH: number }>(`(() => {
     const r = (sel) => document.querySelector(sel).getBoundingClientRect();
-    return { tabH: r('#tabs .tab').height, tabFont: getComputedStyle(document.querySelector('#tabs .tab .title')).fontSize,
+    return { tabH: r('#tabs .tab').height, tabW: r('#tabs .tab').width, tabFont: getComputedStyle(document.querySelector('#tabs .tab .title')).fontSize,
       plusW: r('#new-tab').width, plusH: r('#new-tab').height, addrFont: getComputedStyle(document.querySelector('#address')).fontSize,
       head: ['#tabbar', '#nav', '#bookmarks'].reduce((h, s) => h + (document.querySelector(s)?.offsetHeight ?? 0), 0), winH: innerHeight };
   })()`);
-  expect(s.tabH).toBeGreaterThanOrEqual(32);
+  // 사람 후기(11-25 14:39): 처음 탭·+로 연 탭 모두 가로·세로가 작다 → 제목이 짧은 "새 탭"도 Chrome처럼 넓게
+  expect(s.tabH).toBeGreaterThanOrEqual(36);
+  expect(s.tabW).toBeGreaterThanOrEqual(200);
   expect(s.tabFont).toBe('14px');
   expect(s.plusW).toBeGreaterThanOrEqual(28);
   expect(s.plusH).toBeGreaterThanOrEqual(28);
@@ -80,4 +82,19 @@ test('K2: 다음·이전 탭(끝에서 돌아감), ⌘1·⌘9, ⌘L 주소창', 
   await ui(`document.querySelector('#address').blur()`);
   await menu('focus-address');
   await waitFor(async () => ui<boolean>(`document.activeElement === document.querySelector('#address')`), '⌘L');
+});
+
+test('K1: 탭이 많으면 줄어들되 탭 막대를 넘치지 않고 읽을 만큼은 남는다', async () => {
+  app = await launch();
+  for (let i = 0; i < 9; i++) await menu('new-tab');
+  await waitFor(async () => (await strip()).titles.length === 10, '탭 10개');
+  const m = await ui<{ min: number; overflow: boolean; plusRight: number; barRight: number }>(`(() => {
+    const tabs = [...document.querySelectorAll('#tabs .tab')].map((t) => t.getBoundingClientRect().width);
+    const box = document.querySelector('#tabs');
+    return { min: Math.min(...tabs), overflow: box.scrollWidth > box.clientWidth + 1,
+      plusRight: document.querySelector('#new-tab').getBoundingClientRect().right, barRight: document.querySelector('#tabbar').getBoundingClientRect().right };
+  })()`);
+  expect(m.overflow).toBe(false);
+  expect(m.min).toBeGreaterThanOrEqual(72);
+  expect(m.plusRight).toBeLessThanOrEqual(m.barRight);
 });
