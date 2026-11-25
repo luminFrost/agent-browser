@@ -1,5 +1,5 @@
 // 카드 20261125-bookmarks: 사람 후기 4번 "북마크 or 즐겨 찾기 없음"
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '@playwright/test';
 import { launch, humanUi, evaluate, targets, waitFor, tempDir } from './helpers';
@@ -8,9 +8,8 @@ import type { RunningApp } from '../../src/launcher/app';
 
 let app: RunningApp | undefined;
 let server: TestServer;
-const saved = { ...process.env };
 test.beforeEach(async () => { server = await startTestServer(); });
-test.afterEach(async () => { await app?.stop(); app = undefined; process.env = { ...saved }; await server.close(); });
+test.afterEach(async () => { await app?.stop(); app = undefined; await server.close(); });
 
 const ui = async <T>(expr: string) => evaluate<T>(app!, (await humanUi(app!)).targetId, expr);
 const menu = (id: string) => app!.request({ type: 'clickMenu', id }, 'done');
@@ -73,30 +72,9 @@ test('B2: 누르면 지금 탭, ⌘클릭은 새 탭, 메뉴 항목도 연다. �
   expect(await evaluate<number>(app, page.targetId, 'innerHeight')).toBe(s.winH - s.head);
 });
 
-test('B3: Chrome 북마크를 폴더째 가져오고, 다시 가져와도 겹치지 않으며, 파일이 없으면 알린다', async () => {
-  const dir = tempDir();
-  const file = join(dir, 'Bookmarks');
-  writeFileSync(file, JSON.stringify({ roots: {
-    bookmark_bar: { type: 'folder', children: [
-      { type: 'url', name: 'A', url: `${server.base}/a` },
-      { type: 'url', name: 'JS', url: 'javascript:alert(1)' },
-      { type: 'folder', name: '일', children: [{ type: 'url', name: 'B', url: `${server.base}/b` }] },
-    ] },
-    other: { type: 'folder', children: [{ type: 'url', name: 'W', url: `${server.base}/widgets` }] },
-  } }));
-  process.env.AGENT_BROWSER_CHROME_BOOKMARKS = file;
+test('B3: Chrome 북마크 가져오기는 없다(11-25 사람 결정: 북마크는 이 앱에서 등록한다)', async () => {
   app = await launch();
-  const toast = () => ui<string>(`document.querySelector('#toast').hidden ? '' : document.querySelector('#toast').textContent`);
-  await menu('import-chrome-bookmarks');
-  await waitFor(async () => (await toast()) === '3개를 가져왔습니다', '가져온 개수');
-  expect((await bar()).items).toEqual([{ title: 'A', folder: false }, { title: '일', folder: true }, { title: '기타 북마크', folder: true }]);
-  await waitFor(async () => (await toast()) === '', '알림 사라짐', 15_000);
-  await menu('import-chrome-bookmarks');
-  await waitFor(async () => (await toast()) === '0개를 가져왔습니다', '두 번째는 0개');
-  expect((await bar()).items).toHaveLength(3);
-  process.env.AGENT_BROWSER_CHROME_BOOKMARKS = join(dir, 'none');
-  await app.stop();
-  app = await launch();
-  await menu('import-chrome-bookmarks');
-  await waitFor(async () => (await toast()) === 'Chrome 북마크를 찾지 못했습니다', '파일 없음');
+  const r = await app.request({ type: 'clickMenu', id: 'import-chrome-bookmarks' }, 'done').then(() => 'found', (e: Error) => e.message);
+  expect(r).toContain('없는 메뉴 항목');
+  expect(await ui<string>(`document.querySelector('#bookmarks-empty').textContent`)).not.toContain('Chrome');
 });

@@ -17,7 +17,6 @@ interface Window {
     onUpdate(listener: (s: { state: string; version?: string; reason?: string }) => void): void;
     onFocusAddress(listener: () => void): void;
     onBookmarks(listener: (nodes: HumanBookmark[]) => void): void;
-    onToast(listener: (text: string) => void): void;
   };
 }
 
@@ -131,16 +130,7 @@ interface Window {
     }));
     showStar();
   });
-  const toastEl = byId<HTMLDivElement>('toast');
-  /** 알림을 보이는 시간 */
-  const TOAST_MS = 5000;
-  let toastTimer: number | undefined;
-  api.onToast((text) => {
-    toastEl.textContent = text;
-    toastEl.hidden = false;
-    clearTimeout(toastTimer);
-    toastTimer = window.setTimeout(() => { toastEl.hidden = true; }, TOAST_MS);
-  });
+
 
   // 지켜보기 패널(R11): 세션마다 탭 URL과 멈추기 버튼
   const sessionsEl = byId<HTMLUListElement>('sessions');
