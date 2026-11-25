@@ -73,8 +73,6 @@ export interface HumanWindow {
   activePage(): { url: string; title: string } | undefined;
   /** 주소를 내 탭에 연다(세션을 보는 중이면 내 탭으로 돌아와서). newTab이면 새 탭 */
   openUrl(url: string, newTab: boolean): void;
-  /** 패널에 잠시 알림을 보인다 */
-  toast(text: string): void;
   /** 패널 맨 위 업데이트 줄(카드 20261123-update-notice) */
   showUpdate(state: UpdateState): void;
 }
@@ -326,7 +324,6 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     if (newTab || tabs.state().activeId === null) tabs.newTab(url);
     else tabs.navigate(url);
   };
-  const toast = (text: string) => { if (!win.isDestroyed()) win.webContents.send('human:toast', text); };
   const runTab = (a: TabAction) => {
     // 새 탭·닫은 탭 다시 열기는 세션을 보는 중이어도 내 탭으로 돌아와서 한다(Chrome에서 새 탭은 언제나 된다)
     if (a === 'newTab' || a === 'reopenTab') {
@@ -393,7 +390,6 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     showBookmarks,
     activePage,
     openUrl,
-    toast,
     addSession: (sessionId, strip) => {
       sessions.set(sessionId, strip);
       lastMove.set(sessionId, moveOf(strip));

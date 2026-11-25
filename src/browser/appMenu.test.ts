@@ -58,10 +58,10 @@ describe('앱 메뉴 탭 단축키', () => {
   }
 });
 
-// 카드 20261125-bookmarks B1·B3: 메뉴 "북마크"
+// 카드 20261125-bookmarks B1: 메뉴 "북마크"
 describe('앱 메뉴 북마크', () => {
   for (const platform of ['darwin', 'linux'] as const) {
-    it(`${platform}: 이 페이지 북마크 ⌘D, Chrome 북마크 가져오기…, 아래에 북마크 목록(폴더는 하위 메뉴)`, () => {
+    it(`${platform}: 이 페이지 북마크 ⌘D, 아래에 북마크 목록(폴더는 하위 메뉴). Chrome 가져오기는 없다(11-25 사람 결정)`, () => {
       const ran: string[] = [];
       const opened: string[] = [];
       const menu = appMenuTemplate(platform, 'Agent Browser', { current: 'system', pick: () => undefined }, { check: () => undefined },
@@ -71,9 +71,8 @@ describe('앱 메뉴 북마크', () => {
       const toggle = items.find((i) => i.id === 'toggle-bookmark');
       expect([toggle?.label, toggle?.accelerator]).toEqual(['이 페이지 북마크', 'CmdOrCtrl+D']);
       toggle?.click?.();
-      items.find((i) => i.id === 'import-chrome-bookmarks')?.click?.();
-      expect(ran).toEqual(['toggleBookmark', 'importChromeBookmarks']);
-      expect(items.find((i) => i.id === 'import-chrome-bookmarks')?.label).toBe('Chrome 북마크 가져오기…');
+      expect(ran).toEqual(['toggleBookmark']);
+      expect(items.some((i) => i.id === 'import-chrome-bookmarks' || String(i.label).includes('Chrome'))).toBe(false);
       items.find((i) => i.id === 'bookmark-a')?.click?.();
       const folder = items.find((i) => i.label === '일');
       (folder?.submenu as { id?: string; click?: () => void }[]).find((i) => i.id === 'bookmark-b')?.click?.();

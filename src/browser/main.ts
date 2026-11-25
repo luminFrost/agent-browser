@@ -11,10 +11,8 @@ import { installFormGate } from './gate/formGate';
 import { installDownloadGate } from './gate/downloadGate';
 import { startUpdater, type Updater } from './updater';
 import { join } from 'node:path';
-import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import {
-  addBookmark, chromeBookmarksPath, findById, findByUrl, importChrome, isFolder, readBookmarks, removeBookmark, writeBookmarks, type BookmarkNode,
+  addBookmark, findById, findByUrl, isFolder, readBookmarks, removeBookmark, writeBookmarks, type BookmarkNode,
 } from './bookmarks';
 import type { BrowserReply, LauncherToBrowser, WindowInfo } from '../shared/ipc';
 
@@ -116,7 +114,7 @@ let bookmarks: BookmarkNode[] = [];
 const rebuildMenu = () => {
   Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(
     process.platform, app.getName(), { current: theme, pick: setTheme }, { check: () => updater?.check() },
-    { run: (a) => (a === 'toggleBookmark' ? toggleBookmark() : a === 'importChromeBookmarks' ? importChromeBookmarks() : human?.runTab(a)) },
+    { run: (a) => (a === 'toggleBookmark' ? toggleBookmark() : human?.runTab(a)) },
     { nodes: bookmarks, open: (id) => openBookmark(id, false) },
   )));
 };
@@ -153,20 +151,6 @@ const bookmarkPopup = (id: string, x: number, y: number) => {
     ? [...bookmarkMenuItems(b.children, (child) => openBookmark(child, false)), { type: 'separator' }, { label: '폴더 삭제', click: remove }]
     : [{ label: '열기', click: () => openBookmark(id, false) }, { label: '새 탭에서 열기', click: () => openBookmark(id, true) }, { type: 'separator' }, { label: '삭제', click: remove }];
   Menu.buildFromTemplate(items).popup({ window: human.win, x: Math.round(x), y: Math.round(y) });
-};
-/** Chrome 마지막 사용 프로필의 북마크를 가져온다. 결과는 패널 알림으로 */
-const importChromeBookmarks = () => {
-  const file = process.env.AGENT_BROWSER_CHROME_BOOKMARKS ?? chromeBookmarksPath(process.platform, homedir());
-  let chrome: unknown;
-  try {
-    chrome = JSON.parse(readFileSync(file, 'utf8'));
-  } catch {
-    human?.toast('Chrome 북마크를 찾지 못했습니다');
-    return;
-  }
-  const r = importChrome(chrome, bookmarks);
-  if (r.added > 0) setBookmarks(r.nodes);
-  human?.toast(`${r.added}개를 가져왔습니다`);
 };
 /** 사람이 패널이나 메뉴에서 모드를 골랐다. 바로 바꾸고 settings.json에 남긴다 */
 const setTheme = (mode: ThemeMode) => {
