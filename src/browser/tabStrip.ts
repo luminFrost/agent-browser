@@ -148,6 +148,16 @@ export class TabStrip {
     return this.newTab(this.displayUrl(tab) || undefined, this.tabs.indexOf(tab) + 1);
   }
 
+  /** 주소를 탭 바로 오른쪽 새 탭에 연다. 활성 탭은 그대로 둔다(오른쪽 클릭 "새 탭에서 열기", 카드 20261127-page-devtools D3) */
+  openBeside(url: string, id = this.activeId): number | undefined {
+    const tab = id === null ? undefined : this.find(id);
+    if (!tab) return undefined;
+    const view = new WebContentsView({ webPreferences: this.webPreferences() });
+    const created = this.adopt(view, this.tabs.indexOf(tab) + 1, false);
+    this.navigate(url, created);
+    return created;
+  }
+
   /** 가장 최근에 닫은 탭을 다시 연다(⇧⌘T). 닫은 탭이 없으면 아무것도 하지 않는다 */
   reopenClosed(): number | undefined {
     const url = this.closedUrls.pop();
@@ -177,14 +187,15 @@ export class TabStrip {
     return this.find(id)?.view.webContents;
   }
 
-  private adopt(view: WebContentsView, at?: number): number {
+  private adopt(view: WebContentsView, at?: number, activate = true): number {
     const tab: Tab = { id: nextTabId++, view, contentsId: view.webContents.id };
     if (at === undefined) this.tabs.push(tab);
     else this.tabs.splice(at, 0, tab);
     this.win.contentView.addChildView(view);
     this.watch(tab);
     this.options.onTabCreated?.(view.webContents);
-    this.activate(tab.id);
+    if (activate) this.activate(tab.id);
+    else { this.layout(); this.emit(); }
     return tab.id;
   }
 

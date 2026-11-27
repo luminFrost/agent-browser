@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, Menu, nativeTheme, Notification, session, type MenuItem, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, Menu, nativeTheme, Notification, session, webContents, type MenuItem, type MenuItemConstructorOptions } from 'electron';
 import { appMenuTemplate, bookmarkContextMenu, bookmarkMenuItems, themeMenuId, themePopupMenu } from './appMenu';
 import { readSettings, writeSettings, THEME_MODES, type ThemeMode } from './settings';
 import { cleanLabel } from '../shared/label';
@@ -208,11 +208,28 @@ const exportBookmarksFile = async () => {
 };
 /** 마지막으로 띄운 팝업 메뉴(시험 진단 clickPopup이 누른다) */
 let lastPopup: Menu | undefined;
+/** 시험 진단 contextMenu가 오른쪽 클릭 뒤 팝업을 기다리는 시간 */
+const POPUP_WAIT_MS = 3000;
+/** 다음 팝업을 기다리는 시험 진단(contextMenu) */
+let popupWaiter: ((menu: Menu) => void) | undefined;
 /** 사람 창 안 좌표에 팝업 메뉴를 띄운다 */
 const popupAt = (items: MenuItemConstructorOptions[], x: number, y: number) => {
   if (!human) return;
   lastPopup = Menu.buildFromTemplate(items);
   lastPopup.popup({ window: human.win, x: Math.round(x), y: Math.round(y) });
+  popupWaiter?.(lastPopup);
+  popupWaiter = undefined;
+};
+/** 개발자도구가 열린 탭(시험·진단 pageTools, 카드 20261127-page-devtools) */
+const pageTools = (): BrowserReply => {
+  const shownId = human?.shown().contentsId;
+  const isOpen = (id: number) => webContents.fromId(id)?.isDevToolsOpened() === true;
+  const open: { view: 'human' | 'session'; sessionId?: string; shown: boolean }[] = [];
+  for (const id of human?.tabs.webContentsIds ?? []) if (isOpen(id)) open.push({ view: 'human', shown: id === shownId });
+  for (const [sessionId, agent] of agents) {
+    for (const id of agent.tabs.webContentsIds) if (isOpen(id)) open.push({ view: 'session', sessionId, shown: id === shownId });
+  }
+  return { type: 'pageTools', open, ui: human?.win.webContents.isDevToolsOpened() ?? false };
 };
 /** 북마크 막대: 폴더를 누르면(context false) 하위 목록, 오른쪽 클릭이면 열기·옮기기·이름·새 폴더·삭제 메뉴를 그 자리에(G2) */
 const bookmarkPopup = (id: string | null, x: number, y: number, context: boolean) => {
@@ -310,6 +327,26 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
       }
       return { type: 'done' };
     }
+    case 'pageTools':
+      return pageTools();
+    case 'clipboard':
+      return { type: 'clipboard', text: await clipboard.readText() };
+    case 'contextMenu': {
+      // 시험용: 지금 보이는 탭을 사람이 오른쪽 클릭한 것처럼 OS 입력 경로(sendInputEvent)로 보내고, 뜬 메뉴를 돌려준다
+      const id = human?.shown().contentsId;
+      const c = id === undefined ? undefined : webContents.fromId(id);
+      if (!c) return { type: 'error', message: '보이는 탭이 없다' };
+      const popped = new Promise<Menu | undefined>((resolve) => {
+        const timer = setTimeout(() => { popupWaiter = undefined; resolve(undefined); }, POPUP_WAIT_MS);
+        popupWaiter = (menu) => { clearTimeout(timer); resolve(menu); };
+      });
+      c.sendInputEvent({ type: 'mouseMove', x: m.x, y: m.y });
+      c.sendInputEvent({ type: 'mouseDown', x: m.x, y: m.y, button: 'right', clickCount: 1 });
+      c.sendInputEvent({ type: 'mouseUp', x: m.x, y: m.y, button: 'right', clickCount: 1 });
+      const menu = await popped;
+      if (!menu) return { type: 'error', message: `오른쪽 클릭 뒤 ${POPUP_WAIT_MS}ms 안에 메뉴가 뜨지 않았다` };
+      return { type: 'popup', items: menu.items.map((i) => ({ label: i.type === 'separator' ? '-' : i.label, enabled: i.enabled })) };
+    }
     case 'focus':
       bringHumanToFront();
       return { type: 'done' };
@@ -336,6 +373,7 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
         tabFocused: (view) => host.tabFocused(view),
         agentInputActive: (sessionId) => agentInput.allows(sessionId),
         humanKeyBlocked: () => host.focusUi(),
+        humanRightClick: (sessionId, contents, x, y) => host.sessionRightClick(sessionId, contents, x, y),
       });
       agents.set(m.sessionId, agent);
       host.addSession(m.sessionId, agent.tabs);
@@ -433,6 +471,7 @@ app.whenReady().then(() => {
     bookmarkRename: (id, title) => setBookmarks(renameNode(bookmarks, id, title)),
     bookmarkNewFolder: (title) => setBookmarks(addFolder(bookmarks, title)),
     themeMenu,
+    popupMenu: popupAt,
   }, {
     initial: readSettings(app.getPath('userData')).followAgents,
     save: (on) => writeSettings(app.getPath('userData'), { ...readSettings(app.getPath('userData')), followAgents: on }),

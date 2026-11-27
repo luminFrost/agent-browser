@@ -30,7 +30,13 @@ export type LauncherCommand =
   /** 앱 안 업데이트 상태(시험·진단용, 카드 20261123-update-notice) */
   | { type: 'update' }
   /** 시험용: 세션의 활성 탭에 사람 입력(OS 입력 경로: 마우스 누르기·떼기, 글자 하나)을 보낸다(카드 20261122-agent-input-lock) */
-  | { type: 'simulateHumanInput'; sessionId: string; x: number; y: number; text: string };
+  | { type: 'simulateHumanInput'; sessionId: string; x: number; y: number; text: string }
+  /** 개발자도구가 열린 탭과 창 UI에 열렸는지(시험·진단용, 카드 20261127-page-devtools) */
+  | { type: 'pageTools' }
+  /** 시험용: 지금 보이는 탭의 (x, y)를 사람이 오른쪽 클릭한 것처럼 보내고(OS 입력 경로) 뜬 메뉴를 돌려준다 */
+  | { type: 'contextMenu'; x: number; y: number }
+  /** 시험용: 클립보드 글자 */
+  | { type: 'clipboard' };
 
 export type LauncherToBrowser = LauncherCommand & { rid?: number };
 
@@ -54,6 +60,11 @@ export type BrowserReply =
   | { type: 'theme'; source: 'system' | 'light' | 'dark'; dark: boolean; menuChecked: string | null }
   /** state: none | latest | checkFailed | available | downloading | installing | failed (src/browser/update.ts UpdateState) */
   | { type: 'update'; state: string; version?: string; reason?: string }
+  /** open: 개발자도구가 열린 탭(shown: 지금 보이는 탭인지), ui: 사람 창 UI에 열렸는지(늘 false여야 한다) */
+  | { type: 'pageTools'; open: { view: 'human' | 'session'; sessionId?: string; shown: boolean }[]; ui: boolean }
+  /** 뜬 팝업 메뉴 항목(구분선은 label '-') */
+  | { type: 'popup'; items: { label: string; enabled: boolean }[] }
+  | { type: 'clipboard'; text: string }
   | { type: 'sessionCreated'; sessionId: string; targetId: string }
   | { type: 'tabCreated'; targetId: string }
   | { type: 'done' }

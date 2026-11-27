@@ -39,6 +39,8 @@ export interface AgentSessionEvents {
   agentInputActive(sessionId: string): boolean;
   /** 사람 키 입력을 막았다(키보드 포커스를 사람 쪽으로 돌린다) */
   humanKeyBlocked(sessionId: string): void;
+  /** 사람이 세션 탭을 오른쪽 클릭했다(페이지에는 닿지 않았다). x, y는 탭 안 좌표. 보는 중이면 "검사" 메뉴를 띄운다(카드 20261127-page-devtools D4) */
+  humanRightClick(sessionId: string, contents: WebContents, x: number, y: number): void;
 }
 
 /** 세션 탭이 들어갈 사람 창의 자리(주소창 아래, 지켜보기 패널 왼쪽) */
@@ -61,7 +63,11 @@ export function createAgentSession(sessionId: string, host: BrowserWindow, area:
     contentsIds.add(contents.id);
     // 에이전트 탭은 사람이 조작하지 않는다(보는 중 읽기 전용, 구석 1px 점). 카드 20261122-agent-input-lock
     // 마우스: CDP 입력도 같은 길로 오므로 에이전트 입력 중에만 통과시킨다. 키: CDP 키 입력은 이 이벤트를 거치지 않아 늘 막는다
-    contents.on('before-mouse-event', (event) => { if (!events.agentInputActive(sessionId)) event.preventDefault(); });
+    contents.on('before-mouse-event', (event, mouse) => {
+      if (events.agentInputActive(sessionId)) return;
+      event.preventDefault();
+      if (mouse.type === 'mouseDown' && mouse.button === 'right') events.humanRightClick(sessionId, contents, mouse.x, mouse.y);
+    });
     contents.on('before-input-event', (event) => { event.preventDefault(); events.humanKeyBlocked(sessionId); });
     const p = targetIdOf(contents).then((targetId) => {
       if (contents.isDestroyed()) return undefined;
