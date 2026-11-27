@@ -25,6 +25,8 @@ export type LauncherCommand =
   | { type: 'theme' }
   /** 시험용: 앱 메뉴 항목을 사람이 누른 것처럼 누른다(id가 있는 항목만, 카드 20261123-theme-mode) */
   | { type: 'clickMenu'; id: string }
+  /** 시험용: 마지막으로 띄운 팝업 메뉴(북마크 막대·테마 버튼)에서 이름 경로로 항목을 누른다(카드 20261127-bookmark-folders) */
+  | { type: 'clickPopup'; path: string[] }
   /** 앱 안 업데이트 상태(시험·진단용, 카드 20261123-update-notice) */
   | { type: 'update' }
   /** 시험용: 세션의 활성 탭에 사람 입력(OS 입력 경로: 마우스 누르기·떼기, 글자 하나)을 보낸다(카드 20261122-agent-input-lock) */

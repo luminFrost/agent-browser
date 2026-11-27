@@ -1,10 +1,10 @@
 // 사람 창 UI (주소창·탭 막대). 모듈이 아닌 스크립트로 읽힌다.
-interface HumanTabView { id: number; title: string; url: string; loading: boolean }
+interface HumanTabView { id: number; title: string; url: string; loading: boolean; favicon?: string }
 /** viewing이 있으면 그 세션의 탭을 보는 중이다(읽기 전용, spec-embedded-sessions) */
 interface HumanState { tabs: HumanTabView[]; activeId: number | null; canGoBack: boolean; canGoForward: boolean; viewing: string | null; viewingLabel?: string }
 interface HumanApprovalView { id: string; sessionId: string; host: string; kind: 'form' | 'download'; detail?: string; expiresAt: number }
 /** 북마크(카드 20261125-bookmarks): 링크는 url, 폴더는 children */
-interface HumanBookmark { id: string; title: string; url?: string; children?: HumanBookmark[] }
+interface HumanBookmark { id: string; title: string; url?: string; icon?: string; children?: HumanBookmark[] }
 interface HumanSessionView { sessionId: string; label?: string; tabs: HumanTabView[]; activeId: number | null }
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- 전역 Window 확장(preload가 연 humanApi)이라 선언만 있다
 interface Window {
@@ -18,6 +18,7 @@ interface Window {
     onFocusAddress(listener: () => void): void;
     onBookmarks(listener: (nodes: HumanBookmark[]) => void): void;
     onToast(listener: (text: string) => void): void;
+    onBookmarkPrompt(listener: (p: { mode: 'newFolder' } | { mode: 'rename'; id: string; title: string }) => void): void;
   };
 }
 
@@ -68,6 +69,7 @@ interface Window {
       el.className = 'tab' + (t.id === s.activeId ? ' active' : '');
       el.dataset.id = String(t.id);
       el.dataset.title = t.title;
+      if (t.favicon) el.dataset.favicon = t.favicon;
       el.title = t.url;
       const title = document.createElement('span');
       title.className = 'title';
@@ -106,20 +108,62 @@ interface Window {
   };
   star.addEventListener('click', () => api.command({ cmd: 'toggleBookmark' }));
   /** 폴더 메뉴·오른쪽 클릭 메뉴는 main이 그 자리에 띄운다(창 안 좌표) */
-  const popup = (id: string, el: HTMLElement, at?: MouseEvent) => {
+  const popup = (id: string | null, el: HTMLElement, at?: MouseEvent) => {
     const r = el.getBoundingClientRect();
-    api.command({ cmd: 'bookmarkPopup', id, x: at ? at.clientX : r.left, y: at ? at.clientY : r.bottom });
+    api.command({ cmd: 'bookmarkPopup', id, x: at ? at.clientX : r.left, y: at ? at.clientY : r.bottom, context: !!at });
   };
+  // 막대의 빈 곳 오른쪽 클릭: 새 폴더(카드 20261127-bookmark-folders G2)
+  barEl.addEventListener('contextmenu', (e) => { if (e.target === barEl || e.target === itemsEl || e.target === barEmpty) { e.preventDefault(); popup(null, barEl, e); } });
+  // 이름 칸(새 폴더·이름 바꾸기). Enter로 정하고 Esc·다른 곳 누르기로 취소
+  const nameInput = byId<HTMLInputElement>('bookmark-name');
+  const itemsEl = byId<HTMLSpanElement>('bookmark-items');
+  let naming: { mode: 'newFolder' } | { mode: 'rename'; id: string; title: string } | null = null;
+  const endNaming = (save: boolean) => {
+    if (!naming) return;
+    const p = naming;
+    naming = null;
+    nameInput.hidden = true;
+    if (!save) return;
+    if (p.mode === 'newFolder') api.command({ cmd: 'bookmarkNewFolder', title: nameInput.value });
+    else api.command({ cmd: 'bookmarkRename', id: p.id, title: nameInput.value });
+  };
+  nameInput.addEventListener('keydown', (e) => {
+    // 한글 입력 조합 중의 Enter는 글자를 끝내는 것이지 정하기가 아니다
+    if (e.isComposing) return;
+    if (e.key === 'Enter') { e.preventDefault(); endNaming(true); }
+    if (e.key === 'Escape') { e.preventDefault(); endNaming(false); }
+  });
+  nameInput.addEventListener('blur', () => endNaming(false));
+  api.onBookmarkPrompt((p) => {
+    naming = p;
+    nameInput.placeholder = p.mode === 'newFolder' ? '새 폴더 이름' : '새 이름';
+    nameInput.value = p.mode === 'rename' ? p.title : '';
+    nameInput.hidden = false;
+    nameInput.focus();
+    nameInput.select();
+  });
   api.onBookmarks((nodes) => {
     bookmarkList = nodes;
     barEmpty.hidden = nodes.length > 0;
-    barEl.replaceChildren(barEmpty, ...nodes.map((n) => {
+    // 이름 칸은 다시 그리지 않는다(이름을 넣는 중에 목록이 바뀌어도 칸이 그대로 남는다)
+    itemsEl.replaceChildren(barEmpty, ...nodes.map((n) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'bookmark' + (n.children ? ' folder' : '');
       b.dataset.id = n.id;
-      b.textContent = n.title || n.url || '';
-      b.title = n.url ?? n.title;
+      // 사이트 아이콘(없으면 기본 지구 모양, 폴더는 CSS의 폴더 모양) + 이름(G1)
+      if (!n.children) {
+        const icon = document.createElement(n.icon ? 'img' : 'span');
+        icon.className = 'favicon' + (n.icon ? '' : ' default');
+        if (n.icon) { (icon as HTMLImageElement).src = n.icon; (icon as HTMLImageElement).alt = ''; }
+        b.append(icon);
+      }
+      const label = document.createElement('span');
+      label.className = 'label';
+      label.textContent = n.title || n.url || '';
+      b.append(label);
+      // 마우스를 올리면 이름과 주소(G3)
+      b.title = n.url ? `${n.title}\n${n.url}` : n.title;
       if (n.children) b.addEventListener('click', () => popup(n.id, b));
       else {
         b.addEventListener('click', (e) => api.command({ cmd: 'openBookmark', id: n.id, newTab: e.metaKey || e.ctrlKey }));
@@ -150,13 +194,12 @@ interface Window {
   const followEl = byId<HTMLInputElement>('follow');
   followEl.addEventListener('change', () => api.command({ cmd: 'follow', on: followEl.checked }));
   // 화면 모드(카드 20261123-theme-mode). 값은 main이 가지고 남기며, 메뉴에서 바꿔도 여기로 온다
-  const themeEl = byId<HTMLSelectElement>('theme');
-  themeEl.addEventListener('change', () => api.command({ cmd: 'theme', mode: themeEl.value }));
-  const themeIcon = document.querySelector<HTMLElement>('#theme-button .icon');
+  // 셀렉트 대신 버튼 + 앱 메뉴(카드 20261127-bookmark-folders G4: 듀얼 모니터에서 셀렉트 목록이 다른 화면에 떴다)
+  const themeBtn = byId<HTMLButtonElement>('theme-button');
+  const themeIcon = themeBtn.querySelector<HTMLElement>('.icon');
   const THEME_ICONS: Record<string, string> = { system: '◐', light: '☀', dark: '☾' };
-  const showThemeIcon = () => { if (themeIcon) themeIcon.textContent = THEME_ICONS[themeEl.value] ?? THEME_ICONS.system; };
-  themeEl.addEventListener('change', showThemeIcon);
-  api.onTheme((mode) => { themeEl.value = mode; showThemeIcon(); });
+  themeBtn.addEventListener('click', () => { const r = themeBtn.getBoundingClientRect(); api.command({ cmd: 'themeMenu', x: r.left, y: r.bottom }); });
+  api.onTheme((mode) => { themeBtn.dataset.mode = mode; if (themeIcon) themeIcon.textContent = THEME_ICONS[mode] ?? THEME_ICONS.system; });
   // 앱 안 업데이트(카드 20261123-update-notice). 새 버전이 있을 때만 패널 맨 위에 보인다
   const updateEl = byId<HTMLElement>('update');
   const updateText = byId<HTMLElement>('update-text');

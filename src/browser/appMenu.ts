@@ -1,6 +1,6 @@
 import type { MenuItemConstructorOptions } from 'electron';
 import { THEME_MODES, type ThemeMode } from './settings';
-import { isFolder, type BookmarkNode } from './bookmarks';
+import { findById, folderChoices, isFolder, type BookmarkNode } from './bookmarks';
 
 /** 화면 모드 이름(카드 20261123-theme-mode). 주소창 줄 테마 버튼(선택 목록)과 같은 글자 */
 export const THEME_LABELS: Record<ThemeMode, string> = { system: '시스템 설정', light: '라이트', dark: '다크' };
@@ -13,7 +13,7 @@ export interface ThemeMenu { current: ThemeMode; pick(mode: ThemeMode): void }
 export interface UpdateMenu { check(): void }
 /** 탭 단축키 동작(카드 20261125-tab-usability K2). selectTab은 1~8번째 또는 마지막 */
 export type TabAction = 'newTab' | 'reopenTab' | 'duplicateTab' | 'closeTab' | 'focusAddress' | 'reload' | 'back' | 'forward'
-  | 'nextTab' | 'prevTab' | 'toggleBookmark' | 'importBookmarksFile' | 'exportBookmarksFile' | { selectTab: number | 'last' };
+  | 'nextTab' | 'prevTab' | 'toggleBookmark' | 'importBookmarksFile' | 'exportBookmarksFile' | 'newBookmarkFolder' | { selectTab: number | 'last' };
 /** 메뉴의 탭 동작을 부를 곳(사람 창) */
 export interface TabMenu { run(action: TabAction): void }
 /** 메뉴 "북마크" 아래 목록과 고를 때 부를 곳(카드 20261125-bookmarks) */
@@ -25,6 +25,48 @@ export function bookmarkMenuItems(nodes: BookmarkNode[], open: (id: string) => v
   return nodes.map((n) => (isFolder(n)
     ? { label: n.title || '(이름 없음)', submenu: n.children.length ? bookmarkMenuItems(n.children, open) : [{ label: '(비어 있음)', enabled: false }] }
     : { id: bookmarkMenuId(n.id), label: n.title || n.url, click: () => open(n.id) }));
+}
+/** 북마크 오른쪽 클릭 메뉴가 부를 곳 */
+export interface BookmarkActions {
+  open(id: string, newTab: boolean): void;
+  move(id: string, folderId: string | null): void;
+  rename(id: string): void;
+  remove(id: string): void;
+  newFolder(): void;
+}
+
+/**
+ * 북마크 막대 오른쪽 클릭 메뉴(카드 20261127-bookmark-folders G2). id가 null이면 막대의 빈 곳.
+ * 폴더를 눌렀을 때(openChild가 있으면) 메뉴 맨 위에 하위 목록을 둔다
+ */
+export function bookmarkContextMenu(nodes: BookmarkNode[], id: string | null, a: BookmarkActions, openChild?: (id: string) => void): MenuItemConstructorOptions[] {
+  const newFolder: MenuItemConstructorOptions = { label: '새 폴더…', click: () => a.newFolder() };
+  const node = id === null ? undefined : findById(nodes, id);
+  if (!node) return [newFolder];
+  const move: MenuItemConstructorOptions = {
+    label: '폴더로 이동',
+    submenu: [
+      { label: '북마크 막대', click: () => a.move(node.id, null) },
+      ...folderChoices(nodes, isFolder(node) ? node.id : undefined).map((f) => ({ label: f.label, click: () => a.move(node.id, f.id) })),
+    ],
+  };
+  const common: MenuItemConstructorOptions[] = [move, { label: '이름 바꾸기…', click: () => a.rename(node.id) }, newFolder, { type: 'separator' }];
+  if (isFolder(node)) {
+    const children = openChild ? bookmarkMenuItems(node.children, openChild) : [];
+    return [...children, ...(children.length ? [{ type: 'separator' as const }] : []), ...common, { label: '폴더 삭제', click: () => a.remove(node.id) }];
+  }
+  return [
+    { label: '열기', click: () => a.open(node.id, false) },
+    { label: '새 탭에서 열기', click: () => a.open(node.id, true) },
+    { type: 'separator' },
+    ...common,
+    { label: '삭제', click: () => a.remove(node.id) },
+  ];
+}
+
+/** 주소창 줄 테마 버튼의 메뉴(셀렉트 대신. 듀얼 모니터에서 셀렉트 목록이 다른 화면에 뜨던 것, G4) */
+export function themePopupMenu(current: ThemeMode, pick: (mode: ThemeMode) => void): MenuItemConstructorOptions[] {
+  return THEME_MODES.map((mode) => ({ label: THEME_LABELS[mode], type: 'radio' as const, checked: mode === current, click: () => pick(mode) }));
 }
 /** 숫자로 고르는 탭 수(⌘1~⌘8). ⌘9는 마지막 탭(Chrome과 같다) */
 const NUMBERED_TABS = 8;
@@ -66,6 +108,7 @@ export function appMenuTemplate(
       // 북마크 HTML 파일(브라우저 내보내기 형식, 카드 20261125-bookmark-file)
       { id: 'import-bookmarks-file', label: '파일에서 가져오기…', click: () => tabs.run('importBookmarksFile') },
       { id: 'export-bookmarks-file', label: '파일로 내보내기…', click: () => tabs.run('exportBookmarksFile') },
+      { id: 'new-bookmark-folder', label: '새 폴더…', click: () => tabs.run('newBookmarkFolder') },
       ...(bookmarks.nodes.length ? [{ type: 'separator' as const }, ...bookmarkItems(bookmarks.nodes)] : []),
     ],
   };

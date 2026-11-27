@@ -28,6 +28,10 @@ if (isHumanUi) contextBridge.exposeInMainWorld('humanApi', {
   onBookmarks: (listener: (nodes: unknown[]) => void) => {
     ipcRenderer.on('human:bookmarks', (_e, nodes: unknown[]) => listener(nodes));
   },
+  /** 북마크 이름 칸(카드 20261127-bookmark-folders) */
+  onBookmarkPrompt: (listener: (p: unknown) => void) => {
+    ipcRenderer.on('human:bookmarkPrompt', (_e, p: unknown) => listener(p));
+  },
   /** 잠시 보일 알림(카드 20261125-bookmark-file) */
   onToast: (listener: (text: string) => void) => {
     ipcRenderer.on('human:toast', (_e, text: string) => listener(text));

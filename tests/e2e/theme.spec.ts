@@ -13,9 +13,10 @@ test.beforeEach(async () => { server = await startTestServer(); });
 test.afterEach(async () => { await app?.stop(); await server.close(); });
 
 const ui = async <T>(expr: string) => evaluate<T>(app, (await humanUi(app)).targetId, expr);
-const selected = () => ui<string>(`document.querySelector('#theme').value`);
+// 카드 20261127-bookmark-folders G4: 셀렉트 대신 버튼 + 앱 메뉴. 지금 값은 버튼의 data-mode, 고르기는 메뉴가 부르는 것과 같은 명령
+const selected = () => ui<string>(`document.querySelector('#theme-button').dataset.mode`);
 /** 사람이 패널의 "모양" 선택을 바꾼 것처럼 */
-const pick = (mode: Mode) => ui(`(() => { const s = document.querySelector('#theme'); s.value = ${JSON.stringify(mode)}; s.dispatchEvent(new Event('change')); })()`);
+const pick = (mode: Mode) => ui(`window.humanApi.command({ cmd: 'theme', mode: ${JSON.stringify(mode)} })`);
 const theme = () => app.request({ type: 'theme' }, 'theme');
 const settingsTheme = (profile: string) => (JSON.parse(readFileSync(join(profile, 'settings.json'), 'utf8')) as { theme?: string }).theme;
 const darkQuery = (targetId: string) => evaluate<boolean>(app, targetId, `matchMedia('(prefers-color-scheme: dark)').matches`);
@@ -32,8 +33,8 @@ test('T1: 처음엔 기기 모드이고, 패널·메뉴에서 고르면 바로 �
   app = await launch({ userDataDir: profile });
   expect(await selected()).toBe('system');
   expect(await theme()).toMatchObject({ source: 'system', menuChecked: 'system' });
-  expect([...await ui<string[]>(`[...document.querySelectorAll('#theme option')].map(o => o.value + ':' + o.textContent)`)])
-    .toEqual(['system:시스템 설정', 'light:라이트', 'dark:다크']);
+  // 고르는 목록은 앱 메뉴(themePopupMenu, 단위 시험)라 화면에 셀렉트가 없다
+  expect(await ui<number>(`document.querySelectorAll('select').length`)).toBe(0);
 
   await pick('dark');
   await waitFor(async () => (await theme()).source === 'dark', '패널에서 어둡게');
@@ -52,19 +53,17 @@ test('T1: 처음엔 기기 모드이고, 패널·메뉴에서 고르면 바로 �
   expect(await theme()).toMatchObject({ source: 'light', menuChecked: 'light' });
 });
 
-test('H1: 테마 선택은 주소창 줄 오른쪽 끝의 버튼(30×30 이상, 지금 모드 아이콘)이고 패널에는 없다', async () => {
+test('H1: 테마 선택은 주소창 줄 오른쪽 끝의 버튼(30×30 이상, 지금 모드 아이콘)이고 패널에는 없다. 셀렉트가 아니다(G4)', async () => {
   app = await launch();
-  const box = await ui<{ inNav: boolean; inPanel: boolean; last: boolean; w: number; h: number; selW: number; selH: number; title: string }>(`(() => {
-    const b = document.querySelector('#theme-button'); const s = document.querySelector('#theme');
-    const r = b.getBoundingClientRect(); const q = s.getBoundingClientRect(); const nav = document.querySelector('#nav');
+  const box = await ui<{ inNav: boolean; inPanel: boolean; last: boolean; w: number; h: number; tag: string; hasSelect: boolean; title: string }>(`(() => {
+    const b = document.querySelector('#theme-button');
+    const r = b.getBoundingClientRect(); const nav = document.querySelector('#nav');
     const items = [...nav.children].filter((e) => !e.hidden && getComputedStyle(e).display !== 'none');
-    return { inNav: nav.contains(s), inPanel: document.querySelector('#panel').contains(s), last: items[items.length - 1] === b,
-      w: r.width, h: r.height, selW: q.width, selH: q.height, title: b.title };
+    return { inNav: nav.contains(b), inPanel: document.querySelector('#panel').contains(b), last: items[items.length - 1] === b,
+      w: r.width, h: r.height, tag: b.tagName, hasSelect: !!b.querySelector('select'), title: b.title };
   })()`);
-  expect(box).toMatchObject({ inNav: true, inPanel: false, last: true, title: '테마' });
+  expect(box).toMatchObject({ inNav: true, inPanel: false, last: true, title: '테마', tag: 'BUTTON', hasSelect: false });
   expect(box.w).toBeGreaterThanOrEqual(30); expect(box.h).toBeGreaterThanOrEqual(30);
-  // 누르는 자리 전체가 선택 목록(OS 목록이 열린다)
-  expect(box.selW).toBeGreaterThanOrEqual(box.w - 1); expect(box.selH).toBeGreaterThanOrEqual(box.h - 1);
   const icon = () => ui<string>(`document.querySelector('#theme-button .icon').textContent`);
   expect(await icon()).toBe('◐');
   await pick('dark'); await waitFor(async () => (await icon()) === '☾', '다크 아이콘');
@@ -125,4 +124,13 @@ test('T3 (UI-F7): 두 모드 모두 패널·머리 글자와 바탕의 대비가
     const low = Object.entries(ratios).filter(([, r]) => r < 4.5);
     expect(low, `${mode}: ${JSON.stringify(ratios)}`).toEqual([]);
   }
+});
+
+test('G4: 테마 버튼을 누르면 앱 메뉴(시스템 설정·라이트·다크)가 뜨고, 고르면 바뀐다', async () => {
+  app = await launch();
+  await ui(`document.querySelector('#theme-button').click()`);
+  // 버튼 → themeMenu 명령 → main이 메뉴를 띄운다. 그 메뉴의 "다크"를 누른다
+  await waitFor(async () => app.request({ type: 'clickPopup', path: ['다크'] }, 'done').then(() => true, () => false), '테마 메뉴');
+  await waitFor(async () => (await selected()) === 'dark', '다크');
+  expect(await theme()).toMatchObject({ source: 'dark' });
 });

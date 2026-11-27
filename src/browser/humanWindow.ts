@@ -70,7 +70,9 @@ export interface HumanWindow {
   /** 북마크 막대를 다시 그린다(카드 20261125-bookmarks) */
   showBookmarks(nodes: BookmarkNode[]): void;
   /** 북마크할 지금 페이지(내 탭을 보는 중일 때만). 빈 탭이면 없다 */
-  activePage(): { url: string; title: string } | undefined;
+  activePage(): { url: string; title: string; favicon?: string } | undefined;
+  /** 북마크 막대에 이름 칸을 띄운다(새 폴더, 이름 바꾸기) */
+  promptBookmarkName(p: { mode: 'newFolder' } | { mode: 'rename'; id: string; title: string }): void;
   /** 주소를 내 탭에 연다(세션을 보는 중이면 내 탭으로 돌아와서). newTab이면 새 탭 */
   openUrl(url: string, newTab: boolean): void;
   /** 패널에 잠시 알림을 보인다(북마크 파일 결과) */
@@ -95,7 +97,11 @@ export interface HumanWindowEvents {
   /** 북마크 막대 항목을 눌렀다 */
   openBookmark(id: string, newTab: boolean): void;
   /** 북마크 막대 폴더를 눌렀거나 오른쪽 클릭했다 */
-  bookmarkPopup(id: string, x: number, y: number): void;
+  bookmarkPopup(id: string | null, x: number, y: number, context: boolean): void;
+  bookmarkMove(id: string, folderId: string | null): void;
+  bookmarkRename(id: string, title: string): void;
+  bookmarkNewFolder(title: string): void;
+  themeMenu(x: number, y: number): void;
 }
 
 /** 따라 보기 설정을 읽고 남기는 곳(프로필의 settings.json) */
@@ -285,7 +291,11 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
       case 'update': return events.installUpdate();
       case 'toggleBookmark': return events.toggleBookmark();
       case 'openBookmark': return events.openBookmark(c.id, c.newTab);
-      case 'bookmarkPopup': return events.bookmarkPopup(c.id, c.x, c.y);
+      case 'bookmarkPopup': return events.bookmarkPopup(c.id, c.x, c.y, c.context);
+      case 'bookmarkMove': return events.bookmarkMove(c.id, c.folderId);
+      case 'bookmarkRename': return typeof c.title === 'string' ? events.bookmarkRename(c.id, c.title) : undefined;
+      case 'bookmarkNewFolder': return typeof c.title === 'string' ? events.bookmarkNewFolder(c.title) : undefined;
+      case 'themeMenu': return events.themeMenu(c.x, c.y);
     }
     if (viewing !== null) {
       // 세션을 보는 중에는 읽기 전용이다(E3). 탭 막대에서 보는 탭을 고르는 것만 된다. 주인의 활성 탭은 바꾸지 않는다.
@@ -319,12 +329,17 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     const s = tabs.state();
     const t = s.tabs.find((x) => x.id === s.activeId);
     if (!t || !t.url || t.url === 'about:blank') return undefined;
-    return { url: t.url, title: t.title };
+    return { url: t.url, title: t.title, favicon: tabs.favicon(t.id) };
   };
   const openUrl = (url: string, newTab: boolean) => {
     if (viewing !== null) { setFollow(false); setViewing(null); }
     if (newTab || tabs.state().activeId === null) tabs.newTab(url);
     else tabs.navigate(url);
+  };
+  const promptBookmarkName = (p: { mode: 'newFolder' } | { mode: 'rename'; id: string; title: string }) => {
+    if (win.isDestroyed()) return;
+    win.webContents.focus();
+    win.webContents.send('human:bookmarkPrompt', p);
   };
   const toast = (text: string) => { if (!win.isDestroyed()) win.webContents.send('human:toast', text); };
   const runTab = (a: TabAction) => {
@@ -394,6 +409,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     activePage,
     openUrl,
     toast,
+    promptBookmarkName,
     addSession: (sessionId, strip) => {
       sessions.set(sessionId, strip);
       lastMove.set(sessionId, moveOf(strip));

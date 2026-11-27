@@ -75,7 +75,8 @@ describe('앱 메뉴 북마크', () => {
       const fileItems = items.filter((i) => i.id === 'import-bookmarks-file' || i.id === 'export-bookmarks-file');
       expect(fileItems.map((i) => i.label)).toEqual(['파일에서 가져오기…', '파일로 내보내기…']);
       fileItems.forEach((i) => i.click?.());
-      expect(ran).toEqual(['toggleBookmark', 'importBookmarksFile', 'exportBookmarksFile']);
+      items.find((i) => i.id === 'new-bookmark-folder')?.click?.();
+      expect(ran).toEqual(['toggleBookmark', 'importBookmarksFile', 'exportBookmarksFile', 'newBookmarkFolder']);
       expect(items.some((i) => i.id === 'import-chrome-bookmarks' || String(i.label).includes('Chrome'))).toBe(false);
       items.find((i) => i.id === 'bookmark-a')?.click?.();
       const folder = items.find((i) => i.label === '일');
@@ -83,4 +84,46 @@ describe('앱 메뉴 북마크', () => {
       expect(opened).toEqual(['a', 'b']);
     });
   }
+});
+
+// 카드 20261127-bookmark-folders G2·G4: 북마크 오른쪽 클릭 메뉴, 새 폴더, 테마 메뉴
+import { bookmarkContextMenu, themePopupMenu } from './appMenu';
+describe('북마크 오른쪽 클릭 메뉴', () => {
+  const nodes = [{ id: 'a', title: 'A', url: 'https://a.test/' }, { id: 'f', title: 'F', children: [{ id: 'g', title: 'G', children: [] }] }];
+  const calls: string[] = [];
+  const h = {
+    open: (id: string, newTab: boolean) => calls.push(`open:${id}:${newTab}`), move: (id: string, to: string | null) => calls.push(`move:${id}:${to}`),
+    rename: (id: string) => calls.push(`rename:${id}`), remove: (id: string) => calls.push(`remove:${id}`), newFolder: () => calls.push('newFolder'),
+  };
+  type Item = { label?: string; click?: () => void; submenu?: Item[]; type?: string };
+  const find = (items: Item[], label: string) => items.find((i) => i.label === label);
+  it('링크: 열기·새 탭·폴더로 이동(북마크 막대·폴더 경로)·이름 바꾸기·새 폴더·삭제', () => {
+    calls.length = 0;
+    const m = bookmarkContextMenu(nodes, 'a', h) as Item[];
+    expect(m.filter((i) => i.type !== 'separator').map((i) => i.label)).toEqual(['열기', '새 탭에서 열기', '폴더로 이동', '이름 바꾸기…', '새 폴더…', '삭제']);
+    const move = find(m, '폴더로 이동')!.submenu!;
+    expect(move.filter((i) => i.type !== 'separator').map((i) => i.label)).toEqual(['북마크 막대', 'F', 'F › G']);
+    find(move, 'F › G')!.click!();
+    find(m, '이름 바꾸기…')!.click!();
+    find(m, '새 폴더…')!.click!();
+    expect(calls).toEqual(['move:a:g', 'rename:a', 'newFolder']);
+  });
+  it('폴더: 하위 목록, 폴더로 이동에는 자기와 자기 안이 없다', () => {
+    const m = bookmarkContextMenu(nodes, 'f', h, (id) => calls.push(`child:${id}`)) as Item[];
+    const move = find(m, '폴더로 이동')!.submenu!;
+    expect(move.filter((i) => i.type !== 'separator').map((i) => i.label)).toEqual(['북마크 막대']);
+    expect(find(m, '폴더 삭제')).toBeDefined();
+  });
+  it('빈 곳: 새 폴더…만', () => {
+    expect((bookmarkContextMenu(nodes, null, h) as Item[]).map((i) => i.label)).toEqual(['새 폴더…']);
+  });
+});
+describe('테마 메뉴(셀렉트 대신)', () => {
+  it('시스템 설정·라이트·다크 라디오, 지금 값에 체크, 고르면 pick', () => {
+    const picked: string[] = [];
+    const m = themePopupMenu('dark', (mode) => picked.push(mode)) as { label: string; type: string; checked: boolean; click: () => void }[];
+    expect(m.map((i) => [i.label, i.type, i.checked])).toEqual([['시스템 설정', 'radio', false], ['라이트', 'radio', false], ['다크', 'radio', true]]);
+    m[1].click();
+    expect(picked).toEqual(['light']);
+  });
 });

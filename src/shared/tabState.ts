@@ -4,6 +4,8 @@ export interface TabView {
   /** 주소창에 보일 주소. 오류 페이지라면 실패한 주소 */
   url: string;
   loading: boolean;
+  /** 페이지가 알린 사이트 아이콘 주소(있을 때). 북마크가 이 아이콘을 받아 남긴다 */
+  favicon?: string;
 }
 
 export interface TabStripState {
@@ -39,8 +41,16 @@ export type HumanCommand =
   | { cmd: 'toggleBookmark' }
   /** 북마크를 연다. newTab이면 새 탭(⌘클릭·가운데 클릭) */
   | { cmd: 'openBookmark'; id: string; newTab: boolean }
-  /** 북마크 막대의 폴더를 눌렀거나 항목을 오른쪽 클릭했다. x·y는 창 안 좌표 */
-  | { cmd: 'bookmarkPopup'; id: string; x: number; y: number };
+  /** 북마크 막대의 폴더를 눌렀거나(context false) 항목·빈 곳(id null)을 오른쪽 클릭했다. x·y는 창 안 좌표 */
+  | { cmd: 'bookmarkPopup'; id: string | null; x: number; y: number; context: boolean }
+  /** 북마크·폴더를 폴더로(null이면 북마크 막대로) 옮긴다(카드 20261127-bookmark-folders G2) */
+  | { cmd: 'bookmarkMove'; id: string; folderId: string | null }
+  /** 이름을 바꾼다 */
+  | { cmd: 'bookmarkRename'; id: string; title: string }
+  /** 새 폴더 */
+  | { cmd: 'bookmarkNewFolder'; title: string }
+  /** 테마 버튼을 눌렀다: 그 아래 메뉴(G4). x·y는 창 안 좌표 */
+  | { cmd: 'themeMenu'; x: number; y: number };
 
 /** 사람 창 머리(탭 막대·주소창)에 보일 상태. viewing이 있으면 그 세션의 탭을 보는 중이다(읽기 전용) */
 export interface HumanToolbarState extends TabStripState {
