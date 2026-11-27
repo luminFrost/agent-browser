@@ -18,6 +18,8 @@ test.afterEach(async () => {
 const ui = async <T>(expr: string) => evaluate<T>(app, (await humanUi(app)).targetId, expr);
 const menu = (id: string) => app.request({ type: 'clickMenu', id }, 'done');
 const pageTools = async () => { const { open, ui } = await app.request({ type: 'pageTools' }, 'pageTools'); return { open, ui }; };
+/** 브라우저 안 개발자도구 화면(devtools://) 수. 탭 목록과 상관없이 센다(세션이 끝난 뒤에도 남았는지 보려고) */
+const devtoolsFrontends = async () => (await app.request({ type: 'pageTools' }, 'pageTools')).frontends;
 /** 사람이 지금 보이는 탭의 (x, y)를 오른쪽 클릭했을 때 뜬 메뉴(구분선은 '-') */
 const rightClick = async (x: number, y: number) => (await app.request({ type: 'contextMenu', x, y }, 'popup')).items;
 const labels = (items: { label: string }[]) => items.map((i) => i.label);
@@ -104,8 +106,10 @@ test('D2: 세션을 보는 중 개발자도구는 그 세션의 보이는 탭에
   await view(a.id);
   await menu('devtools');
   await waitFor(async () => (await pageTools()).open.length === 1, '세션 a 개발자도구 다시 열림');
+  await waitFor(async () => (await devtoolsFrontends()) === 1, '개발자도구 화면 하나');
   await app.request({ type: 'closeSession', sessionId: a.id }, 'done');
-  await waitFor(async () => (await pageTools()).open.length === 0, '세션이 끝나면 닫힘');
+  await waitFor(async () => (await devtoolsFrontends()) === 0, '세션이 끝나면 개발자도구 화면도 없어짐');
+  expect((await pageTools()).open).toEqual([]);
   expect((await pageTools()).ui).toBe(false);
 });
 

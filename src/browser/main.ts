@@ -229,7 +229,9 @@ const pageTools = (): BrowserReply => {
   for (const [sessionId, agent] of agents) {
     for (const id of agent.tabs.webContentsIds) if (isOpen(id)) open.push({ view: 'session', sessionId, shown: id === shownId });
   }
-  return { type: 'pageTools', open, ui: human?.win.webContents.isDevToolsOpened() ?? false };
+  // 탭 목록과 상관없이 남은 개발자도구 화면(세션이 끝난 뒤 남지 않았는지 본다)
+  const frontends = webContents.getAllWebContents().filter((c) => !c.isDestroyed() && c.getURL().startsWith('devtools://')).length;
+  return { type: 'pageTools', open, ui: human?.win.webContents.isDevToolsOpened() ?? false, frontends };
 };
 /** 북마크 막대: 폴더를 누르면(context false) 하위 목록, 오른쪽 클릭이면 열기·옮기기·이름·새 폴더·삭제 메뉴를 그 자리에(G2) */
 const bookmarkPopup = (id: string | null, x: number, y: number, context: boolean) => {

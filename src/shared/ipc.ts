@@ -60,8 +60,8 @@ export type BrowserReply =
   | { type: 'theme'; source: 'system' | 'light' | 'dark'; dark: boolean; menuChecked: string | null }
   /** state: none | latest | checkFailed | available | downloading | installing | failed (src/browser/update.ts UpdateState) */
   | { type: 'update'; state: string; version?: string; reason?: string }
-  /** open: 개발자도구가 열린 탭(shown: 지금 보이는 탭인지), ui: 사람 창 UI에 열렸는지(늘 false여야 한다) */
-  | { type: 'pageTools'; open: { view: 'human' | 'session'; sessionId?: string; shown: boolean }[]; ui: boolean }
+  /** open: 개발자도구가 열린 탭(shown: 지금 보이는 탭인지), ui: 사람 창 UI에 열렸는지(늘 false여야 한다), frontends: 브라우저 안 개발자도구 화면(devtools://) 수 */
+  | { type: 'pageTools'; open: { view: 'human' | 'session'; sessionId?: string; shown: boolean }[]; ui: boolean; frontends: number }
   /** 뜬 팝업 메뉴 항목(구분선은 label '-') */
   | { type: 'popup'; items: { label: string; enabled: boolean }[] }
   | { type: 'clipboard'; text: string }
