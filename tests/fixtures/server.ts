@@ -37,6 +37,18 @@ export async function startTestServer(): Promise<TestServer> {
       case '/input': return res.end(html('Input', '<input id="i" style="position:fixed;left:0;top:0;width:100%;height:120px;margin:0;border:0"><script>window.ev = []; for (const t of ["mousedown", "keydown"]) addEventListener(t, () => ev.push(t), true);</script>'));
       case '/a': return res.end(html('Page A', '<h1>A</h1><a id="to-b" href="/b">b</a>'));
       case '/b': return res.end(html('Page B', '<h1>B</h1>'));
+      // 카드 20261127-bookmark-folders G1: 사이트 아이콘이 있는 페이지
+      // <link rel=icon>은 head에 있어야 Chromium이 그 아이콘을 알린다(body에 두면 /favicon.ico를 알린다). /favicon.ico는 없다(404)
+      case '/icon-page': return res.end('<!doctype html><title>Icon Page</title><link rel="icon" href="/icon.png"><body><h1>I</h1></body>');
+      // 검토 Major: 아이콘 크기 상한(64KB)을 넘는 아이콘. 길이 머리 없이 조각으로 보낸다(받는 중에 멈춰야 한다)
+      case '/big-icon-page': return res.end('<!doctype html><title>Big Icon</title><link rel="icon" href="/big.png"><body><h1>B</h1></body>');
+      case '/big.png':
+        res.setHeader('content-type', 'image/png');
+        for (let i = 0; i < 20; i++) res.write(Buffer.alloc(16 * 1024));
+        return res.end();
+      case '/icon.png':
+        res.setHeader('content-type', 'image/png');
+        return res.end(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==', 'base64'));
       case '/slow': return setTimeout(() => res.end(html('Slow', 'done')), Number(url.searchParams.get('ms') ?? 1500));
       case '/login': {
         if (req.method === 'POST') {

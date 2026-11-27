@@ -52,3 +52,50 @@ describe('찾기·더하기·지우기', () => {
     expect(removeBookmark(tree, 'f')).toEqual([link('a', 'https://a.test/')]);
   });
 });
+
+// 카드 20261127-bookmark-folders G2: 폴더 만들기·이름 바꾸기·옮기기
+import { addFolder, folderChoices, moveNode, renameNode } from './bookmarks';
+describe('폴더', () => {
+  const base = (): BookmarkNode[] => [link('a', 'https://a.test/'), { id: 'f', title: 'F', children: [{ id: 'g', title: 'G', children: [] }] }, link('b', 'https://b.test/')];
+  it('새 폴더는 맨 끝에, 이름이 비면 "새 폴더"', () => {
+    const r = addFolder(base(), '  일  ');
+    expect(r.at(-1)).toMatchObject({ title: '일', children: [] });
+    expect(addFolder(base(), '  ').at(-1)).toMatchObject({ title: '새 폴더' });
+  });
+  it('이름 바꾸기(폴더 안까지), 빈 이름은 그대로', () => {
+    expect(renameNode(base(), 'g', 'GG')[1]).toMatchObject({ children: [{ id: 'g', title: 'GG' }] });
+    expect(renameNode(base(), 'a', ' ')).toEqual(base());
+  });
+  it('폴더로 옮기고, 맨 위(null)로 꺼낸다', () => {
+    const inF = moveNode(base(), 'a', 'g');
+    expect(inF.map((n) => n.id)).toEqual(['f', 'b']);
+    expect(JSON.stringify(inF)).toContain('"id":"g","title":"G","children":[{"id":"a"');
+    expect(moveNode(inF, 'a', null).map((n) => n.id)).toEqual(['f', 'b', 'a']);
+  });
+  it('폴더를 자기 자신이나 자기 안의 폴더로 옮기지 못한다', () => {
+    expect(moveNode(base(), 'f', 'f')).toEqual(base());
+    expect(moveNode(base(), 'f', 'g')).toEqual(base());
+  });
+  it('옮길 곳 목록: 폴더마다 경로 이름, 옮기는 폴더와 그 안은 뺀다', () => {
+    expect(folderChoices(base())).toEqual([{ id: 'f', label: 'F' }, { id: 'g', label: 'F › G' }]);
+    expect(folderChoices(base(), 'f')).toEqual([]);
+  });
+});
+
+// 검토 1회 Major: 옮길 곳이 폴더가 아니면(링크·없는 id) 그대로. 아이콘은 data:image/만 남는다(G1)
+describe('검토 지적', () => {
+  it('링크로 옮기라고 하면 아무것도 지우지 않는다', () => {
+    const t: BookmarkNode[] = [link('a', 'https://a.test/'), link('b', 'https://b.test/'), { id: 'f', title: 'F', children: [] }];
+    expect(moveNode(t, 'a', 'b')).toEqual(t);
+    expect(moveNode(t, 'a', 'nope')).toEqual(t);
+  });
+  it('아이콘: 더할 때 남기고, 읽을 때 data:image/가 아니면 버린다', () => {
+    const d = dir();
+    const nodes = addBookmark([], { title: 'A', url: 'https://a.test/', icon: 'data:image/png;base64,AAA' });
+    expect(nodes[0]).toMatchObject({ icon: 'data:image/png;base64,AAA' });
+    writeFileSync(join(d, BOOKMARKS_FILE_NAME), JSON.stringify([...nodes, { id: 'x', title: 'X', url: 'https://x.test/', icon: 'javascript:alert(1)' }]));
+    const read = readBookmarks(d);
+    expect(read[0]).toMatchObject({ icon: 'data:image/png;base64,AAA' });
+    expect(read[1]).not.toHaveProperty('icon');
+  });
+});

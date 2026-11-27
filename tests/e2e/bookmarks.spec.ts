@@ -133,3 +133,93 @@ test('F2: 파일로 내보내고, 그 파일을 다른 프로필에서 가져오
   await waitFor(async () => (await bar()).items.length === 1, '다른 프로필로 가져옴');
   expect((await bar()).items).toEqual([{ title: 'Page A', folder: false }]);
 });
+
+// 카드 20261127-bookmark-folders: 사람 후기(11-27) "사이트명만 텍스트로만, 폴더 기능 없음, 마우스를 올려도 어떤 url인지 알 수 없음"
+const items = () => ui<{ title: string; folder: boolean; icon: string; tip: string }[]>(`[...document.querySelectorAll('#bookmarks .bookmark')].map((b) => ({
+  title: b.textContent.trim(), folder: b.classList.contains('folder'), tip: b.title,
+  icon: b.querySelector('.favicon')?.getAttribute('src')?.slice(0, 15) ?? (b.querySelector('.favicon') ? 'default' : 'none'),
+}))`);
+const cmd = (c: Record<string, unknown>) => ui(`window.humanApi.command(${JSON.stringify(c)})`);
+
+test('G1·G3: 사이트 아이콘과 이름으로 보이고(없으면 기본 아이콘), 마우스를 올리면 이름과 주소가 보인다', async () => {
+  app = await launch();
+  await ui(`(() => { const i = document.querySelector('#address'); i.value = ${JSON.stringify(`${server.base}/icon-page`)}; i.form.requestSubmit(); })()`);
+  await waitFor(async () => ui<boolean>(`[...document.querySelectorAll('#tabs .tab.active .title')].some((t) => t.textContent === 'Icon Page')`), '아이콘 페이지');
+  // 페이지가 아이콘을 알린 뒤 북마크한다(탭이 아이콘 주소를 안다)
+  await waitFor(async () => ui<boolean>(`(document.querySelector('#tabs .tab.active')?.dataset.favicon ?? '').endsWith('/icon.png')`), '아이콘 알림');
+  await menu('toggle-bookmark');
+  await go('/a');
+  await menu('toggle-bookmark');
+  await waitFor(async () => (await items()).length === 2, '북마크 둘');
+  const [withIcon, plain] = await items();
+  expect(withIcon).toMatchObject({ title: 'Icon Page', icon: 'data:image/png;' });
+  expect(plain).toMatchObject({ title: 'Page A', icon: 'default' });
+  expect(plain.tip).toBe(`Page A\n${server.base}/a`);
+});
+
+test('G2: 새 폴더(이름 넣기), 폴더로 옮기기, 이름 바꾸기, 북마크 막대로 꺼내기', async () => {
+  const profile = tempDir();
+  app = await launch({ userDataDir: profile });
+  await go('/a');
+  await menu('toggle-bookmark');
+  await waitFor(async () => (await items()).length === 1, '북마크 A');
+  await menu('new-bookmark-folder');
+  await waitFor(async () => ui<boolean>(`!document.querySelector('#bookmark-name').hidden && document.activeElement === document.querySelector('#bookmark-name')`), '이름 칸');
+  await ui(`(() => { const i = document.querySelector('#bookmark-name'); i.value = '일'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()`);
+  await waitFor(async () => (await items()).some((i) => i.title === '일' && i.folder), '폴더 일');
+  expect(await ui<boolean>(`document.querySelector('#bookmark-name').hidden`)).toBe(true);
+  const ids = await ui<Record<string, string>>(`Object.fromEntries([...document.querySelectorAll('#bookmarks .bookmark')].map((b) => [b.textContent.trim(), b.dataset.id]))`);
+  await cmd({ cmd: 'bookmarkMove', id: ids['Page A'], folderId: ids['일'] });
+  await waitFor(async () => (await items()).map((i) => i.title).join() === '일', 'A가 폴더 안으로');
+  await cmd({ cmd: 'bookmarkRename', id: ids['일'], title: '업무' });
+  await waitFor(async () => (await items()).map((i) => i.title).join() === '업무', '이름 바꿈');
+  const saved = JSON.parse(readFileSync(join(profile, 'bookmarks.json'), 'utf8')) as { title: string; children?: { url: string }[] }[];
+  expect(saved).toEqual([expect.objectContaining({ title: '업무', children: [expect.objectContaining({ url: `${server.base}/a` })] })]);
+  await cmd({ cmd: 'bookmarkMove', id: ids['Page A'], folderId: null });
+  await waitFor(async () => (await items()).map((i) => i.title).join() === '업무,Page A', '막대로 꺼냄');
+  // 이름 칸에서 Esc는 취소
+  await menu('new-bookmark-folder');
+  await waitFor(async () => ui<boolean>(`!document.querySelector('#bookmark-name').hidden`), '이름 칸');
+  await ui(`document.querySelector('#bookmark-name').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  await waitFor(async () => ui<boolean>(`document.querySelector('#bookmark-name').hidden`), '취소');
+  expect((await items()).length).toBe(2);
+});
+
+test('G1: 아이콘이 크기 상한(64KB)을 넘으면 받지 않고 기본 아이콘으로 북마크한다', async () => {
+  app = await launch();
+  await ui(`(() => { const i = document.querySelector('#address'); i.value = ${JSON.stringify(`${server.base}/big-icon-page`)}; i.form.requestSubmit(); })()`);
+  await waitFor(async () => ui<boolean>(`[...document.querySelectorAll('#tabs .tab.active .title')].some((t) => t.textContent === 'Big Icon')`), '큰 아이콘 페이지');
+  // 페이지가 큰 아이콘을 알린 뒤 북마크한다. 앱이 그 아이콘을 받으러 가서(요청이 서버에 닿는다) 상한에서 멈추고 기본 아이콘
+  await waitFor(async () => ui<boolean>(`(document.querySelector('#tabs .tab.active')?.dataset.favicon ?? '').endsWith('/big.png')`), '큰 아이콘 알림');
+  const before = server.hits.filter((h) => h === 'GET /big.png').length;
+  await menu('toggle-bookmark');
+  await waitFor(async () => (await items()).length === 1, '북마크');
+  expect(server.hits.filter((h) => h === 'GET /big.png').length).toBeGreaterThan(before);
+  expect((await items())[0]).toMatchObject({ title: 'Big Icon', icon: 'default' });
+});
+
+test('G2: 오른쪽 클릭 메뉴로 폴더로 이동·이름 바꾸기(이름 칸), 빈 곳 오른쪽 클릭으로 새 폴더', async () => {
+  app = await launch();
+  await go('/a');
+  await menu('toggle-bookmark');
+  await waitFor(async () => (await items()).length === 1, '북마크 A');
+  const popup = (path: string[]) => waitFor(async () => app!.request({ type: 'clickPopup', path }, 'done').then(() => true, () => false), path.join(' > '));
+  const rightClick = (sel: string) => ui(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); const r = e.getBoundingClientRect(); e.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.right - 2, clientY: r.top + 4 })); })()`);
+  const typeName = (name: string) => ui(`(() => { const i = document.querySelector('#bookmark-name'); i.value = ${JSON.stringify(name)}; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()`);
+  // 막대 빈 곳 오른쪽 클릭 > 새 폴더…
+  await rightClick('#bookmark-items');
+  await popup(['새 폴더…']);
+  await waitFor(async () => ui<boolean>(`!document.querySelector('#bookmark-name').hidden`), '이름 칸');
+  await typeName('일');
+  await waitFor(async () => (await items()).some((i) => i.title === '일'), '폴더 일');
+  // 북마크 오른쪽 클릭 > 폴더로 이동 > 일
+  await rightClick('#bookmarks .bookmark:not(.folder)');
+  await popup(['폴더로 이동', '일']);
+  await waitFor(async () => (await items()).map((i) => i.title).join() === '일', 'A가 폴더 안으로');
+  // 폴더 오른쪽 클릭 > 이름 바꾸기… → 지금 이름이 든 칸 → 새 이름
+  await rightClick('#bookmarks .bookmark.folder');
+  await popup(['이름 바꾸기…']);
+  await waitFor(async () => ui<boolean>(`document.querySelector('#bookmark-name').value === '일' && !document.querySelector('#bookmark-name').hidden`), '지금 이름이 든 칸');
+  await typeName('업무');
+  await waitFor(async () => (await items()).map((i) => i.title).join() === '업무', '이름 바뀜');
+});

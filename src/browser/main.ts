@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, Menu, nativeTheme, Notification, session, type MenuItem, type MenuItemConstructorOptions } from 'electron';
-import { appMenuTemplate, bookmarkMenuItems, themeMenuId } from './appMenu';
+import { appMenuTemplate, bookmarkContextMenu, bookmarkMenuItems, themeMenuId, themePopupMenu } from './appMenu';
 import { readSettings, writeSettings, THEME_MODES, type ThemeMode } from './settings';
 import { cleanLabel } from '../shared/label';
 import { CONTENT_AREA, createHumanWindow, type HumanWindow } from './humanWindow';
@@ -13,8 +13,9 @@ import { startUpdater, type Updater } from './updater';
 import { join } from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 import { countLinks, mergeImported, parseBookmarkHtml, toBookmarkHtml } from './bookmarkFile';
+import { iconResponseToDataUrl } from './favicon';
 import {
-  addBookmark, findById, findByUrl, isFolder, readBookmarks, removeBookmark, writeBookmarks, type BookmarkNode,
+  addBookmark, addFolder, findById, findByUrl, isFolder, moveNode, readBookmarks, removeBookmark, renameNode, writeBookmarks, type BookmarkNode,
 } from './bookmarks';
 import type { BrowserReply, LauncherToBrowser, WindowInfo } from '../shared/ipc';
 
@@ -116,7 +117,8 @@ let bookmarks: BookmarkNode[] = [];
 const rebuildMenu = () => {
   Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(
     process.platform, app.getName(), { current: theme, pick: setTheme }, { check: () => updater?.check() },
-    { run: (a) => (a === 'toggleBookmark' ? toggleBookmark() : a === 'importBookmarksFile' ? void importBookmarksFile()
+    { run: (a) => (a === 'toggleBookmark' ? void toggleBookmark() : a === 'newBookmarkFolder' ? human?.promptBookmarkName({ mode: 'newFolder' })
+      : a === 'importBookmarksFile' ? void importBookmarksFile()
       : a === 'exportBookmarksFile' ? void exportBookmarksFile() : human?.runTab(a)) },
     { nodes: bookmarks, open: (id) => openBookmark(id, false) },
   )));
@@ -134,12 +136,32 @@ const setBookmarks = (nodes: BookmarkNode[]) => {
   rebuildMenu();
   human?.showBookmarks(nodes);
 };
-/** 지금 보는 내 탭을 북마크하거나, 이미 있으면 지운다(별표·⌘D) */
-const toggleBookmark = () => {
+/** 사이트 아이콘을 받는 시간·크기 상한(북마크 파일에 data: URL로 남긴다) */
+const FAVICON_FETCH_TIMEOUT_MS = 3000;
+const FAVICON_MAX_BYTES = 64 * 1024;
+/** data: URL로 바꾼 길이 상한(base64는 4/3배 + 머리) */
+const FAVICON_DATA_URL_MAX = Math.ceil((FAVICON_MAX_BYTES * 4) / 3) + 64;
+/** 페이지가 알려 준 아이콘 주소 → data: URL. 못 받으면 없음(기본 아이콘을 쓴다) */
+async function faviconData(url: string | undefined): Promise<string | undefined> {
+  if (!url) return undefined;
+  if (url.startsWith('data:image/')) return url.length <= FAVICON_DATA_URL_MAX ? url : undefined;
+  if (!/^https?:\/\//i.test(url)) return undefined;
+  try {
+    // 사람 탭과 같은 세션(쿠키·프록시가 같다)
+    const res = await session.fromPartition(SHARED_PARTITION).fetch(url, { signal: AbortSignal.timeout(FAVICON_FETCH_TIMEOUT_MS) });
+    return await iconResponseToDataUrl(res, FAVICON_MAX_BYTES);
+  } catch {
+    return undefined;
+  }
+}
+/** 지금 보는 내 탭을 북마크하거나, 이미 있으면 지운다(별표·⌘D). 북마크할 때 사이트 아이콘도 남긴다(G1) */
+const toggleBookmark = async () => {
   const page = human?.activePage();
   if (!page) return;
   const hit = findByUrl(bookmarks, page.url);
-  setBookmarks(hit ? removeBookmark(bookmarks, hit.id) : addBookmark(bookmarks, page));
+  if (hit) return setBookmarks(removeBookmark(bookmarks, hit.id));
+  const icon = await faviconData(page.favicon);
+  setBookmarks(addBookmark(bookmarks, { url: page.url, title: page.title, icon }));
 };
 const openBookmark = (id: string, newTab: boolean) => {
   const b = findById(bookmarks, id);
@@ -184,16 +206,34 @@ const exportBookmarksFile = async () => {
     human?.toast('북마크 파일을 저장하지 못했습니다');
   }
 };
-/** 북마크 막대의 폴더를 누르거나 항목을 오른쪽 클릭했다: 그 자리에 메뉴를 띄운다 */
-const bookmarkPopup = (id: string, x: number, y: number) => {
-  const b = findById(bookmarks, id);
-  if (!b || !human) return;
-  const remove = () => setBookmarks(removeBookmark(bookmarks, id));
-  const items: MenuItemConstructorOptions[] = isFolder(b)
-    ? [...bookmarkMenuItems(b.children, (child) => openBookmark(child, false)), { type: 'separator' }, { label: '폴더 삭제', click: remove }]
-    : [{ label: '열기', click: () => openBookmark(id, false) }, { label: '새 탭에서 열기', click: () => openBookmark(id, true) }, { type: 'separator' }, { label: '삭제', click: remove }];
-  Menu.buildFromTemplate(items).popup({ window: human.win, x: Math.round(x), y: Math.round(y) });
+/** 마지막으로 띄운 팝업 메뉴(시험 진단 clickPopup이 누른다) */
+let lastPopup: Menu | undefined;
+/** 사람 창 안 좌표에 팝업 메뉴를 띄운다 */
+const popupAt = (items: MenuItemConstructorOptions[], x: number, y: number) => {
+  if (!human) return;
+  lastPopup = Menu.buildFromTemplate(items);
+  lastPopup.popup({ window: human.win, x: Math.round(x), y: Math.round(y) });
 };
+/** 북마크 막대: 폴더를 누르면(context false) 하위 목록, 오른쪽 클릭이면 열기·옮기기·이름·새 폴더·삭제 메뉴를 그 자리에(G2) */
+const bookmarkPopup = (id: string | null, x: number, y: number, context: boolean) => {
+  if (!human) return;
+  const b = id === null ? undefined : findById(bookmarks, id);
+  let items: MenuItemConstructorOptions[];
+  if (!context && b && isFolder(b)) {
+    items = b.children.length ? bookmarkMenuItems(b.children, (child) => openBookmark(child, false)) : [{ label: '(비어 있음)', enabled: false }];
+  } else {
+    items = bookmarkContextMenu(bookmarks, b ? b.id : null, {
+      open: openBookmark,
+      move: (nodeId, folderId) => setBookmarks(moveNode(bookmarks, nodeId, folderId)),
+      rename: (nodeId) => { const n = findById(bookmarks, nodeId); if (n) human?.promptBookmarkName({ mode: 'rename', id: nodeId, title: n.title }); },
+      remove: (nodeId) => setBookmarks(removeBookmark(bookmarks, nodeId)),
+      newFolder: () => human?.promptBookmarkName({ mode: 'newFolder' }),
+    });
+  }
+  popupAt(items, x, y);
+};
+/** 테마 버튼 아래 메뉴(셀렉트 대신, G4) */
+const themeMenu = (x: number, y: number) => popupAt(themePopupMenu(theme, setTheme), x, y);
 /** 사람이 패널이나 메뉴에서 모드를 골랐다. 바로 바꾸고 settings.json에 남긴다 */
 const setTheme = (mode: ThemeMode) => {
   if (mode === theme) return;
@@ -232,6 +272,18 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
     case 'update': {
       const s = updater?.state() ?? { state: 'none' };
       return { type: 'update', ...s };
+    }
+    case 'clickPopup': {
+      let menu = lastPopup;
+      let item: MenuItem | undefined;
+      for (const label of m.path) {
+        item = menu?.items.find((i) => i.label === label);
+        if (!item) return { type: 'error', message: `팝업에 없는 항목: ${label} (있는 것: ${menu?.items.map((i) => i.label).filter(Boolean).join(', ') ?? '팝업 없음'})` };
+        menu = item.submenu ?? undefined;
+      }
+      if (human) lastPopup?.closePopup(human.win);
+      item?.click();
+      return { type: 'done' };
     }
     case 'clickMenu': {
       const item = Menu.getApplicationMenu()?.getMenuItemById(m.id);
@@ -374,9 +426,13 @@ app.whenReady().then(() => {
     },
     setTheme,
     installUpdate: () => updater?.install(),
-    toggleBookmark,
+    toggleBookmark: () => void toggleBookmark(),
     openBookmark,
     bookmarkPopup,
+    bookmarkMove: (id, folderId) => setBookmarks(moveNode(bookmarks, id, folderId)),
+    bookmarkRename: (id, title) => setBookmarks(renameNode(bookmarks, id, title)),
+    bookmarkNewFolder: (title) => setBookmarks(addFolder(bookmarks, title)),
+    themeMenu,
   }, {
     initial: readSettings(app.getPath('userData')).followAgents,
     save: (on) => writeSettings(app.getPath('userData'), { ...readSettings(app.getPath('userData')), followAgents: on }),

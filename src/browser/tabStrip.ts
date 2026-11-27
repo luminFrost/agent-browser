@@ -18,6 +18,8 @@ interface Tab {
   failedUrl?: string;
   /** 오류 페이지를 보이는 동안 탭 제목(차단됨 / 페이지를 열 수 없음) */
   failedTitle?: string;
+  /** 페이지가 알려 준 사이트 아이콘 주소(북마크가 쓴다. 카드 20261127-bookmark-folders G1) */
+  favicon?: string;
 }
 
 export interface TabStripOptions {
@@ -136,6 +138,9 @@ export class TabStrip {
     return id;
   }
 
+  /** 탭이 알려 준 사이트 아이콘 주소 */
+  favicon(id: number): string | undefined { return this.find(id)?.favicon; }
+
   /** 탭을 같은 주소로 하나 더 연다. 바로 옆에 둔다(⇧⌘K, 카드 20261125-tab-usability) */
   duplicate(id = this.activeId): number | undefined {
     const tab = id === null ? undefined : this.find(id);
@@ -243,6 +248,7 @@ export class TabStrip {
         title: this.isErrorPage(t) ? (t.failedTitle ?? FAILED_TITLE) : t.view.webContents.getTitle(),
         url: this.displayUrl(t),
         loading: t.view.webContents.isLoading(),
+        ...(t.favicon ? { favicon: t.favicon } : {}),
       })),
       activeId: this.activeId,
       canGoBack: history?.canGoBack() ?? false,
@@ -308,10 +314,12 @@ export class TabStrip {
     wc.on('did-start-loading', update);
     wc.on('did-stop-loading', update);
     wc.on('page-title-updated', update);
+    wc.on('page-favicon-updated', (_e, favicons) => { tab.favicon = favicons[0]; update(); });
     wc.on('did-navigate', update);
     wc.on('did-navigate-in-page', update);
     wc.on('did-start-navigation', (details) => {
       if (details.isMainFrame && !details.url.startsWith(ERROR_PAGE_URL)) { tab.failedUrl = undefined; tab.failedTitle = undefined; }
+      if (details.isMainFrame && !details.isSameDocument) tab.favicon = undefined;
     });
     wc.on('did-fail-load', (_e, code, description, validatedURL, isMainFrame) => {
       if (!isMainFrame || code === ERR_ABORTED || validatedURL.startsWith(ERROR_PAGE_URL)) return;

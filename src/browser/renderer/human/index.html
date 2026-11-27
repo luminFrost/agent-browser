@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:">
   <link rel="stylesheet" href="human.css">
   <title>agent-browser</title>
 </head>
@@ -19,12 +19,11 @@
     <input id="address" name="address" autocomplete="off" spellcheck="false" placeholder="주소 입력">
     <span id="loading" hidden>불러오는 중…</span>
     <button type="button" id="bookmark-star" title="이 페이지 북마크 (⌘D)" aria-pressed="false">☆</button>
-    <label id="theme-button" title="테마">
-      <span class="icon" aria-hidden="true">◐</span>
-      <select id="theme" aria-label="테마"><option value="system">시스템 설정</option><option value="light">라이트</option><option value="dark">다크</option></select>
-    </label>
+    <button type="button" id="theme-button" title="테마" aria-label="테마" aria-haspopup="menu" data-mode="system"><span class="icon" aria-hidden="true">◐</span></button>
   </form>
   <div id="bookmarks" aria-label="북마크">
+    <input id="bookmark-name" hidden autocomplete="off" spellcheck="false">
+    <span id="bookmark-items"></span>
     <span id="bookmarks-empty">☆ 또는 ⌘D로 지금 페이지를 북마크합니다</span>
   </div>
   <p id="view-empty" hidden>이 세션에 열린 탭이 없습니다</p>
