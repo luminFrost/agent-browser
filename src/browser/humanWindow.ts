@@ -4,7 +4,7 @@ import { isHumanUiUrl } from './humanUiGuard';
 import { join } from 'node:path';
 import { TabStrip } from './tabStrip';
 import { SHARED_PARTITION } from '../shared/constants';
-import type { HumanCommand, HumanToolbarState, SessionView } from '../shared/tabState';
+import type { FindView, HumanCommand, HumanToolbarState, SessionView } from '../shared/tabState';
 import type { ApprovalView } from '../shared/approval';
 import type { ContentArea } from './agentSession';
 import type { Rect } from '../shared/ipc';
@@ -13,6 +13,7 @@ import type { UpdateState } from './update';
 import type { TabAction } from './appMenu';
 import type { BookmarkNode } from './bookmarks';
 import { pageContextMenu, viewingContextMenu, type PageMenuParams } from './pageMenu';
+import { stepZoom, zoomCss, zoomHost, zoomPercent } from './zoom';
 
 /** 어두운 모드 탭 막대 색(Chrome Google Grey 900). human.css의 --frame 어두운 값과 같다 */
 export const DARK_FRAME_COLOR = '#202124';
@@ -82,6 +83,8 @@ export interface HumanWindow {
   showUpdate(state: UpdateState): void;
   /** 사람이 세션 탭을 오른쪽 클릭했다. 그 세션의 보이는 탭이면 "검사"만 띄운다(카드 20261127-page-devtools D4) */
   sessionRightClick(sessionId: string, contents: Electron.WebContents, x: number, y: number): void;
+  /** 찾기 상태(시험 진단 findState, 카드 20261128-find-zoom) */
+  findState(): { active: boolean; searched: ('human' | 'session' | 'other')[]; cleared: number };
 }
 
 export interface HumanWindowEvents {
@@ -111,8 +114,10 @@ export interface HumanWindowEvents {
 
 /** 따라 보기 설정을 읽고 남기는 곳(프로필의 settings.json) */
 export interface FollowStore { initial: boolean; save(on: boolean): void }
+/** 사이트(host)별 배율을 읽고 남기는 곳(프로필의 zoom.json, 카드 20261128-find-zoom Z2). 없으면 1 */
+export interface ZoomStore { get(host: string): number; set(host: string, factor: number): void }
 
-export function createHumanWindow(show: boolean, events: HumanWindowEvents, followStore: FollowStore): HumanWindow {
+export function createHumanWindow(show: boolean, events: HumanWindowEvents, followStore: FollowStore, zoomStore: ZoomStore): HumanWindow {
   const win = new BrowserWindow({
     width: 1280,
     height: 860,
@@ -139,7 +144,9 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
   const toolbarState = (): HumanToolbarState => {
     const strip = viewing === null ? undefined : sessions.get(viewing);
     const viewingLabel = lastSessions.find((x) => x.sessionId === viewing)?.label;
-    return strip ? { ...strip.viewState(), viewing, ...(viewingLabel !== undefined ? { viewingLabel } : {}) } : { ...tabs.state(), viewing: null };
+    if (strip) return { ...strip.viewState(), viewing, ...(viewingLabel !== undefined ? { viewingLabel } : {}), zoom: 100 };
+    const active = activeHuman();
+    return { ...tabs.state(), viewing: null, zoom: active ? zoomPercent(factorOf(active)) : 100 };
   };
   const sendToolbar = () => { if (!win.isDestroyed()) win.webContents.send('human:state', toolbarState()); };
 
@@ -240,11 +247,112 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
   const tabs = new TabStrip(win, {
     partition: SHARED_PARTITION,
     ...CONTENT_AREA,
-    onChange: () => { if (viewing === null) sendToolbar(); },
+    onChange: () => { if (viewing === null) { closeFindIfMoved(); sendToolbar(); } },
     onLayout: restack,
     onTabFocus: tabFocused, // 세션을 보는 동안 숨은 사람 탭(window.open 등)도 같다
-    onTabCreated: (contents) => contents.on('context-menu', (_e, p) => humanContextMenu(contents, p)),
+    onTabCreated: (contents) => {
+      contents.on('context-menu', (_e, p) => humanContextMenu(contents, p));
+      // 찾기: 이 탭에서 찾는 중이면 결과를 막대에 보이고, 이동하면 닫는다(F1·F2)
+      contents.on('found-in-page', (_e, r) => {
+        // 마지막으로 보낸 찾기의 결과만 보인다(늦게 온 앞 글자 결과는 버린다)
+        if (contents === findTarget && r.requestId === findRequestId && r.finalUpdate) sendFind({ open: true, active: r.activeMatchOrdinal, matches: r.matches });
+      });
+      contents.on('did-start-navigation', (d) => { if (findOpen && contents === findTab && d.isMainFrame && !d.isSameDocument) closeFind(); });
+      // 확대: 문서가 새로 준비될 때마다 그 사이트 배율을 다시 넣는다(넣은 CSS는 문서와 함께 사라진다, Z2)
+      contents.on('dom-ready', () => { zoomKeys.delete(contents.id); applyZoom(contents); });
+      contents.once('destroyed', () => zoomKeys.delete(contents.id));
+    },
   });
+
+  /**
+   * 페이지 안 찾기(카드 20261128-find-zoom F1·F2, DOC-02-FS 15장 4절). 내 탭에만 한다(D-7): 세션을 보는 중에는 막대를 열지 않고
+   * 찾지도 않는다. 찾는 탭은 하나(findTarget)이고 탭 바꾸기·이동·세션 보기·닫기(Esc·✕)면 강조를 지우고 막대를 닫는다
+   */
+  /** 막대가 열려 있는지와 연 탭(글자가 없어도 탭 바꾸기·이동이면 닫는다), 강조가 남은 탭(findTarget) */
+  let findOpen = false;
+  let findTab: Electron.WebContents | undefined;
+  let findTarget: Electron.WebContents | null = null;
+  let findText = '';
+  let findRequestId = 0;
+  /** 시험 진단 findState: findInPage를 부른 탭, 강조를 지운 횟수 */
+  const findSearched = new Set<number>();
+  let findCleared = 0;
+  const sendFind = (f: FindView) => { if (!win.isDestroyed()) win.webContents.send('human:find', f); };
+  const activeHuman = () => (viewing === null ? tabs.shownView()?.webContents : undefined);
+  const stopFind = () => {
+    if (findTarget && !findTarget.isDestroyed()) { findTarget.stopFindInPage('clearSelection'); findCleared++; }
+    findTarget = null;
+  };
+  const closeFind = () => {
+    stopFind();
+    findText = '';
+    if (!findOpen) return;
+    findOpen = false;
+    findTab = undefined;
+    sendFind({ open: false });
+  };
+  /** 연 탭이 이제 보이는 내 탭이 아니면(탭 바꾸기·닫기) 닫는다 */
+  const closeFindIfMoved = () => { if (findOpen && findTab !== activeHuman()) closeFind(); };
+  const findIn = (text: string, forward: boolean, next: boolean) => {
+    const contents = activeHuman();
+    if (!contents || contents.isDestroyed()) return;
+    if (text === '') { stopFind(); findText = ''; findOpen = true; findTab = contents; sendFind({ open: true }); return; }
+    // 새 글자·새 탭이면 새로 찾기(findNext true), 같은 글자의 다음·이전이면 이어서(Electron FindInPageOptions)
+    const fresh = !next || text !== findText || contents !== findTarget;
+    if (findTarget && findTarget !== contents) stopFind();
+    findOpen = true;
+    findTab = contents;
+    findTarget = contents;
+    findText = text;
+    findSearched.add(contents.id);
+    findRequestId = contents.findInPage(text, { forward, findNext: fresh });
+  };
+  const openFind = () => {
+    const contents = activeHuman();
+    if (!contents || win.isDestroyed()) return; // 세션을 보는 중에는 열지 않는다(D-7)
+    findOpen = true;
+    findTab = contents;
+    win.webContents.focus();
+    sendFind({ open: true, focus: true });
+  };
+  const findAgain = (forward: boolean) => {
+    if (viewing !== null) return;
+    if (findText === '' || !findTarget) return openFind();
+    findIn(findText, forward, true);
+  };
+
+  /**
+   * 확대·축소(카드 20261128-find-zoom Z1·Z2, D-8): 사람 탭 문서에만 CSS zoom을 넣는다. Chromium 배율과 달리 같은 사이트의
+   * 에이전트 탭에 번지지 않는다. 배율은 사이트(host)마다 zoomStore에 남는다
+   */
+  const zoomKeys = new Map<number, Promise<string>>();
+  const factorOf = (contents: Electron.WebContents) => { const host = zoomHost(contents.getURL()); return host === undefined ? 1 : zoomStore.get(host); };
+  const applyZoom = (contents: Electron.WebContents) => {
+    if (contents.isDestroyed()) return;
+    const old = zoomKeys.get(contents.id);
+    zoomKeys.delete(contents.id);
+    if (old) void old.then((key) => (contents.isDestroyed() ? undefined : contents.removeInsertedCSS(key))).catch(() => undefined);
+    const css = zoomCss(factorOf(contents));
+    if (css === undefined) return;
+    const key = contents.insertCSS(css, { cssOrigin: 'user' });
+    key.catch(() => undefined);
+    zoomKeys.set(contents.id, key);
+  };
+  const changeZoom = (dir: 1 | -1 | 0) => {
+    const contents = activeHuman();
+    if (!contents) return; // 세션을 보는 중에는 하지 않는다(D-7)
+    const host = zoomHost(contents.getURL());
+    if (host === undefined) return;
+    const factor = dir === 0 ? 1 : stepZoom(zoomStore.get(host), dir);
+    zoomStore.set(host, factor);
+    // 같은 사이트를 연 내 탭은 모두 같은 배율(Chrome과 같다). 에이전트 탭은 건드리지 않는다
+    for (const id of tabs.webContentsIds) {
+      const c = webContents.fromId(id);
+      if (c && zoomHost(c.getURL()) === host) applyZoom(c);
+    }
+    sendToolbar();
+    if (!win.isDestroyed()) win.webContents.send('human:zoomNotice', zoomPercent(factor));
+  };
 
   /**
    * 개발자도구(카드 20261127-page-devtools, ADR-0011): 지금 보이는 탭(내 탭 또는 보는 세션의 탭)에 별도 창(detach)으로 연다.
@@ -320,6 +428,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
   const setViewing = (sessionId: string | null) => {
     if (sessionId !== null && !sessions.has(sessionId)) return;
     if (viewing !== null && viewing !== sessionId) closeSessionDevTools(viewing); // 보던 세션을 떠나면 그 세션 탭의 개발자도구를 닫는다(D2)
+    if (sessionId !== null) closeFind(); // 세션을 보면 찾기를 닫는다(F2)
     if (viewing !== null) sessions.get(viewing)?.setShown(false);
     viewing = sessionId;
     if (sessionId === null) tabs.setShown(true);
@@ -354,6 +463,9 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
       case 'bookmarkRename': return typeof c.title === 'string' ? events.bookmarkRename(c.id, c.title) : undefined;
       case 'bookmarkNewFolder': return typeof c.title === 'string' ? events.bookmarkNewFolder(c.title) : undefined;
       case 'themeMenu': return events.themeMenu(c.x, c.y);
+      case 'find': return typeof c.text === 'string' && viewing === null ? findIn(c.text, c.forward !== false, c.next === true) : undefined;
+      case 'findClose': return closeFind();
+      case 'zoomReset': return changeZoom(0);
     }
     if (viewing !== null) {
       // 세션을 보는 중에는 읽기 전용이다(E3). 탭 막대에서 보는 탭을 고르는 것만 된다. 주인의 활성 탭은 바꾸지 않는다.
@@ -410,6 +522,12 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     if (a === 'focusAddress') return focusAddress();
     // 개발자도구는 보는 세션의 탭에도 연다(보기만 하는 도구, F-HW-13)
     if (a === 'devtools') return toggleDevTools();
+    // 찾기·확대는 내 탭에만(D-7). 아래 읽기 전용 검사와 같이 세션을 보는 중이면 하지 않는다
+    if (viewing === null) {
+      if (a === 'find') return openFind();
+      if (a === 'findNext' || a === 'findPrev') return findAgain(a === 'findNext');
+      if (a === 'zoomIn' || a === 'zoomOut' || a === 'zoomReset') return changeZoom(a === 'zoomIn' ? 1 : a === 'zoomOut' ? -1 : 0);
+    }
     // 세션을 보는 중에는 읽기 전용이다(E3): 나머지 탭 동작은 내 탭에도 그 세션에도 하지 않는다
     if (viewing !== null) return;
     if (typeof a === 'object') return tabs.activateNth(a.selectTab);
@@ -504,6 +622,12 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     restack,
     tabFocused,
     sessionRightClick,
+    findState: () => {
+      // 부른 탭이 어느 묶음에 있는지로 가른다(코드가 세션 탭에 찾으면 session으로 드러난다)
+      const kind = (id: number) => (tabs.webContentsIds.includes(id) ? 'human' as const
+        : [...sessions.values()].some((s) => s.webContentsIds.includes(id)) ? 'session' as const : 'other' as const);
+      return { active: findTarget !== null, searched: [...new Set([...findSearched].map(kind))], cleared: findCleared };
+    },
     focusUi: () => {
       humanFocus = win.webContents;
       setImmediate(() => { if (!win.isDestroyed()) win.webContents.focus(); }); // 키 이벤트 안에서 바로 옮기면 먹히지 않는다(ADR-0009 3-1)

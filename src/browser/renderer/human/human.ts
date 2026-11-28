@@ -1,7 +1,7 @@
 // 사람 창 UI (주소창·탭 막대). 모듈이 아닌 스크립트로 읽힌다.
 interface HumanTabView { id: number; title: string; url: string; loading: boolean; favicon?: string }
 /** viewing이 있으면 그 세션의 탭을 보는 중이다(읽기 전용, spec-embedded-sessions) */
-interface HumanState { tabs: HumanTabView[]; activeId: number | null; canGoBack: boolean; canGoForward: boolean; viewing: string | null; viewingLabel?: string }
+interface HumanState { tabs: HumanTabView[]; activeId: number | null; canGoBack: boolean; canGoForward: boolean; viewing: string | null; viewingLabel?: string; zoom: number }
 interface HumanApprovalView { id: string; sessionId: string; host: string; kind: 'form' | 'download'; detail?: string; expiresAt: number }
 /** 북마크(카드 20261125-bookmarks): 링크는 url, 폴더는 children */
 interface HumanBookmark { id: string; title: string; url?: string; icon?: string; children?: HumanBookmark[] }
@@ -19,6 +19,8 @@ interface Window {
     onBookmarks(listener: (nodes: HumanBookmark[]) => void): void;
     onToast(listener: (text: string) => void): void;
     onBookmarkPrompt(listener: (p: { mode: 'newFolder' } | { mode: 'rename'; id: string; title: string }) => void): void;
+    onFind(listener: (f: { open: boolean; focus?: boolean; active?: number; matches?: number }) => void): void;
+    onZoomNotice(listener: (percent: number) => void): void;
   };
 }
 
@@ -90,6 +92,69 @@ interface Window {
     forward.disabled = !s.canGoForward;
     activeUrl = viewing === null ? (active?.url ?? '') : '';
     showStar();
+    // 배율(Z1): 100%가 아니면 돋보기. 세션을 보는 중에는 숨긴다
+    zoomBtn.hidden = viewing !== null || s.zoom === 100;
+    zoomBtn.title = `배율 ${s.zoom}% · 누르면 100% (⌘0)`;
+    if (zoomBtn.hidden) zoomNotice.hidden = true;
+  });
+
+  // 확대·축소(카드 20261128-find-zoom Z1, SCR-14)
+  const zoomBtn = byId<HTMLButtonElement>('zoom-button');
+  const zoomNotice = byId<HTMLDivElement>('zoom-notice');
+  /** "125% · 재설정"을 보이는 시간(DOC-03-UI SCR-14) */
+  const ZOOM_NOTICE_MS = 2000;
+  /** 알림 상자를 돋보기 아래 얼마나 띄우고, 창 왼쪽 끝에서 얼마나 떨어뜨릴지(px) */
+  const ZOOM_NOTICE_GAP = 2;
+  const ZOOM_NOTICE_EDGE = 8;
+  let zoomTimer: number | undefined;
+  zoomBtn.addEventListener('click', () => api.command({ cmd: 'zoomReset' }));
+  zoomNotice.querySelector('.reset')?.addEventListener('click', () => api.command({ cmd: 'zoomReset' }));
+  api.onZoomNotice((percent) => {
+    (zoomNotice.querySelector('.pct') as HTMLSpanElement).textContent = `${percent}%`;
+    zoomNotice.hidden = false;
+    // 돋보기 아래(100%로 돌아와 돋보기가 숨으면 별 아래). 머리 안에 머문다
+    const anchor = (zoomBtn.hidden ? byId<HTMLButtonElement>('bookmark-star') : zoomBtn).getBoundingClientRect();
+    // 자리는 눌린 단추에 따라 바뀌어 CSS 파일로 정할 수 없다. CSSOM으로 넣는다(CSP style-src 'self'는 style 속성만 막는다)
+    zoomNotice.style.top = `${anchor.bottom + ZOOM_NOTICE_GAP}px`;
+    zoomNotice.style.left = `${Math.max(ZOOM_NOTICE_EDGE, anchor.right - zoomNotice.offsetWidth)}px`;
+    clearTimeout(zoomTimer);
+    zoomTimer = window.setTimeout(() => { zoomNotice.hidden = true; }, ZOOM_NOTICE_MS);
+  });
+
+  // 페이지 안 찾기(카드 20261128-find-zoom F1·F2, SCR-13). 찾기·결과는 main이 내 탭에 한다
+  const findForm = byId<HTMLFormElement>('find');
+  const findText = byId<HTMLInputElement>('find-text');
+  const findCount = byId<HTMLSpanElement>('find-count');
+  const findNow = (next: boolean, forward = true) => api.command({ cmd: 'find', text: findText.value, forward, next });
+  const showCount = (active?: number, matches?: number) => {
+    const empty = findText.value === '' || matches === undefined;
+    findCount.hidden = empty;
+    findCount.textContent = empty ? '' : `${matches === 0 ? 0 : (active ?? 0)}/${matches}`;
+    findForm.classList.toggle('none', !empty && matches === 0);
+  };
+  findText.addEventListener('input', () => { showCount(); findNow(false); });
+  findText.addEventListener('keydown', (e) => {
+    // 한글 입력 조합 중의 Enter는 글자를 끝내는 것이지 다음 찾기가 아니다
+    if (e.isComposing) return;
+    if (e.key === 'Enter') { e.preventDefault(); if (findText.value !== '') findNow(true, !e.shiftKey); }
+    if (e.key === 'Escape') { e.preventDefault(); api.command({ cmd: 'findClose' }); }
+  });
+  findForm.addEventListener('submit', (e) => e.preventDefault());
+  byId<HTMLButtonElement>('find-next').addEventListener('click', () => { if (findText.value !== '') findNow(true, true); });
+  byId<HTMLButtonElement>('find-prev').addEventListener('click', () => { if (findText.value !== '') findNow(true, false); });
+  byId<HTMLButtonElement>('find-close').addEventListener('click', () => api.command({ cmd: 'findClose' }));
+  api.onFind((f) => {
+    if (!f.open) {
+      findForm.hidden = true;
+      findText.value = '';
+      showCount();
+      if (document.activeElement === findText) findText.blur();
+      return;
+    }
+    findForm.hidden = false;
+    if (f.focus) { findText.focus(); findText.select(); }
+    if (f.matches !== undefined) showCount(f.active, f.matches);
+    else if (findText.value === '') showCount();
   });
 
   // 북마크(카드 20261125-bookmarks): 별표는 지금 페이지가 북마크에 있는지, 막대는 맨 위 단계 항목

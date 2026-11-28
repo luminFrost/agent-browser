@@ -17,6 +17,7 @@ import { iconResponseToDataUrl } from './favicon';
 import {
   addBookmark, addFolder, findById, findByUrl, isFolder, moveNode, readBookmarks, removeBookmark, renameNode, writeBookmarks, type BookmarkNode,
 } from './bookmarks';
+import { readZoom, writeZoom, zoomCss } from './zoom';
 import type { BrowserReply, LauncherToBrowser, WindowInfo } from '../shared/ipc';
 
 const QUARANTINE_DIR_NAME = 'quarantine';
@@ -220,6 +221,17 @@ const popupAt = (items: MenuItemConstructorOptions[], x: number, y: number) => {
   popupWaiter?.(lastPopup);
   popupWaiter = undefined;
 };
+/** 사이트별 배율(zoom.json, 카드 20261128-find-zoom Z2). 읽기는 켤 때 한 번, 바뀌면 바로 쓴다(쓰기 실패면 이번 실행만) */
+const zoomStore = (profileDir: string) => {
+  const zooms = readZoom(profileDir);
+  return {
+    get: (host: string) => zooms.get(host) ?? 1,
+    set: (host: string, factor: number) => {
+      if (zoomCss(factor) === undefined) zooms.delete(host); else zooms.set(host, factor);
+      writeZoom(profileDir, zooms);
+    },
+  };
+};
 /** 개발자도구가 열린 탭(시험·진단 pageTools, 카드 20261127-page-devtools) */
 const pageTools = (): BrowserReply => {
   const shownId = human?.shown().contentsId;
@@ -331,6 +343,8 @@ const handle = async (m: LauncherToBrowser): Promise<BrowserReply | undefined> =
     }
     case 'pageTools':
       return pageTools();
+    case 'findState':
+      return human ? { type: 'findState', ...human.findState() } : { type: 'error', message: '사람 창이 없다' };
     case 'clipboard':
       return { type: 'clipboard', text: await clipboard.readText() };
     case 'contextMenu': {
@@ -477,7 +491,7 @@ app.whenReady().then(() => {
   }, {
     initial: readSettings(app.getPath('userData')).followAgents,
     save: (on) => writeSettings(app.getPath('userData'), { ...readSettings(app.getPath('userData')), followAgents: on }),
-  });
+  }, zoomStore(app.getPath('userData')));
   human.showTheme(theme);
   human.showBookmarks(bookmarks);
   // 업데이트를 누르면 설치 스크립트를 띄운 뒤 끝난다. 끝내기 전에 쿠키를 디스크에 쓴다(quit 명령과 같다)

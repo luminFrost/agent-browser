@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { HumanCommand, HumanToolbarState, SessionView } from '../../shared/tabState';
+import type { FindView, HumanCommand, HumanToolbarState, SessionView } from '../../shared/tabState';
 import type { ApprovalView } from '../../shared/approval';
 
 // 샌드박스 preload: 사람 창 UI가 쓸 수 있는 명령만 연다. UI 파일이 아닌 페이지(이 자리에 다른 페이지가 들어온 경우)에는
@@ -35,6 +35,13 @@ if (isHumanUi) contextBridge.exposeInMainWorld('humanApi', {
   /** 잠시 보일 알림(카드 20261125-bookmark-file) */
   onToast: (listener: (text: string) => void) => {
     ipcRenderer.on('human:toast', (_e, text: string) => listener(text));
+  },
+  /** 찾기 막대(카드 20261128-find-zoom F1·F2) */
+  onFind: (listener: (f: FindView) => void) => {
+    ipcRenderer.on('human:find', (_e, f: FindView) => listener(f));
+  },
+  onZoomNotice: (listener: (percent: number) => void) => {
+    ipcRenderer.on('human:zoomNotice', (_e, percent: number) => listener(percent));
   },
   /** 지금 화면 모드(카드 20261123-theme-mode) */
   onTheme: (listener: (mode: string) => void) => {
