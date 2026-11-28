@@ -18,6 +18,7 @@
     <button type="button" id="reload" title="새로고침">↻</button>
     <input id="address" name="address" autocomplete="off" spellcheck="false" placeholder="주소 입력">
     <span id="loading" hidden>불러오는 중…</span>
+    <button type="button" id="zoom-button" hidden title="배율 기본값으로 (⌘0)" aria-label="배율">🔍</button>
     <button type="button" id="bookmark-star" title="이 페이지 북마크 (⌘D)" aria-pressed="false">☆</button>
     <button type="button" id="theme-button" title="테마" aria-label="테마" aria-haspopup="menu" data-mode="system"><span class="icon" aria-hidden="true">◐</span></button>
   </form>
@@ -25,7 +26,15 @@
     <input id="bookmark-name" hidden autocomplete="off" spellcheck="false">
     <span id="bookmark-items"></span>
     <span id="bookmarks-empty">☆ 또는 ⌘D로 지금 페이지를 북마크합니다</span>
+    <form id="find" hidden role="search">
+      <input id="find-text" autocomplete="off" spellcheck="false" placeholder="페이지에서 찾기" aria-label="페이지에서 찾기">
+      <span id="find-count" hidden></span>
+      <button type="button" id="find-prev" title="이전 (⇧⌘G)">▲</button>
+      <button type="button" id="find-next" title="다음 (⌘G)">▼</button>
+      <button type="button" id="find-close" title="닫기 (Esc)">✕</button>
+    </form>
   </div>
+  <div id="zoom-notice" hidden role="status"><span class="pct"></span> · <button type="button" class="reset">재설정</button></div>
   <p id="view-empty" hidden>이 세션에 열린 탭이 없습니다</p>
   <aside id="panel" aria-label="에이전트 세션">
     <section id="update" hidden aria-live="polite">

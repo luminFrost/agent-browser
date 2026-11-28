@@ -14,7 +14,8 @@ export interface ThemeMenu { current: ThemeMode; pick(mode: ThemeMode): void }
 export interface UpdateMenu { check(): void }
 /** 탭 단축키 동작(카드 20261125-tab-usability K2). selectTab은 1~8번째 또는 마지막 */
 export type TabAction = 'newTab' | 'reopenTab' | 'duplicateTab' | 'closeTab' | 'focusAddress' | 'reload' | 'back' | 'forward'
-  | 'nextTab' | 'prevTab' | 'toggleBookmark' | 'importBookmarksFile' | 'exportBookmarksFile' | 'newBookmarkFolder' | 'devtools' | { selectTab: number | 'last' };
+  | 'nextTab' | 'prevTab' | 'toggleBookmark' | 'importBookmarksFile' | 'exportBookmarksFile' | 'newBookmarkFolder' | 'devtools'
+  | 'find' | 'findNext' | 'findPrev' | 'zoomIn' | 'zoomOut' | 'zoomReset' | { selectTab: number | 'last' };
 /** 메뉴의 탭 동작을 부를 곳(사람 창) */
 export interface TabMenu { run(action: TabAction): void }
 /** 메뉴 "북마크" 아래 목록과 고를 때 부를 곳(카드 20261125-bookmarks) */
@@ -118,7 +119,14 @@ export function appMenuTemplate(
   const checkUpdate: MenuItemConstructorOptions = { id: UPDATE_CHECK_MENU_ID, label: '업데이트 확인…', click: () => update.check() };
   const edit: MenuItemConstructorOptions = {
     label: '편집',
-    submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }],
+    submenu: [
+      { role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' },
+      // 페이지 안 찾기: 내 탭에만(카드 20261128-find-zoom F1·F2, D-7)
+      { type: 'separator' },
+      act('find', '찾기…', 'CmdOrCtrl+F', 'find'),
+      act('find-next', '다음 찾기', 'CmdOrCtrl+G', 'findNext'),
+      act('find-prev', '이전 찾기', 'Shift+CmdOrCtrl+G', 'findPrev'),
+    ],
   };
   const view: MenuItemConstructorOptions = {
     label: '보기',
@@ -126,6 +134,12 @@ export function appMenuTemplate(
       act('reload', '새로고침', 'CmdOrCtrl+R', 'reload'),
       act('back', '뒤로', 'CmdOrCtrl+[', 'back'),
       act('forward', '앞으로', 'CmdOrCtrl+]', 'forward'),
+      { type: 'separator' },
+      // 확대·축소: 내 탭에만, 사이트마다 기억(카드 20261128-find-zoom Z1·Z2). ⌘=는 Shift 없이 누르는 ⌘+라 같은 동작의 숨은 항목
+      act('zoom-in', '확대', 'CmdOrCtrl+Plus', 'zoomIn'),
+      { ...act('zoom-in-equal', '확대', 'CmdOrCtrl+=', 'zoomIn'), visible: false },
+      act('zoom-out', '축소', 'CmdOrCtrl+-', 'zoomOut'),
+      act('zoom-reset', '실제 크기', 'CmdOrCtrl+0', 'zoomReset'),
       { type: 'separator' },
       // 지금 보이는 탭(내 탭 또는 보는 세션의 탭)에 별도 창으로 연다. 창 UI에는 열지 않는다(카드 20261127-page-devtools D1·D2)
       act('devtools', '개발자도구', INSPECT_ACCELERATOR, 'devtools'),

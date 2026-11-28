@@ -36,7 +36,9 @@ export type LauncherCommand =
   /** 시험용: 지금 보이는 탭의 (x, y)를 사람이 오른쪽 클릭한 것처럼 보내고(OS 입력 경로) 뜬 메뉴를 돌려준다 */
   | { type: 'contextMenu'; x: number; y: number }
   /** 시험용: 클립보드 글자 */
-  | { type: 'clipboard' };
+  | { type: 'clipboard' }
+  /** 찾기 상태(시험·진단용, 카드 20261128-find-zoom): 찾는 중인지, 이번 실행에서 찾기를 한 탭 종류 */
+  | { type: 'findState' };
 
 export type LauncherToBrowser = LauncherCommand & { rid?: number };
 
@@ -65,6 +67,8 @@ export type BrowserReply =
   /** 뜬 팝업 메뉴 항목(구분선은 label '-') */
   | { type: 'popup'; items: { label: string; enabled: boolean }[] }
   | { type: 'clipboard'; text: string }
+  /** active: 찾기 강조가 남아 있는지(닫으면 false), searched: findInPage를 부른 탭 종류(차례대로, 같은 것은 한 번) */
+  | { type: 'findState'; active: boolean; searched: ('human' | 'session')[] }
   | { type: 'sessionCreated'; sessionId: string; targetId: string }
   | { type: 'tabCreated'; targetId: string }
   | { type: 'done' }
