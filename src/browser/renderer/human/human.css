@@ -153,3 +153,21 @@ body.viewing .tab .close { display: none; }
 .approval .deny { border-color: var(--danger); color: var(--danger); }
 
 .approval .expires { font-size: 11px; opacity: .7; margin: 2px 0 4px; }
+
+/* 찾기 막대(카드 20261128-find-zoom F1, DOC-03-UI SCR-13): 북마크 줄 오른쪽 끝에 덮는다(머리 높이를 바꾸지 않는다) */
+#bookmarks { position: relative; }
+#find { position: absolute; top: 3px; right: 8px; display: flex; align-items: center; gap: 2px; width: 320px; height: 24px; box-sizing: border-box; padding: 0 2px 0 8px; border: 1px solid var(--field-line); border-radius: 6px; background: var(--field); color: var(--field-text); font-size: 13px; }
+#find[hidden] { display: none; }
+#find.none { border-color: var(--danger); }
+#find-text { flex: 1; min-width: 0; height: 20px; padding: 0; border: 0; outline: none; background: none; color: inherit; font: inherit; }
+#find-count { flex: none; font-size: 12px; color: var(--muted); padding: 0 4px; }
+#find-count[hidden] { display: none; }
+#find button { flex: none; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 4px; background: none; color: inherit; font-size: 11px; line-height: 1; cursor: pointer; }
+#find button:hover { background: var(--hover); }
+/* 배율(카드 20261128-find-zoom Z1, SCR-14): 100%가 아닐 때 주소창 오른쪽 돋보기, 바뀌면 그 아래 잠깐 "125% · 재설정" */
+#nav #zoom-button { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 6px; font-size: 14px; line-height: 1; cursor: pointer; }
+#nav #zoom-button[hidden] { display: none; }
+#nav #zoom-button:hover { background: var(--hover); }
+#zoom-notice { position: fixed; z-index: 2; padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); box-shadow: 0 2px 8px #0003; font-size: 13px; white-space: nowrap; }
+#zoom-notice[hidden] { display: none; }
+#zoom-notice .reset { border: 0; padding: 0; background: none; color: var(--session); font: inherit; cursor: pointer; }

@@ -50,13 +50,27 @@ export type HumanCommand =
   /** 새 폴더 */
   | { cmd: 'bookmarkNewFolder'; title: string }
   /** 테마 버튼을 눌렀다: 그 아래 메뉴(G4). x·y는 창 안 좌표 */
-  | { cmd: 'themeMenu'; x: number; y: number };
+  | { cmd: 'themeMenu'; x: number; y: number }
+  /**
+   * 페이지 안 찾기(카드 20261128-find-zoom F1). 글자가 바뀌면 새로 찾고, next면 같은 글자로 다음(forward false면 이전).
+   * 빈 글자면 강조를 지운다. 세션을 보는 중이면 무시한다
+   */
+  | { cmd: 'find'; text: string; forward: boolean; next: boolean }
+  /** 찾기 막대를 닫았다(Esc·✕): 강조를 지운다 */
+  | { cmd: 'findClose' }
+  /** 돋보기·재설정: 지금 사이트를 100%로(카드 20261128-find-zoom Z1) */
+  | { cmd: 'zoomReset' };
+
+/** 찾기 막대에 보일 것. open false면 닫는다, focus면 칸에 커서(이미 열려 있으면 글자 모두 선택) */
+export type FindView = { open: false } | { open: true; focus?: boolean; active?: number; matches?: number };
 
 /** 사람 창 머리(탭 막대·주소창)에 보일 상태. viewing이 있으면 그 세션의 탭을 보는 중이다(읽기 전용) */
 export interface HumanToolbarState extends TabStripState {
   viewing: string | null;
   /** 보는 세션의 이름(없으면 키만 보인다) */
   viewingLabel?: string;
+  /** 지금 내 탭의 배율(%). 세션을 보는 중이거나 기억하지 않는 주소면 100(카드 20261128-find-zoom Z1) */
+  zoom: number;
 }
 
 /** 지켜보기 패널에 보이는 세션 하나(R11) */

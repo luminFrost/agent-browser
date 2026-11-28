@@ -145,3 +145,32 @@ describe('앱 메뉴 개발자도구', () => {
     });
   }
 });
+
+// 카드 20261128-find-zoom F1·Z1: 편집 > 찾기·다음·이전, 보기 > 확대·축소·실제 크기
+describe('앱 메뉴 찾기·확대', () => {
+  for (const platform of ['darwin', 'linux'] as const) {
+    it(`${platform}: 찾기(⌘F·⌘G·⇧⌘G)와 확대(⌘+, ⌘=)·축소(⌘-)·실제 크기(⌘0)가 동작을 부른다`, () => {
+      const ran: string[] = [];
+      const menu = appMenuTemplate(platform, 'Agent Browser', { current: 'system', pick: () => undefined }, { check: () => undefined },
+        { run: (a) => { ran.push(String(a)); } }, NO_BOOKMARKS);
+      type Item = { id?: string; label?: string; accelerator?: string; visible?: boolean; click?: () => void };
+      const sub = (label: string) => menu.find((m) => m.label === label)?.submenu as Item[];
+      const pick = (items: Item[], id: string) => items.find((i) => i.id === id) as Item;
+      const edit = sub('편집');
+      const view = sub('보기');
+      const rows = [
+        [pick(edit, 'find'), '찾기…', 'CmdOrCtrl+F', 'find'],
+        [pick(edit, 'find-next'), '다음 찾기', 'CmdOrCtrl+G', 'findNext'],
+        [pick(edit, 'find-prev'), '이전 찾기', 'Shift+CmdOrCtrl+G', 'findPrev'],
+        [pick(view, 'zoom-in'), '확대', 'CmdOrCtrl+Plus', 'zoomIn'],
+        [pick(view, 'zoom-in-equal'), '확대', 'CmdOrCtrl+=', 'zoomIn'],
+        [pick(view, 'zoom-out'), '축소', 'CmdOrCtrl+-', 'zoomOut'],
+        [pick(view, 'zoom-reset'), '실제 크기', 'CmdOrCtrl+0', 'zoomReset'],
+      ] as const;
+      for (const [item, label, accelerator] of rows) expect([item?.label, item?.accelerator]).toEqual([label, accelerator]);
+      expect(pick(view, 'zoom-in-equal').visible).toBe(false); // ⌘=는 숨은 항목(같은 동작)
+      for (const [item] of rows) item.click?.();
+      expect(ran).toEqual(rows.map((r) => r[3]));
+    });
+  }
+});

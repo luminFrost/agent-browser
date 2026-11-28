@@ -37,6 +37,8 @@ export async function startTestServer(): Promise<TestServer> {
       case '/input': return res.end(html('Input', '<input id="i" style="position:fixed;left:0;top:0;width:100%;height:120px;margin:0;border:0"><script>window.ev = []; for (const t of ["mousedown", "keydown"]) addEventListener(t, () => ev.push(t), true);</script>'));
       // 카드 20261127-page-devtools: 오른쪽 클릭 메뉴 자리(링크 0,0~200,40 / 이미지 0,60~40,100 / 입력 칸 0,120~200,150 / 빈 곳 300,300). 받은 이벤트를 ev에 적는다
       case '/menu': return res.end(html('Menu', '<a id="l" href="/b" style="position:fixed;left:0;top:0;width:200px;height:40px;display:block">link</a><img id="img" src="/icon.png" style="position:fixed;left:0;top:60px;width:40px;height:40px"><input id="t" style="position:fixed;left:0;top:120px;width:200px;height:30px"><script>window.ev = []; for (const t of ["contextmenu", "mousedown"]) addEventListener(t, () => ev.push(t), true);</script>'));
+      // 카드 20261128-find-zoom: 찾기용 글자(apple 3번, 대소문자 섞음)
+      case '/find': return res.end(html('Find', '<p>apple banana Apple cherry</p><p>pineAPPLE grape</p>'));
       case '/a': return res.end(html('Page A', '<h1>A</h1><a id="to-b" href="/b">b</a>'));
       case '/b': return res.end(html('Page B', '<h1>B</h1>'));
       // 카드 20261127-bookmark-folders G1: 사이트 아이콘이 있는 페이지
