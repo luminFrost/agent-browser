@@ -101,8 +101,11 @@ interface Window {
   // 확대·축소(카드 20261128-find-zoom Z1, SCR-14)
   const zoomBtn = byId<HTMLButtonElement>('zoom-button');
   const zoomNotice = byId<HTMLDivElement>('zoom-notice');
-  /** "125% · 재설정"을 보이는 시간(main의 ZOOM_NOTICE_MS와 같은 값, DOC-03-UI SCR-14) */
+  /** "125% · 재설정"을 보이는 시간(DOC-03-UI SCR-14) */
   const ZOOM_NOTICE_MS = 2000;
+  /** 알림 상자를 돋보기 아래 얼마나 띄우고, 창 왼쪽 끝에서 얼마나 떨어뜨릴지(px) */
+  const ZOOM_NOTICE_GAP = 2;
+  const ZOOM_NOTICE_EDGE = 8;
   let zoomTimer: number | undefined;
   zoomBtn.addEventListener('click', () => api.command({ cmd: 'zoomReset' }));
   zoomNotice.querySelector('.reset')?.addEventListener('click', () => api.command({ cmd: 'zoomReset' }));
@@ -111,8 +114,9 @@ interface Window {
     zoomNotice.hidden = false;
     // 돋보기 아래(100%로 돌아와 돋보기가 숨으면 별 아래). 머리 안에 머문다
     const anchor = (zoomBtn.hidden ? byId<HTMLButtonElement>('bookmark-star') : zoomBtn).getBoundingClientRect();
-    zoomNotice.style.top = `${anchor.bottom + 2}px`;
-    zoomNotice.style.left = `${Math.max(8, anchor.right - zoomNotice.offsetWidth)}px`;
+    // 자리는 눌린 단추에 따라 바뀌어 CSS 파일로 정할 수 없다. CSSOM으로 넣는다(CSP style-src 'self'는 style 속성만 막는다)
+    zoomNotice.style.top = `${anchor.bottom + ZOOM_NOTICE_GAP}px`;
+    zoomNotice.style.left = `${Math.max(ZOOM_NOTICE_EDGE, anchor.right - zoomNotice.offsetWidth)}px`;
     clearTimeout(zoomTimer);
     zoomTimer = window.setTimeout(() => { zoomNotice.hidden = true; }, ZOOM_NOTICE_MS);
   });

@@ -84,7 +84,7 @@ export interface HumanWindow {
   /** 사람이 세션 탭을 오른쪽 클릭했다. 그 세션의 보이는 탭이면 "검사"만 띄운다(카드 20261127-page-devtools D4) */
   sessionRightClick(sessionId: string, contents: Electron.WebContents, x: number, y: number): void;
   /** 찾기 상태(시험 진단 findState, 카드 20261128-find-zoom) */
-  findState(): { active: boolean; searched: ('human' | 'session')[] };
+  findState(): { active: boolean; searched: ('human' | 'session' | 'other')[]; cleared: number };
 }
 
 export interface HumanWindowEvents {
@@ -253,8 +253,11 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     onTabCreated: (contents) => {
       contents.on('context-menu', (_e, p) => humanContextMenu(contents, p));
       // 찾기: 이 탭에서 찾는 중이면 결과를 막대에 보이고, 이동하면 닫는다(F1·F2)
-      contents.on('found-in-page', (_e, r) => { if (contents === findTarget && r.finalUpdate) sendFind({ open: true, active: r.activeMatchOrdinal, matches: r.matches }); });
-      contents.on('did-start-navigation', (d) => { if (contents === findTarget && d.isMainFrame && !d.isSameDocument) closeFind(); });
+      contents.on('found-in-page', (_e, r) => {
+        // 마지막으로 보낸 찾기의 결과만 보인다(늦게 온 앞 글자 결과는 버린다)
+        if (contents === findTarget && r.requestId === findRequestId && r.finalUpdate) sendFind({ open: true, active: r.activeMatchOrdinal, matches: r.matches });
+      });
+      contents.on('did-start-navigation', (d) => { if (findOpen && contents === findTab && d.isMainFrame && !d.isSameDocument) closeFind(); });
       // 확대: 문서가 새로 준비될 때마다 그 사이트 배율을 다시 넣는다(넣은 CSS는 문서와 함께 사라진다, Z2)
       contents.on('dom-ready', () => { zoomKeys.delete(contents.id); applyZoom(contents); });
       contents.once('destroyed', () => zoomKeys.delete(contents.id));
@@ -265,37 +268,50 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
    * 페이지 안 찾기(카드 20261128-find-zoom F1·F2, DOC-02-FS 15장 4절). 내 탭에만 한다(D-7): 세션을 보는 중에는 막대를 열지 않고
    * 찾지도 않는다. 찾는 탭은 하나(findTarget)이고 탭 바꾸기·이동·세션 보기·닫기(Esc·✕)면 강조를 지우고 막대를 닫는다
    */
+  /** 막대가 열려 있는지와 연 탭(글자가 없어도 탭 바꾸기·이동이면 닫는다), 강조가 남은 탭(findTarget) */
+  let findOpen = false;
+  let findTab: Electron.WebContents | undefined;
   let findTarget: Electron.WebContents | null = null;
   let findText = '';
-  /** 이번 실행에서 findInPage를 부른 탭 종류(시험 진단 findState) */
-  const findSearched = new Set<'human' | 'session'>();
+  let findRequestId = 0;
+  /** 시험 진단 findState: findInPage를 부른 탭, 강조를 지운 횟수 */
+  const findSearched = new Set<number>();
+  let findCleared = 0;
   const sendFind = (f: FindView) => { if (!win.isDestroyed()) win.webContents.send('human:find', f); };
   const activeHuman = () => (viewing === null ? tabs.shownView()?.webContents : undefined);
   const stopFind = () => {
-    if (findTarget && !findTarget.isDestroyed()) findTarget.stopFindInPage('clearSelection');
+    if (findTarget && !findTarget.isDestroyed()) { findTarget.stopFindInPage('clearSelection'); findCleared++; }
     findTarget = null;
   };
   const closeFind = () => {
     stopFind();
     findText = '';
+    if (!findOpen) return;
+    findOpen = false;
+    findTab = undefined;
     sendFind({ open: false });
   };
-  /** 찾던 탭이 이제 보이는 내 탭이 아니면(탭 바꾸기·닫기) 닫는다 */
-  const closeFindIfMoved = () => { if (findTarget && findTarget !== activeHuman()) closeFind(); };
+  /** 연 탭이 이제 보이는 내 탭이 아니면(탭 바꾸기·닫기) 닫는다 */
+  const closeFindIfMoved = () => { if (findOpen && findTab !== activeHuman()) closeFind(); };
   const findIn = (text: string, forward: boolean, next: boolean) => {
     const contents = activeHuman();
     if (!contents || contents.isDestroyed()) return;
-    if (text === '') { stopFind(); findText = ''; sendFind({ open: true }); return; }
+    if (text === '') { stopFind(); findText = ''; findOpen = true; findTab = contents; sendFind({ open: true }); return; }
     // 새 글자·새 탭이면 새로 찾기(findNext true), 같은 글자의 다음·이전이면 이어서(Electron FindInPageOptions)
     const fresh = !next || text !== findText || contents !== findTarget;
     if (findTarget && findTarget !== contents) stopFind();
+    findOpen = true;
+    findTab = contents;
     findTarget = contents;
     findText = text;
-    findSearched.add('human');
-    contents.findInPage(text, { forward, findNext: fresh });
+    findSearched.add(contents.id);
+    findRequestId = contents.findInPage(text, { forward, findNext: fresh });
   };
   const openFind = () => {
-    if (viewing !== null || win.isDestroyed()) return;
+    const contents = activeHuman();
+    if (!contents || win.isDestroyed()) return; // 세션을 보는 중에는 열지 않는다(D-7)
+    findOpen = true;
+    findTab = contents;
     win.webContents.focus();
     sendFind({ open: true, focus: true });
   };
@@ -606,7 +622,12 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     restack,
     tabFocused,
     sessionRightClick,
-    findState: () => ({ active: findTarget !== null, searched: [...findSearched] }),
+    findState: () => {
+      // 부른 탭이 어느 묶음에 있는지로 가른다(코드가 세션 탭에 찾으면 session으로 드러난다)
+      const kind = (id: number) => (tabs.webContentsIds.includes(id) ? 'human' as const
+        : [...sessions.values()].some((s) => s.webContentsIds.includes(id)) ? 'session' as const : 'other' as const);
+      return { active: findTarget !== null, searched: [...new Set([...findSearched].map(kind))], cleared: findCleared };
+    },
     focusUi: () => {
       humanFocus = win.webContents;
       setImmediate(() => { if (!win.isDestroyed()) win.webContents.focus(); }); // 키 이벤트 안에서 바로 옮기면 먹히지 않는다(ADR-0009 3-1)

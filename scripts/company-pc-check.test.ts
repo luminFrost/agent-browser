@@ -27,6 +27,10 @@ describe('회사 PC 확인표 (R1~R4)', () => {
       expect(check, heading).toMatch(new RegExp(`^## \\d+\\. ${heading.replace(/[+.]/g, '\\$&')}`, 'm'));
     }
     expect(check).toMatch(/\| 결과 \|/);
+    // 같은 장·항목 번호가 두 번 나오면 결과를 반영할 때 어느 줄인지 모른다(카드 20261128-find-zoom 검증 1회차)
+    const twice = (xs: string[]) => xs.filter((x, i) => xs.indexOf(x) !== i);
+    expect(twice([...check.matchAll(/^## (\d+)\./gm)].map((m) => m[1]))).toEqual([]);
+    expect(twice([...check.matchAll(/^\| (\d+-\d+) \|/gm)].map((m) => m[1]))).toEqual([]);
   });
 
   it('R3 dmg 이름·환경 변수·알림 제목이 코드와 같다', () => {

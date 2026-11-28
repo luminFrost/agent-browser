@@ -21,8 +21,8 @@ describe('앱 안 업데이트 문서 (U4)', () => {
   it('setup.md가 앱 안 업데이트를 가리킨다', () => {
     expect(read('docs', 'setup.md')).toContain('ADR-0010');
   });
-  it('회사 PC 확인표 v0.2.10에 12장(테마·업데이트·업데이트 확인 메뉴·탭 크기·단축키·북마크)이 있다', () => {
-    const check = read('docs', 'verify', '20261127-company-pc-check-0.2.10.md');
+  it('지금 회사 PC 확인표(v0.3.0)에 12장(테마·업데이트·업데이트 확인 메뉴·탭 크기·단축키·북마크)이 있다', () => {
+    const check = read('docs', 'verify', '20261128-company-pc-check-0.3.0.md');
     expect(check).toMatch(/^## 12\. v0\.2\.4~v0\.2\.10에서 바뀐 것/m);
     for (const id of ['12-1', '12-4', '12-5', '12-6', '12-7', '12-8', '12-9', '12-10', '12-11', '12-12', '12-13']) expect(check).toMatch(new RegExp(`^\\| ${id} \\|`, 'm'));
   });
@@ -35,7 +35,7 @@ describe('앱 안 업데이트 문서 (U4)', () => {
     }
   });
   it('README와 확인표가 북마크 파일 가져오기·내보내기를 적는다(카드 20261125-bookmark-file F3)', () => {
-    for (const text of [read('README.md'), read('docs', 'verify', '20261127-company-pc-check-0.2.10.md')]) {
+    for (const text of [read('README.md'), read('docs', 'verify', '20261128-company-pc-check-0.3.0.md')]) {
       expect(text).toContain('파일에서 가져오기…');
       expect(text).toContain('파일로 내보내기…');
     }

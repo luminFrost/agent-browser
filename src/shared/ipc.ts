@@ -67,8 +67,11 @@ export type BrowserReply =
   /** 뜬 팝업 메뉴 항목(구분선은 label '-') */
   | { type: 'popup'; items: { label: string; enabled: boolean }[] }
   | { type: 'clipboard'; text: string }
-  /** active: 찾기 강조가 남아 있는지(닫으면 false), searched: findInPage를 부른 탭 종류(차례대로, 같은 것은 한 번) */
-  | { type: 'findState'; active: boolean; searched: ('human' | 'session')[] }
+  /**
+   * active: 찾는 탭이 있는지(닫으면 false), searched: findInPage를 부른 탭이 어느 묶음에 있는지(사람 탭 묶음이면 human,
+   * 세션 묶음이면 session, 차례대로 같은 것은 한 번), cleared: 찾던 탭에 stopFindInPage('clearSelection')를 부른 횟수
+   */
+  | { type: 'findState'; active: boolean; searched: ('human' | 'session' | 'other')[]; cleared: number }
   | { type: 'sessionCreated'; sessionId: string; targetId: string }
   | { type: 'tabCreated'; targetId: string }
   | { type: 'done' }

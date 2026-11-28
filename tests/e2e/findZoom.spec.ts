@@ -81,38 +81,61 @@ test('F2: Esc·✕·탭 바꾸기·이동·세션 보기면 닫고 강조를 지
   app = await launch({ hidden: false });
   await go('/find');
   const open = async (text = 'apple') => { await menu('find'); await waitFor(async () => (await bar()).open, '열림'); await typeFind(text); await countIs(text === 'apple' ? '1/3' : '1/1'); };
+  const findState = () => running().request({ type: 'findState' }, 'findState');
+  /** 닫을 때 강조를 실제로 지웠는지: 찾던 탭에 stopFindInPage('clearSelection')를 부른 횟수가 하나 는다 */
+  const expectCleared = async (before: number) => { const s = await findState(); expect([s.active, s.cleared]).toEqual([false, before + 1]); };
+  // 글자 없이 연 막대도 탭 바꾸기·이동이면 닫는다
+  await menu('find');
+  await waitFor(async () => (await bar()).open, '빈 막대 열림');
+  await menu('new-tab');
+  await waitFor(async () => !(await bar()).open, '빈 막대: 탭 바꾸기로 닫힘');
+  await menu('close-tab');
+  await waitFor(async () => (await ui<string>(`document.querySelector('#tabs .tab.active')?.dataset.title ?? ''`)) === 'Find', '찾기 탭으로');
+  await menu('find');
+  await waitFor(async () => (await bar()).open, '빈 막대 다시 열림');
+  await go('/a');
+  await waitFor(async () => !(await bar()).open, '빈 막대: 이동으로 닫힘');
+  await go('/find');
   // Esc
+  let cleared = (await findState()).cleared;
   await open();
   await key('Escape');
   await waitFor(async () => !(await bar()).open, 'Esc로 닫힘');
-  // 닫은 뒤 ⌘G는 아무것도 하지 않는다(막대를 다시 열고 새로 찾는다)
-  expect((await running().request({ type: 'findState' }, 'findState')).active).toBe(false);
+  await expectCleared(cleared);
   // ✕
+  cleared = (await findState()).cleared;
   await open();
   await ui(`document.querySelector('#find-close').click()`);
   await waitFor(async () => !(await bar()).open, '✕로 닫힘');
-  expect((await running().request({ type: 'findState' }, 'findState')).active).toBe(false);
+  await expectCleared(cleared);
   // 탭 바꾸기
+  cleared = (await findState()).cleared;
   await open();
   await menu('new-tab');
   await waitFor(async () => !(await bar()).open, '새 탭(탭 바꾸기)으로 닫힘');
+  await expectCleared(cleared);
   await menu('close-tab');
   // 이동
   await waitFor(async () => (await ui<string>(`document.querySelector('#tabs .tab.active')?.dataset.title ?? ''`)) === 'Find', '찾기 탭으로');
+  cleared = (await findState()).cleared;
   await open();
   await go('/a');
   await waitFor(async () => !(await bar()).open, '이동으로 닫힘');
-  expect((await running().request({ type: 'findState' }, 'findState')).active).toBe(false);
+  await expectCleared(cleared);
   // 세션 보기
   await go('/find');
   const a = await createSession(running());
   await openAgent(a, '/find');
+  cleared = (await findState()).cleared;
   await open();
   await view(a.id);
   await waitFor(async () => !(await bar()).open, '세션 보기로 닫힘');
+  await expectCleared(cleared);
   // 세션을 보는 중 ⌘F·⌘G는 막대를 열지도, 찾지도 않는다
   await menu('find');
   await menu('find-next');
+  // UI가 찾기 명령을 바로 보내도(막대를 거치지 않아도) main은 세션 탭에 찾지 않는다
+  await ui(`window.humanApi.command({ cmd: 'find', text: 'apple', forward: true, next: false })`);
   await new Promise((r) => setTimeout(r, 300));
   expect((await bar()).open).toBe(false);
   const state = await running().request({ type: 'findState' }, 'findState');
