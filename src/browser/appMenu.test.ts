@@ -127,3 +127,21 @@ describe('테마 메뉴(셀렉트 대신)', () => {
     expect(picked).toEqual(['light']);
   });
 });
+
+// 카드 20261127-page-devtools D1: 보기 > 개발자도구(⌥⌘I)는 탭에 연다. 창 UI를 여는 기본 역할(toggleDevTools)은 두지 않는다
+describe('앱 메뉴 개발자도구', () => {
+  for (const platform of ['darwin', 'linux'] as const) {
+    it(`${platform}: 보기 > 개발자도구 ⌥⌘I는 devtools 동작을 부르고, toggleDevTools 역할은 없다`, () => {
+      const ran: string[] = [];
+      const menu = appMenuTemplate(platform, 'Agent Browser', { current: 'system', pick: () => undefined }, { check: () => undefined },
+        { run: (a) => { ran.push(String(a)); } }, NO_BOOKMARKS);
+      const items = menu.find((m) => m.label === '보기')?.submenu as { id?: string; label?: string; accelerator?: string; role?: string; click?: () => void }[];
+      const devtools = items.find((i) => i.id === 'devtools');
+      expect([devtools?.label, devtools?.accelerator]).toEqual(['개발자도구', 'Alt+CmdOrCtrl+I']);
+      devtools?.click?.();
+      expect(ran).toEqual(['devtools']);
+      const roles = menu.flatMap((m) => (m.submenu as { role?: string }[]).map((i) => i.role)).filter(Boolean);
+      expect(roles).not.toContain('toggleDevTools');
+    });
+  }
+});

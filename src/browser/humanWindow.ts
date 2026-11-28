@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, nativeTheme, type WebContentsView } from 'electron';
+import { BrowserWindow, clipboard, ipcMain, nativeTheme, webContents, type MenuItemConstructorOptions, type WebContentsView } from 'electron';
 import { pathToFileURL } from 'node:url';
 import { isHumanUiUrl } from './humanUiGuard';
 import { join } from 'node:path';
@@ -12,6 +12,7 @@ import { isThemeMode, type ThemeMode } from './settings';
 import type { UpdateState } from './update';
 import type { TabAction } from './appMenu';
 import type { BookmarkNode } from './bookmarks';
+import { pageContextMenu, viewingContextMenu, type PageMenuParams } from './pageMenu';
 
 /** 어두운 모드 탭 막대 색(Chrome Google Grey 900). human.css의 --frame 어두운 값과 같다 */
 export const DARK_FRAME_COLOR = '#202124';
@@ -79,6 +80,8 @@ export interface HumanWindow {
   toast(text: string): void;
   /** 패널 맨 위 업데이트 줄(카드 20261123-update-notice) */
   showUpdate(state: UpdateState): void;
+  /** 사람이 세션 탭을 오른쪽 클릭했다. 그 세션의 보이는 탭이면 "검사"만 띄운다(카드 20261127-page-devtools D4) */
+  sessionRightClick(sessionId: string, contents: Electron.WebContents, x: number, y: number): void;
 }
 
 export interface HumanWindowEvents {
@@ -102,6 +105,8 @@ export interface HumanWindowEvents {
   bookmarkRename(id: string, title: string): void;
   bookmarkNewFolder(title: string): void;
   themeMenu(x: number, y: number): void;
+  /** 창 안 좌표에 팝업 메뉴를 띄운다(오른쪽 클릭 메뉴) */
+  popupMenu(items: MenuItemConstructorOptions[], x: number, y: number): void;
 }
 
 /** 따라 보기 설정을 읽고 남기는 곳(프로필의 settings.json) */
@@ -238,7 +243,59 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     onChange: () => { if (viewing === null) sendToolbar(); },
     onLayout: restack,
     onTabFocus: tabFocused, // 세션을 보는 동안 숨은 사람 탭(window.open 등)도 같다
+    onTabCreated: (contents) => contents.on('context-menu', (_e, p) => humanContextMenu(contents, p)),
   });
+
+  /**
+   * 개발자도구(카드 20261127-page-devtools, ADR-0011): 지금 보이는 탭(내 탭 또는 보는 세션의 탭)에 별도 창(detach)으로 연다.
+   * 창 UI(win.webContents)에는 열지 않는다. 원본 CDP 디버거를 붙이지 않는 Chromium 안쪽 연결이라 TCP 포트를 열지 않고
+   * 에이전트의 대상 목록에도 나오지 않는다(RK-16 시험). 세션 탭은 그 세션을 보는 동안만 연다(나가면 닫는다)
+   */
+  const openDevTools = (contents: Electron.WebContents) => {
+    if (!contents.isDestroyed() && !contents.isDevToolsOpened()) contents.openDevTools({ mode: 'detach' });
+  };
+  const toggleDevTools = () => {
+    const contents = currentShownView()?.webContents;
+    if (!contents || contents.isDestroyed()) return;
+    if (contents.isDevToolsOpened()) contents.closeDevTools(); else openDevTools(contents);
+  };
+  /** 오른쪽 클릭한 자리(탭 안 좌표)를 개발자도구에서 고른다 */
+  const inspectAt = (contents: Electron.WebContents, x: number, y: number) => {
+    if (contents.isDestroyed()) return;
+    openDevTools(contents);
+    contents.inspectElement(Math.round(x), Math.round(y));
+  };
+  const closeSessionDevTools = (sessionId: string) => {
+    for (const id of sessions.get(sessionId)?.webContentsIds ?? []) {
+      const c = webContents.fromId(id);
+      if (c && !c.isDestroyed() && c.isDevToolsOpened()) c.closeDevTools();
+    }
+  };
+  /** 탭 안 좌표 → 창 안 좌표(보이는 탭 자리 기준) */
+  const toWindow = (x: number, y: number) => {
+    const b = currentShownView()?.getBounds() ?? { x: 0, y: CONTENT_AREA.topInset };
+    return { x: b.x + x, y: b.y + y };
+  };
+  /** 내 탭의 오른쪽 클릭 메뉴(D3). 보이는 탭에서 온 것만 띄운다 */
+  const humanContextMenu = (contents: Electron.WebContents, p: PageMenuParams & { x: number; y: number }) => {
+    if (viewing !== null || currentShownView()?.webContents !== contents) return;
+    const history = contents.navigationHistory;
+    const items = pageContextMenu(p, { canGoBack: history.canGoBack(), canGoForward: history.canGoForward() }, {
+      openInNewTab: (url) => { const id = tabs.idOfContents(contents.id); if (id !== undefined) tabs.openBeside(url, id); },
+      copyText: (text) => { Promise.resolve(clipboard.writeText(text)).catch(() => undefined); },
+      back: () => tabs.back(),
+      forward: () => tabs.forward(),
+      reload: () => tabs.reload(),
+      inspect: () => inspectAt(contents, p.x, p.y),
+    });
+    const at = toWindow(p.x, p.y);
+    events.popupMenu(items, at.x, at.y);
+  };
+  const sessionRightClick = (sessionId: string, contents: Electron.WebContents, x: number, y: number) => {
+    if (viewing !== sessionId || currentShownView()?.webContents !== contents) return;
+    const at = toWindow(x, y);
+    events.popupMenu(viewingContextMenu(() => inspectAt(contents, x, y)), at.x, at.y);
+  };
 
   let lastSessions: SessionView[] = [];
   /**
@@ -262,6 +319,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
   /** 보기 대상을 바꾼다. 없는 세션이면 무시한다 */
   const setViewing = (sessionId: string | null) => {
     if (sessionId !== null && !sessions.has(sessionId)) return;
+    if (viewing !== null && viewing !== sessionId) closeSessionDevTools(viewing); // 보던 세션을 떠나면 그 세션 탭의 개발자도구를 닫는다(D2)
     if (viewing !== null) sessions.get(viewing)?.setShown(false);
     viewing = sessionId;
     if (sessionId === null) tabs.setShown(true);
@@ -350,6 +408,8 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
       return;
     }
     if (a === 'focusAddress') return focusAddress();
+    // 개발자도구는 보는 세션의 탭에도 연다(보기만 하는 도구, F-HW-13)
+    if (a === 'devtools') return toggleDevTools();
     // 세션을 보는 중에는 읽기 전용이다(E3): 나머지 탭 동작은 내 탭에도 그 세션에도 하지 않는다
     if (viewing !== null) return;
     if (typeof a === 'object') return tabs.activateNth(a.selectTab);
@@ -443,6 +503,7 @@ export function createHumanWindow(show: boolean, events: HumanWindowEvents, foll
     },
     restack,
     tabFocused,
+    sessionRightClick,
     focusUi: () => {
       humanFocus = win.webContents;
       setImmediate(() => { if (!win.isDestroyed()) win.webContents.focus(); }); // 키 이벤트 안에서 바로 옮기면 먹히지 않는다(ADR-0009 3-1)

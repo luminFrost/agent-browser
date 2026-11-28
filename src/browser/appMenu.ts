@@ -1,6 +1,7 @@
 import type { MenuItemConstructorOptions } from 'electron';
 import { THEME_MODES, type ThemeMode } from './settings';
 import { findById, folderChoices, isFolder, type BookmarkNode } from './bookmarks';
+import { INSPECT_ACCELERATOR } from './pageMenu';
 
 /** 화면 모드 이름(카드 20261123-theme-mode). 주소창 줄 테마 버튼(선택 목록)과 같은 글자 */
 export const THEME_LABELS: Record<ThemeMode, string> = { system: '시스템 설정', light: '라이트', dark: '다크' };
@@ -13,7 +14,7 @@ export interface ThemeMenu { current: ThemeMode; pick(mode: ThemeMode): void }
 export interface UpdateMenu { check(): void }
 /** 탭 단축키 동작(카드 20261125-tab-usability K2). selectTab은 1~8번째 또는 마지막 */
 export type TabAction = 'newTab' | 'reopenTab' | 'duplicateTab' | 'closeTab' | 'focusAddress' | 'reload' | 'back' | 'forward'
-  | 'nextTab' | 'prevTab' | 'toggleBookmark' | 'importBookmarksFile' | 'exportBookmarksFile' | 'newBookmarkFolder' | { selectTab: number | 'last' };
+  | 'nextTab' | 'prevTab' | 'toggleBookmark' | 'importBookmarksFile' | 'exportBookmarksFile' | 'newBookmarkFolder' | 'devtools' | { selectTab: number | 'last' };
 /** 메뉴의 탭 동작을 부를 곳(사람 창) */
 export interface TabMenu { run(action: TabAction): void }
 /** 메뉴 "북마크" 아래 목록과 고를 때 부를 곳(카드 20261125-bookmarks) */
@@ -125,6 +126,9 @@ export function appMenuTemplate(
       act('reload', '새로고침', 'CmdOrCtrl+R', 'reload'),
       act('back', '뒤로', 'CmdOrCtrl+[', 'back'),
       act('forward', '앞으로', 'CmdOrCtrl+]', 'forward'),
+      { type: 'separator' },
+      // 지금 보이는 탭(내 탭 또는 보는 세션의 탭)에 별도 창으로 연다. 창 UI에는 열지 않는다(카드 20261127-page-devtools D1·D2)
+      act('devtools', '개발자도구', INSPECT_ACCELERATOR, 'devtools'),
       { type: 'separator' },
       {
       label: '테마',

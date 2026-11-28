@@ -10,8 +10,9 @@ const pkg = JSON.parse(read('package.json')) as { version: string; build: { dmg:
 const lock = JSON.parse(read('package-lock.json')) as { version: string; packages: { '': { version: string } } };
 const CHECK = join('docs', 'verify', '20261127-company-pc-check-0.2.10.md');
 const check = read(CHECK);
-// 화면 글자: 사람 창 UI와 앱 메뉴(메뉴 이름도 사람이 보는 글자다, 카드 20261123-update-check-now)
-const ui = read('src', 'browser', 'renderer', 'human', 'index.html') + read('src', 'browser', 'renderer', 'human', 'human.ts') + read('src', 'browser', 'appMenu.ts');
+// 화면 글자: 사람 창 UI와 앱 메뉴·오른쪽 클릭 메뉴(메뉴 이름도 사람이 보는 글자다, 카드 20261123-update-check-now)
+const ui = read('src', 'browser', 'renderer', 'human', 'index.html') + read('src', 'browser', 'renderer', 'human', 'human.ts') + read('src', 'browser', 'appMenu.ts')
+  + read('src', 'browser', 'pageMenu.ts'); // 오른쪽 클릭 메뉴 글자(카드 20261127-page-devtools)
 
 describe('회사 PC 확인표 (R1~R4)', () => {
   it('R1 package.json과 lock의 버전이 같고, 확인표가 그 버전을 확인한다', () => {
